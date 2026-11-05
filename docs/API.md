@@ -86,3 +86,41 @@ Svar: `[{ type: "checkin" | "lounge_review", id, user, airport, loungeName | nul
 
 ## Health
 `GET /api/health` -> `{ ok: true, airports: 8799 }`
+
+---
+# v1.1 - Utforska/sök i Untappd-stil
+
+Mappning från Untappd: öl -> flygplats, bryggeri -> land, ölstil -> kategori (kontinent / storlek / delbetyg), venue -> lounge, Top Rated by style -> topplistor per delbetyg.
+
+## Utökad flygplatssökning
+`GET /api/airports?q=&country=SE&continent=EU&type=large|medium|small&minRating=4&visited=any|mine|notmine&sort=relevance|rating|checkins|name&limit=20&offset=0`
+Svar som tidigare men varje objekt får även `avgRating | null, ratingCount, checkins`. `visited` kräver inloggning (annars ignoreras). Utan `q` returneras listning enligt filter (default sort=checkins).
+
+## Länder ("bryggerier")
+| GET | /api/countries?continent=EU | `[{ code: "SE", name: "Sverige", continent, airports, checkins, avgRating | null }]` (landsnamn på svenska via Intl.DisplayNames('sv')) |
+| GET | /api/countries/:code | `{ code, name, continent, airports, checkins, visitors, avgRating, topAirports: [{airport, avgRating, ratingCount, checkins}] (10 st) }` |
+
+## Kategoritopplistor ("Top Rated by style")
+`GET /api/rankings/airports?category=overall|security|cleanliness|food|wifi|transfer|lounges&country=&continent=&type=&minRatings=1&limit=50`
+Lägg till `category` (default overall) - sorterar på respektive delbetygssnitt. Svar `[{ rank, airport, avgRating, ratingCount }]` där avgRating avser vald kategori.
+
+## Lounger
+`GET /api/lounges?q=&iata=&country=&sort=rating|reviews|name&limit=20&offset=0` -> `[Lounge & { airport: AirportSummary }]`
+`GET /api/rankings/lounges?limit=50&minReviews=1` -> `[{ rank, lounge, airport, avgRating, reviewCount }]`
+
+## Användare
+`GET /api/users?q=oli&limit=20` -> `[UserSummary & { uniqueAirports }]`
+
+## Önskelista ("Wishlist")
+| GET | /api/users/:username/wishlist | `[{ airport, addedAt }]` |
+| POST | /api/wishlist | `{iata}` -> 201 (auth) |
+| DELETE | /api/wishlist/:iata | 204 (auth) |
+`GET /api/airports/:iata` får även `onMyWishlist: boolean` och `myVisits: number` när inloggad.
+
+## Märken (Badges)
+`GET /api/users/:username/badges` -> `[{ id, name, description, icon, earnedAt | null, progress: {current, target} }]`
+Märken räknas fram från data (ingen egen tabell krävs): Första check-in, 10/25/50/100 unika flygplatser, 5/15/30 länder, Alla 6 kontinenter (exkl. AN), Transferkung (10 transfer), Loungeexpert (5 loungerecensioner), Hemmaplan (5 besök på hemmaflygplatsen), Recensent (20 check-ins med kommentar), Nordisk resenär (SE, NO, DK, FI, IS).
+Check-in-svar (POST /api/checkins) får fältet `newBadges: Badge[]` med märken som låstes upp av just den check-in:en.
+
+## Flöde
+`GET /api/feed?scope=global|mine&iata=` - scope mine = egna check-ins (auth).
