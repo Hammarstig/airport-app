@@ -28,10 +28,25 @@ export function renderSnippet(s) {
   return escapeHtml(s).split(OPEN).join('<mark>').split(CLOSE).join('</mark>');
 }
 
-function plainSnippet(comment, max = 160) {
+/** Delar en FTS-snippet i segment [{ text, mark }] så att klienten kan rendera utan innerHTML. */
+export function snippetParts(s) {
+  const parts = [];
+  for (const [i, chunk] of s.split(OPEN).entries()) {
+    if (i === 0) {
+      if (chunk) parts.push({ text: chunk, mark: false });
+      continue;
+    }
+    const [marked, ...rest] = chunk.split(CLOSE);
+    if (marked) parts.push({ text: marked, mark: true });
+    const tail = rest.join('');
+    if (tail) parts.push({ text: tail, mark: false });
+  }
+  return parts;
+}
+
+function plainText(comment, max = 160) {
   if (!comment) return '';
-  const s = comment.length > max ? comment.slice(0, max).trimEnd() + ELLIPSIS : comment;
-  return escapeHtml(s);
+  return comment.length > max ? comment.slice(0, max).trimEnd() + ELLIPSIS : comment;
 }
 
 export default function searchRoutes({ db }) {
@@ -68,51 +83,56 @@ export default function searchRoutes({ db }) {
     const common = (tbl) => `
       ${USER_COLS('u', 'u_')}, ${AIRPORT_COLS('a', 'a_')}, ${tbl}.rating, ${tbl}.comment, ${tbl}.visited_on, ${tbl}.created_at`;
 
-    let sql;
-    let params;
-    if (q) {
-      sql = `
-        SELECT * FROM (
-          SELECT 'checkin' AS type, c.id, NULL AS lounge_name, ${common('c')},
-                 snippet(checkins_fts, 0, '${OPEN}', '${CLOSE}', '${ELLIPSIS}', 16) AS snip,
-                 bm25(checkins_fts) AS score
-          FROM checkins_fts
-          JOIN checkins c ON c.id = checkins_fts.rowid
-          JOIN users u ON u.id = c.user_id
-          JOIN airports a ON a.iata = c.iata
-          WHERE checkins_fts MATCH ? AND (? IS NULL OR c.iata = ?) AND (? IS NULL OR c.rating >= ?) ${cFilter}
-          UNION ALL
-          SELECT 'lounge_review' AS type, r.id, lo.name AS lounge_name, ${common('r')},
-                 snippet(lounge_reviews_fts, 0, '${OPEN}', '${CLOSE}', '${ELLIPSIS}', 16) AS snip,
-                 bm25(lounge_reviews_fts) AS score
-          FROM lounge_reviews_fts
-          JOIN lounge_reviews r ON r.id = lounge_reviews_fts.rowid
-          JOIN lounges lo ON lo.id = r.lounge_id
-          JOIN users u ON u.id = r.user_id
-          JOIN airports a ON a.iata = lo.iata
-          LEFT JOIN checkins lc ON lc.id = r.checkin_id
-          WHERE lounge_reviews_fts MATCH ? AND (? IS NULL OR lo.iata = ?) AND (? IS NULL OR r.rating >= ?) ${rFilter}
-        ) ORDER BY score, created_at DESC LIMIT ? OFFSET ?`;
-      params = [q, iata, iata, minRating, minRating, ...fp, q, iata, iata, minRating, minRating, ...fp, limit, offset];
-    } else {
-      sql = `
-        SELECT * FROM (
-          SELECT 'checkin' AS type, c.id, NULL AS lounge_name, ${common('c')}, NULL AS snip
-          FROM checkins c JOIN users u ON u.id = c.user_id JOIN airports a ON a.iata = c.iata
-          WHERE c.comment IS NOT NULL AND c.iata = ? AND (? IS NULL OR c.rating >= ?) ${cFilter}
-          UNION ALL
-          SELECT 'lounge_review' AS type, r.id, lo.name AS lounge_name, ${common('r')}, NULL AS snip
-          FROM lounge_reviews r JOIN lounges lo ON lo.id = r.lounge_id
-          JOIN users u ON u.id = r.user_id JOIN airports a ON a.iata = lo.iata
-          LEFT JOIN checkins lc ON lc.id = r.checkin_id
-          WHERE r.comment IS NOT NULL AND lo.iata = ? AND (? IS NULL OR r.rating >= ?) ${rFilter}
-        ) ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-      params = [iata, minRating, minRating, ...fp, iata, minRating, minRating, ...fp, limit, offset];
-    }
+    // Två delfrågor (check-ins, loungerecensioner) som var och en hämtar offset+limit rader i sorteringsordning
+    // och slås ihop i JS. Standard är nyast först (FTS5 kan då gå baklänges i rowid och sluta tidigt);
+    // sort=relevance använder bm25. Flygplatsfiltret ligger i FTS-indexet (kolumnen iata).
+    const sort = req.query.sort === 'relevance' && q ? 'relevance' : 'recent';
+    const take = Math.min(offset, 1000) + limit;
+    const match = q ? `comment : (${q})${iata ? ` AND iata : "${iata}"` : ''}` : null;
+    const parts = [
+      {
+        fts: 'checkins_fts',
+        select: `'checkin' AS type, c.id, NULL AS lounge_name, ${common('c')}`,
+        table: 'checkins c',
+        joins: 'JOIN users u ON u.id = c.user_id JOIN airports a ON a.iata = c.iata',
+        id: 'c.id',
+        where: `(? IS NULL OR c.rating >= ?) ${cFilter}`,
+        plainWhere: 'c.comment IS NOT NULL AND c.iata = ?',
+        order: 'c.created_at DESC, c.id DESC',
+      },
+      {
+        fts: 'lounge_reviews_fts',
+        select: `'lounge_review' AS type, r.id, lo.name AS lounge_name, ${common('r')}`,
+        table: 'lounge_reviews r',
+        joins: `JOIN lounges lo ON lo.id = r.lounge_id JOIN users u ON u.id = r.user_id
+          JOIN airports a ON a.iata = lo.iata LEFT JOIN checkins lc ON lc.id = r.checkin_id`,
+        id: 'r.id',
+        where: `(? IS NULL OR r.rating >= ?) ${rFilter}`,
+        plainWhere: 'r.comment IS NOT NULL AND lo.iata = ?',
+        order: 'r.created_at DESC, r.id DESC',
+      },
+    ];
+    const run = (p) => {
+      if (match) {
+        return db.prepare(`SELECT ${p.select},
+            snippet(${p.fts}, 0, '${OPEN}', '${CLOSE}', '${ELLIPSIS}', 16) AS snip, bm25(${p.fts}) AS score
+          FROM ${p.fts} JOIN ${p.table} ON ${p.id} = ${p.fts}.rowid ${p.joins}
+          WHERE ${p.fts} MATCH ? AND ${p.where}
+          ORDER BY ${sort === 'relevance' ? 'score' : `${p.fts}.rowid DESC`} LIMIT ?`)
+          .all(match, minRating, minRating, ...fp, take);
+      }
+      return db.prepare(`SELECT ${p.select}, NULL AS snip, 0 AS score FROM ${p.table} ${p.joins}
+        WHERE ${p.plainWhere} AND ${p.where} ORDER BY ${p.order} LIMIT ?`)
+        .all(iata, minRating, minRating, ...fp, take);
+    };
 
     let rows;
     try {
-      rows = db.prepare(sql).all(...params);
+      rows = parts.flatMap(run);
+      rows.sort(sort === 'relevance'
+        ? (x, y) => x.score - y.score || (y.created_at > x.created_at ? 1 : -1)
+        : (x, y) => (y.created_at > x.created_at ? 1 : y.created_at < x.created_at ? -1 : y.id - x.id));
+      rows = rows.slice(Math.min(offset, 1000), Math.min(offset, 1000) + limit);
     } catch (e) {
       // Ska inte kunna hända efter saneringen, men en trasig fråga ska ge 400 och inte 500.
       if (/fts5|MATCH/i.test(e.message)) throw bad('Ogiltig söksträng');
@@ -127,7 +147,8 @@ export default function searchRoutes({ db }) {
       loungeName: row.lounge_name ?? null,
       rating: row.rating ?? null,
       comment: row.comment ?? null,
-      snippet: row.snip != null ? renderSnippet(row.snip) : plainSnippet(row.comment),
+      snippet: row.snip != null ? renderSnippet(row.snip) : escapeHtml(plainText(row.comment)),
+      snippetParts: row.snip != null ? snippetParts(row.snip) : [{ text: plainText(row.comment), mark: false }],
       visitedOn: row.visited_on,
       createdAt: row.created_at,
     })));

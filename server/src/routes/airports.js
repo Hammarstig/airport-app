@@ -1,31 +1,23 @@
 import { Router } from 'express';
 import { normalizeWords, countryNameSv } from '../db.js';
 import {
-  h, notFound, HttpError, cleanText, normIata, paging, round2,
+  h, bad, notFound, HttpError, cleanText, normIata, paging, round2, escapeLike, code2, LOUNGE_SELECT, loungeFrom,
   AIRPORT_COLS, airportFrom, CHECKIN_SELECT, checkinsWithPhotos, SUB_RATINGS, TRAVEL_CLASSES, photoFrom,
+  USER_COLS, userFrom,
 } from '../util.js';
+import { globalMeans, bayesSql, AIRPORT_PRIOR } from '../stats.js';
 import { requireAuth } from '../auth.js';
 
-export const LOUNGE_SELECT = `
-  SELECT lo.id, lo.iata, lo.name, lo.terminal,
-         (SELECT AVG(rating) FROM lounge_reviews r WHERE r.lounge_id = lo.id) AS avg_rating,
-         (SELECT COUNT(*) FROM lounge_reviews r WHERE r.lounge_id = lo.id) AS review_count
-  FROM lounges lo`;
-
-export function loungeFrom(row) {
-  return {
-    id: row.id,
-    iata: row.iata,
-    name: row.name,
-    terminal: row.terminal ?? null,
-    avgRating: round2(row.avg_rating),
-    reviewCount: row.review_count,
-  };
-}
-
-const escapeLike = (s) => s.replace(/[\\%_]/g, (c) => '\\' + c);
 const MATCHED_ON = ['iata', 'icao', 'country', 'city', 'name', 'country'];
-export const code2 = (v) => (typeof v === 'string' && /^[A-Za-z]{2}$/.test(v.trim()) ? v.trim().toUpperCase() : null);
+
+/** Avstånd i km (haversine). */
+export function distanceKm(lat1, lon1, lat2, lon2) {
+  const rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad;
+  const dLon = (lon2 - lon1) * rad;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(x)));
+}
 
 export default function airportRoutes({ db }) {
   const r = Router();
@@ -74,27 +66,28 @@ export default function airportRoutes({ db }) {
     if (['large', 'medium', 'small'].includes(req.query.type)) { where.push('a.type = ?'); params.push(req.query.type); }
     const minRating = Number(req.query.minRating);
     if (req.query.minRating !== undefined && req.query.minRating !== '' && Number.isFinite(minRating)) {
-      where.push('s.avg_rating >= ?'); params.push(minRating);
+      where.push('s.rating_count > 0 AND s.rating_sum / s.rating_count >= ?'); params.push(minRating);
     }
     if (req.user && req.query.visited === 'mine') {
-      where.push('EXISTS (SELECT 1 FROM checkins m WHERE m.user_id = ? AND m.iata = a.iata)'); params.push(req.user.id);
+      where.push('EXISTS (SELECT 1 FROM user_airports m WHERE m.user_id = ? AND m.iata = a.iata)'); params.push(req.user.id);
     } else if (req.user && req.query.visited === 'notmine') {
-      where.push('NOT EXISTS (SELECT 1 FROM checkins m WHERE m.user_id = ? AND m.iata = a.iata)'); params.push(req.user.id);
+      where.push('NOT EXISTS (SELECT 1 FROM user_airports m WHERE m.user_id = ? AND m.iata = a.iata)'); params.push(req.user.id);
     }
     const sort = ['relevance', 'rating', 'checkins', 'name'].includes(req.query.sort)
       ? req.query.sort : (raw ? 'relevance' : 'checkins');
+    const score = sort === 'rating' ? bayesSql('s.rating_sum', 's.rating_count', globalMeans(db).overall, AIRPORT_PRIOR) : 'NULL';
     const order = {
       relevance: 'm, a.type_rank, IFNULL(s.checkins, 0) DESC, a.scheduled DESC, a.search_name',
-      rating: 's.avg_rating IS NULL, s.avg_rating DESC, IFNULL(s.rating_count, 0) DESC, a.type_rank, a.name',
+      rating: 'score IS NULL, score DESC, IFNULL(s.rating_count, 0) DESC, a.type_rank, a.name',
       checkins: 'IFNULL(s.checkins, 0) DESC, a.type_rank, a.scheduled DESC, a.name',
       name: 'a.name COLLATE NOCASE, a.iata',
     }[sort];
     const rows = db.prepare(`
-      SELECT ${AIRPORT_COLS('a', '')}, ${matchExpr} AS m,
-             s.avg_rating, IFNULL(s.rating_count, 0) AS rating_count, IFNULL(s.checkins, 0) AS checkins
+      SELECT ${AIRPORT_COLS('a', '')}, ${matchExpr} AS m, ${score} AS score,
+             s.rating_sum / NULLIF(s.rating_count, 0) AS avg_rating,
+             IFNULL(s.rating_count, 0) AS rating_count, IFNULL(s.checkins, 0) AS checkins
       FROM airports a
-      LEFT JOIN (SELECT iata, COUNT(*) AS checkins, AVG(rating) AS avg_rating, COUNT(rating) AS rating_count
-                 FROM checkins GROUP BY iata) s ON s.iata = a.iata
+      LEFT JOIN airport_stats s ON s.iata = a.iata
       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
       ORDER BY ${order}
       LIMIT ? OFFSET ?`).all(...matchParams, ...params, limit, offset);
@@ -108,35 +101,67 @@ export default function airportRoutes({ db }) {
     })));
   }));
 
+  // Flygplatser nära en position (för snabb check-in). Grov bbox i SQL, exakt avstånd i JS.
+  r.get('/airports/nearby', h((req, res) => {
+    const lat = Number(req.query.lat);
+    const lon = Number(req.query.lon);
+    if (req.query.lat === undefined || req.query.lon === undefined || !Number.isFinite(lat) || !Number.isFinite(lon)
+      || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+      throw bad('lat och lon krävs (grader, -90..90 och -180..180)');
+    }
+    const { limit } = paging(req.query, { defLimit: 10, maxLimit: 50 });
+    let radius = Number(req.query.radiusKm);
+    if (!Number.isFinite(radius) || radius <= 0) radius = 500;
+    radius = Math.min(radius, 2000);
+    const all = req.query.scope === 'all' ? 1 : 0;
+    const dLat = radius / 111;
+    const cos = Math.cos((lat * Math.PI) / 180);
+    const dLon = cos > 0.01 ? radius / (111 * cos) : 360;
+    const lonFilter = lon - dLon < -180 || lon + dLon > 180 ? '' : 'AND a.lon BETWEEN ? AND ?';
+    const params = [all, lat - dLat, lat + dLat];
+    if (lonFilter) params.push(lon - dLon, lon + dLon);
+    const rows = db.prepare(`SELECT ${AIRPORT_COLS('a', '')} FROM airports a
+      WHERE (? = 1 OR a.scheduled = 1) AND a.lat BETWEEN ? AND ? ${lonFilter}`).all(...params);
+    const list = rows
+      .map((row) => ({ row, d: distanceKm(lat, lon, row.lat, row.lon) }))
+      .filter((x) => x.d <= radius)
+      .sort((x, y) => x.d - y.d)
+      .slice(0, limit)
+      .map(({ row, d }) => ({ ...airportFrom(row), countryName: countryNameSv(row.country), distanceKm: Math.round(d * 10) / 10 }));
+    res.set('Cache-Control', 'private, max-age=60');
+    res.json(list);
+  }));
+
   r.get('/airports/:iata', h((req, res) => {
     const a = airportOr404(req.params.iata);
-    const s = db.prepare(`
-      SELECT COUNT(DISTINCT user_id) AS visitors, COUNT(*) AS checkins,
-             AVG(rating) AS avg_rating, COUNT(rating) AS rating_count,
-             ${SUB_RATINGS.map((k) => `AVG(r_${k}) AS s_${k}`).join(', ')},
-             ${TRAVEL_CLASSES.map((k) => `SUM(travel_class = '${k}') AS cls_${k}`).join(', ')}
-      FROM checkins WHERE iata = ?`).get(a.iata);
+    const s = db.prepare('SELECT * FROM airport_stats WHERE iata = ?').get(a.iata) ?? {};
     const topAirlines = db.prepare(`
       SELECT al.iata, al.name, COUNT(*) AS n FROM checkins c JOIN airlines al ON al.iata = c.airline_iata
       WHERE c.iata = ? GROUP BY al.iata ORDER BY n DESC, al.name LIMIT 5`).all(a.iata);
+    const avg = (sum, n) => (n ? round2(sum / n) : null);
     const stats = {
-      visitors: s.visitors,
-      checkins: s.checkins,
-      avgRating: round2(s.avg_rating),
-      ratingCount: s.rating_count,
-      subAverages: Object.fromEntries(SUB_RATINGS.map((k) => [k, round2(s['s_' + k])])),
+      visitors: s.visitors ?? 0,
+      checkins: s.checkins ?? 0,
+      avgRating: avg(s.rating_sum, s.rating_count),
+      ratingCount: s.rating_count ?? 0,
+      subAverages: Object.fromEntries(SUB_RATINGS.map((k) => [k, avg(s[`s_${k}_sum`], s[`s_${k}_n`])])),
       topAirlines: topAirlines.map((x) => ({ airline: { iata: x.iata, name: x.name }, checkins: x.n })),
       classMix: Object.fromEntries(TRAVEL_CLASSES.map((k) => [k, s['cls_' + k] ?? 0])),
     };
     const photos = db.prepare(`SELECT p.* FROM photos p JOIN checkins c ON c.id = p.checkin_id
-      WHERE c.iata = ? ORDER BY p.created_at DESC, p.id DESC LIMIT 12`).all(a.iata).map(photoFrom);
+      WHERE c.iata = ? ORDER BY p.id DESC LIMIT 12`).all(a.iata).map(photoFrom);
     let onMyWishlist = false;
     let myVisits = 0;
+    let friendsVisited = [];
     if (req.user) {
       const me = db.prepare(`SELECT EXISTS (SELECT 1 FROM wishlist WHERE user_id = ? AND iata = ?) AS w,
-        (SELECT COUNT(*) FROM checkins WHERE user_id = ? AND iata = ?) AS v`).get(req.user.id, a.iata, req.user.id, a.iata);
+        (SELECT visits FROM user_airports WHERE user_id = ? AND iata = ?) AS v`).get(req.user.id, a.iata, req.user.id, a.iata);
       onMyWishlist = !!me.w;
-      myVisits = me.v;
+      myVisits = me.v ?? 0;
+      friendsVisited = db.prepare(`SELECT ${USER_COLS('u', '')} FROM follows f
+        JOIN user_airports ua ON ua.user_id = f.followee_id AND ua.iata = ?
+        JOIN users u ON u.id = f.followee_id
+        WHERE f.follower_id = ? ORDER BY ua.last_visit DESC, u.username LIMIT 10`).all(a.iata, req.user.id).map((x) => userFrom(x));
     }
     res.json({
       ...airportFrom(a),
@@ -146,6 +171,7 @@ export default function airportRoutes({ db }) {
       photos,
       onMyWishlist,
       myVisits,
+      friendsVisited,
     });
   }));
 

@@ -1,14 +1,15 @@
-// v1.1: länder, lounger (sök + topplista), användarsök, önskelista och märken.
+// Länder, lounger (sök + topplista), flygbolag, användarsök och önskelista.
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
-import { computeBadges } from '../badges.js';
-import { h, bad, notFound, paging, round2, normIata, AIRPORT_COLS, airportFrom, USER_COLS, userFrom } from '../util.js';
-import { LOUNGE_SELECT, loungeFrom, code2 } from './airports.js';
+import {
+  h, bad, notFound, paging, round2, normIata, escapeLike, code2, LOUNGE_SELECT, loungeFrom,
+  AIRPORT_COLS, airportFrom, USER_COLS, userFrom,
+} from '../util.js';
 import { normalizeWords, countryNameSv } from '../db.js';
+import { globalMeans, bayesSql, LOUNGE_PRIOR } from '../stats.js';
 
 const countryName = countryNameSv;
 const collator = new Intl.Collator('sv');
-const escapeLike = (s) => s.replace(/[\\%_]/g, (c) => '\\' + c);
 
 export default function exploreRoutes({ db }) {
   const r = Router();
@@ -33,8 +34,8 @@ export default function exploreRoutes({ db }) {
   r.get('/countries', h((req, res) => {
     const continent = code2(req.query.continent);
     const stats = new Map(db.prepare(`
-      SELECT a.country, COUNT(*) AS checkins, AVG(c.rating) AS avg_rating
-      FROM checkins c JOIN airports a ON a.iata = c.iata GROUP BY a.country`).all().map((x) => [x.country, x]));
+      SELECT a.country, SUM(s.checkins) AS checkins, SUM(s.rating_sum) / NULLIF(SUM(s.rating_count), 0) AS avg_rating
+      FROM airport_stats s JOIN airports a ON a.iata = s.iata GROUP BY a.country`).all().map((x) => [x.country, x]));
     let list = [...meta()].map(([code, m]) => ({
       code,
       name: countryName(code),
@@ -55,15 +56,15 @@ export default function exploreRoutes({ db }) {
     const m = code ? meta().get(code) : null;
     if (!m) throw notFound('Landet finns inte');
     const s = db.prepare(`
-      SELECT COUNT(*) AS checkins, COUNT(DISTINCT c.user_id) AS visitors, AVG(c.rating) AS avg_rating
-      FROM checkins c JOIN airports a ON a.iata = c.iata WHERE a.country = ?`).get(code);
+      SELECT IFNULL(SUM(s.checkins), 0) AS checkins, SUM(s.rating_sum) / NULLIF(SUM(s.rating_count), 0) AS avg_rating,
+        (SELECT COUNT(*) FROM user_countries uc WHERE uc.country = ?) AS visitors
+      FROM airport_stats s JOIN airports a ON a.iata = s.iata WHERE a.country = ?`).get(code, code);
     const top = db.prepare(`
-      SELECT ${AIRPORT_COLS('a', '')}, s.avg_rating, IFNULL(s.rating_count, 0) AS rating_count, IFNULL(s.checkins, 0) AS checkins
-      FROM airports a
-      LEFT JOIN (SELECT iata, COUNT(*) AS checkins, AVG(rating) AS avg_rating, COUNT(rating) AS rating_count
-                 FROM checkins GROUP BY iata) s ON s.iata = a.iata
+      SELECT ${AIRPORT_COLS('a', '')}, s.rating_sum / NULLIF(s.rating_count, 0) AS avg_rating,
+        IFNULL(s.rating_count, 0) AS rating_count, IFNULL(s.checkins, 0) AS checkins
+      FROM airports a LEFT JOIN airport_stats s ON s.iata = a.iata
       WHERE a.country = ?
-      ORDER BY s.avg_rating IS NULL, s.avg_rating DESC, IFNULL(s.checkins, 0) DESC, a.type_rank, a.scheduled DESC, a.name
+      ORDER BY avg_rating IS NULL, avg_rating DESC, IFNULL(s.checkins, 0) DESC, a.type_rank, a.scheduled DESC, a.name
       LIMIT 10`).all(code);
     res.json({
       code,
@@ -110,20 +111,25 @@ export default function exploreRoutes({ db }) {
     res.json(rows.map((row) => ({ ...loungeFrom(row), airport: airportFrom(row, 'a_') })));
   }));
 
+  // Topplista för lounger, sorterad på Bayesianskt snitt (C = 3).
   r.get('/rankings/lounges', h((req, res) => {
     const { limit } = paging(req.query, { defLimit: 50, maxLimit: 200 });
     let minReviews = parseInt(req.query.minReviews, 10);
     if (!Number.isFinite(minReviews) || minReviews < 1) minReviews = 1;
+    const score = bayesSql('lo.rating_sum', 'lo.review_count', globalMeans(db).lounge, LOUNGE_PRIOR);
     const rows = db.prepare(`
-      SELECT RANK() OVER (ORDER BY lo2.avg_rating DESC) AS rnk, lo2.*, ap.*
-      FROM (${LOUNGE_SELECT}) lo2 JOIN (SELECT ${AIRPORT_COLS('a', 'a_')} FROM airports a) ap ON ap.a_iata = lo2.iata
-      WHERE lo2.review_count >= ?
-      ORDER BY lo2.avg_rating DESC, lo2.review_count DESC, lo2.name LIMIT ?`).all(minReviews, limit);
+      SELECT RANK() OVER (ORDER BY t.score DESC) AS rnk, t.* FROM (
+        SELECT lo.id, lo.iata, lo.name, lo.terminal, lo.review_count, lo.rating_sum / lo.review_count AS avg_rating,
+               ${score} AS score, ${AIRPORT_COLS('a', 'a_')}
+        FROM lounges lo JOIN airports a ON a.iata = lo.iata
+        WHERE lo.review_count >= ?
+      ) t ORDER BY t.score DESC, t.review_count DESC, t.name LIMIT ?`).all(minReviews, limit);
     res.json(rows.map((row) => ({
       rank: row.rnk,
       lounge: loungeFrom(row),
       airport: airportFrom(row, 'a_'),
       avgRating: round2(row.avg_rating),
+      score: round2(row.score),
       reviewCount: row.review_count,
     })));
   }));
@@ -154,12 +160,13 @@ export default function exploreRoutes({ db }) {
     const like = '%' + escapeLike(q) + '%';
     const pfx = escapeLike(q) + '%';
     const rows = db.prepare(`
-      SELECT ${USER_COLS('u', '')}, (SELECT COUNT(DISTINCT c.iata) FROM checkins c WHERE c.user_id = u.id) AS unique_airports
-      FROM users u
+      SELECT ${USER_COLS('u', '')}, IFNULL(us.airports, 0) AS unique_airports,
+        EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.followee_id = u.id) AS followed_by_me
+      FROM users u LEFT JOIN user_stats us ON us.user_id = u.id
       WHERE ? = '' OR u.username LIKE ? ESCAPE '\\' OR lower(u.display_name) LIKE ? ESCAPE '\\'
       ORDER BY (u.username LIKE ? ESCAPE '\\') DESC, unique_airports DESC, u.username
-      LIMIT ?`).all(q, like, like, pfx, limit);
-    res.json(rows.map((row) => ({ ...userFrom(row), uniqueAirports: row.unique_airports })));
+      LIMIT ?`).all(req.user?.id ?? -1, q, like, like, pfx, limit);
+    res.json(rows.map((row) => ({ ...userFrom(row), uniqueAirports: row.unique_airports, followedByMe: !!row.followed_by_me })));
   }));
 
   // ---- Önskelista ----
@@ -189,13 +196,6 @@ export default function exploreRoutes({ db }) {
     if (!/^[A-Z]{3}$/.test(iata) || !airportExists.get(iata)) throw notFound('Flygplatsen finns inte (okänd IATA-kod)');
     db.prepare('DELETE FROM wishlist WHERE user_id = ? AND iata = ?').run(req.user.id, iata);
     res.status(204).end();
-  }));
-
-  // ---- Märken ----
-  r.get('/users/:username/badges', h((req, res) => {
-    const u = userByName.get(String(req.params.username).toLowerCase());
-    if (!u) throw notFound('Användaren finns inte');
-    res.json(computeBadges(db, u.id));
   }));
 
   return r;

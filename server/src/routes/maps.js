@@ -1,8 +1,7 @@
 // v1.3: kartvyer med täckningsgrad. En aggregerad SQL-fråga per anrop.
 import { Router } from 'express';
-import { h, notFound } from '../util.js';
+import { h, notFound, code2 } from '../util.js';
 import { countryNameSv } from '../db.js';
-import { code2 } from './airports.js';
 
 const CONTINENT_NAMES = {
   EU: 'Europa', AS: 'Asien', AF: 'Afrika', NA: 'Nordamerika', SA: 'Sydamerika', OC: 'Oceanien', AN: 'Antarktis',
@@ -24,7 +23,7 @@ export default function mapRoutes({ db }) {
   const overview = db.prepare(`
     SELECT a.country, a.continent, COUNT(*) AS total, COUNT(v.iata) AS visited
     FROM airports a
-    LEFT JOIN (SELECT DISTINCT iata FROM checkins WHERE user_id = ?) v ON v.iata = a.iata
+    LEFT JOIN (SELECT iata FROM user_airports WHERE user_id = ?) v ON v.iata = a.iata
     WHERE (? = 1 OR a.scheduled = 1) AND a.country IS NOT NULL
     GROUP BY a.country, a.continent`);
 
@@ -66,7 +65,7 @@ export default function mapRoutes({ db }) {
     SELECT a.iata, a.name, a.city, a.lat, a.lon, a.type, a.scheduled, a.region, a.region_name,
            IFNULL(v.visits, 0) AS visits, (? = 1 OR a.scheduled = 1) AS in_scope
     FROM airports a
-    LEFT JOIN (SELECT iata, COUNT(*) AS visits FROM checkins WHERE user_id = ? GROUP BY iata) v ON v.iata = a.iata
+    LEFT JOIN (SELECT iata, visits FROM user_airports WHERE user_id = ?) v ON v.iata = a.iata
     WHERE a.country = ? AND (? = 1 OR a.scheduled = 1 OR v.visits IS NOT NULL)
     ORDER BY a.type_rank, a.name`);
 
