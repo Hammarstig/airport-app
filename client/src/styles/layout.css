@@ -201,3 +201,118 @@
 .row--between { justify-content: space-between; }
 .row--nowrap { flex-wrap: nowrap; }
 .spacer { flex: 1 1 auto; }
+
+/* ---------- Statistikrad: alltid en rad (3 eller 4 kolumner), även på 360 px ---------- */
+.stat-row,
+.grid:has(> .stat) {
+  display: grid;
+  grid-template-columns: none !important;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: var(--sp-3) 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.stat-row > .stat,
+.grid:has(> .stat) > .stat {
+  padding: 0 var(--sp-3);
+  align-items: flex-start;
+}
+.stat-row > .stat + .stat,
+.grid:has(> .stat) > .stat + .stat { border-left: 1px dashed var(--line-strong); }
+.stat-row .stat__value,
+.grid:has(> .stat) .stat__value { font-size: clamp(1.35rem, 6.2vw, var(--fs-2xl)); }
+.stat-row .stat__label,
+.grid:has(> .stat) .stat__label { font-size: var(--fs-xs); line-height: 1.25; }
+.stat__value .stars { --star-size: .62em; margin-left: 4px; vertical-align: .08em; }
+.stat-row--plain { background: transparent; border: 0; padding: 0; }
+.stat-row--plain > .stat:first-child { padding-left: 0; }
+.airport-hero .stat-row { background: rgba(255, 255, 255, .55); border-color: var(--line); margin-top: var(--sp-3); }
+:root[data-theme="dark"] .airport-hero .stat-row { background: rgba(8, 17, 30, .45); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .airport-hero .stat-row { background: rgba(8, 17, 30, .45); } }
+
+/* ---------- Desktop: flöde + sidopanel ---------- */
+.layout-split { display: grid; gap: var(--sp-5); grid-template-columns: minmax(0, 1fr); }
+.layout-split__aside { display: none; }
+@media (min-width: 1024px) {
+  .layout-split { grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
+  .layout-split__aside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--sp-4));
+  }
+  .layout-split--narrow-main > :first-child { max-width: 640px; }
+}
+
+/* ---------- Topbar: tillbaka, sök, åtgärder ---------- */
+.topbar__back { margin-left: -8px; font-size: 1.75rem; line-height: 1; color: var(--ink); }
+.topbar__back svg { width: 24px; height: 24px; }
+.topbar__actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.topbar__actions .icon-btn { color: var(--ink-2); }
+.topbar__search { display: none; }
+@media (min-width: 768px) {
+  .topbar__nav + .topbar__actions { margin-left: var(--sp-2); }
+  .topbar__search { display: block; width: clamp(180px, 22vw, 300px); margin-right: var(--sp-2); position: relative; }
+  .topbar__search .field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .topbar__search :is(.input, .searchbar__input) { min-height: 40px; padding-top: 6px; padding-bottom: 6px; font-size: var(--fs-sm); border-width: 1px; }
+  .topbar__search .autocomplete { min-width: 320px; }
+}
+
+/* ---------- Offline ---------- */
+.offline-banner {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 25;
+  padding: 8px var(--sp-4);
+  background: var(--signal-soft);
+  color: var(--ink);
+  border-bottom: 1px solid color-mix(in srgb, var(--signal) 50%, transparent);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-align: center;
+}
+.offline-banner--offline { background: var(--surface-3); color: var(--ink); border-bottom-color: var(--line-strong); }
+.offline-queue { padding: var(--sp-3) var(--sp-4); border-left: 4px solid var(--signal); font-size: var(--fs-sm); }
+
+/* ---------- Laddning ---------- */
+.skeleton { position: relative; overflow: hidden; pointer-events: none; }
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 70%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer { to { transform: translateX(100%); } }
+
+/* ---------- Täckningstabell ---------- */
+.coverage-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.coverage-table th, .coverage-table td { padding: 8px; }
+.coverage-table thead th { color: var(--muted); font-size: var(--fs-xs); font-weight: 700; text-align: left; }
+.coverage-table tbody tr { border-top: 1px solid var(--line); }
+.coverage-table tbody tr:hover { background: var(--surface-2); }
+
+/* ---------- Hjälpklasser ---------- */
+.text-xs { font-size: var(--fs-xs); }
+.text-sm { font-size: var(--fs-sm); }
+.text-lg { font-size: var(--fs-lg); }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.bold { font-weight: 700; }
+.nowrap { white-space: nowrap; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabular { font-variant-numeric: tabular-nums; }
+.flex-1 { flex: 1 1 0%; }
+.min-w-0 { min-width: 0; }
+.mt-0 { margin-top: 0 !important; }
+.mt-2 { margin-top: var(--sp-2); }
+.mt-4 { margin-top: var(--sp-4); }
+.gap-1 { gap: var(--sp-1) !important; }
+.gap-2 { gap: var(--sp-2) !important; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }

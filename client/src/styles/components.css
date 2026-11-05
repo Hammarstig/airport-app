@@ -303,6 +303,7 @@
   text-decoration: none;
   text-align: left;
   vertical-align: middle;
+  box-shadow: 0 0 0 1px var(--board-ring);
 }
 a.iata-tag:hover { text-decoration: none; filter: brightness(1.15); }
 .iata-tag--lg,
@@ -316,9 +317,13 @@ a.iata-tag:hover { text-decoration: none; filter: brightness(1.15); }
 .iata-tag--lg,
 .airport-hero__code { animation: flap-in 520ms var(--ease) both; transform-origin: 50% 50%; }
 
-/* ---------- Check-in (boardingkort) ---------- */
+/* ---------- Check-in (boardingkort, kompakt) ----------
+   Mål: 2-3 kort per skärm på Pixel 7. Huvud (avatar, namn, flygplats, IATA),
+   en rad med typ + betyg + delbetyg, kommentar (max 4 rader), valfritt foto,
+   resedetaljer på en rad och en tunn åtgärdsrad under perforeringen. */
 .checkin {
-  --notch: 10px;
+  --notch: 9px;
+  --pad: 14px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -329,46 +334,142 @@ a.iata-tag:hover { text-decoration: none; filter: brightness(1.15); }
   overflow: hidden;
   min-width: 0;
 }
+.stack > .checkin + .checkin { margin-top: calc(var(--sp-1) * -1); }
 .checkin__head {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-4) var(--sp-4) 0;
+  gap: 10px;
+  padding: 12px var(--pad) 0;
 }
-.checkin__avatar { flex: none; }
+.checkin__avatar { flex: none; text-decoration: none; }
+.checkin__head .avatar { --avatar-size: 36px; }
 .checkin__meta {
   flex: 1;
   min-width: 0;
   font-size: var(--fs-sm);
   color: var(--muted);
-  line-height: 1.35;
+  line-height: 1.3;
 }
+.checkin__meta > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.checkin__meta > :nth-child(2) { font-size: var(--fs-xs) !important; margin-top: 1px; }
 .checkin__meta strong, .checkin__meta b { color: var(--ink); font-weight: 700; }
 .checkin__meta a { color: var(--ink); text-decoration: none; font-weight: 700; }
-.checkin__meta a:hover { text-decoration: underline; }
+.checkin__meta a:hover, .checkin__meta a:focus-visible { text-decoration: underline; }
+.checkin__head .iata-tag { font-size: 1.05rem; }
 .checkin__body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2) var(--sp-3);
-  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  gap: 6px 8px;
+  padding: 10px var(--pad) 12px;
   flex: 1 0 auto;
 }
+.checkin__body > .row { gap: 6px 10px; }
+/* Delbetyg som tunn rad: "Säkerhet 5/5" utan pillerkänsla */
+.checkin__body > ul.row, .checkin__ratings {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px 10px !important;
+  width: 100%;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.checkin__body > ul.row .badge, .checkin__ratings > * {
+  height: auto;
+  padding: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+}
+.checkin__body > ul.row .badge:nth-child(n+4) {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.checkin__body > ul.row:has(.badge:nth-child(4))::after {
+  content: "+" counter(sub-more);
+  color: var(--muted);
+  font-weight: 700;
+}
+.checkin__body > ul.row { counter-reset: sub-more; }
+.checkin__body > ul.row .badge:nth-child(n+4) { counter-increment: sub-more; }
 .checkin__comment {
   flex-basis: 100%;
-  margin-top: var(--sp-1);
-  color: var(--ink-2);
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.45;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
 }
-.checkin__actions {
-  position: relative;
+.checkin__comment--full { -webkit-line-clamp: unset; line-clamp: unset; display: block; }
+.checkin__photo {
+  flex-basis: 100%;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-3);
+  aspect-ratio: 16 / 9;
+  max-height: 260px;
+  cursor: zoom-in;
+}
+.checkin__photo img { width: 100%; height: 100%; object-fit: cover; }
+.checkin .photo-strip { flex-basis: 100%; }
+.checkin .photo-strip > * { width: 64px; height: 64px; }
+/* Första fotot stort, resten tumnaglar */
+.checkin .photo-strip { flex-wrap: wrap; }
+.checkin .photo-strip > :first-child { width: 100%; height: auto; aspect-ratio: 16 / 9; max-height: 240px; border-radius: var(--r-md); }
+.checkin .photo-strip > :only-child { max-height: 260px; }
+
+/* Resedetaljer på en rad: "SK1421 · SAS · Business" (etiketter läses av skärmläsare) */
+.checkin .detail-list, .checkin__details {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-4);
-  background: var(--surface-2);
-  border-top: 2px dashed var(--line-strong);
+  gap: 2px 0;
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.checkin .detail-list > div, .checkin__details > * { display: inline-flex; align-items: center; min-width: 0; }
+.checkin .detail-list > div + div::before, .checkin__details > * + *::before {
+  content: "\00B7";
+  margin: 0 7px;
+  color: var(--line-strong);
+  font-weight: 700;
+}
+.checkin .detail-list dt {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.checkin .detail-list dd { margin: 0; font-weight: 700; color: var(--ink-2); font-size: var(--fs-xs); }
+.checkin .detail-list .airline-tag { font-size: var(--fs-xs); gap: 4px; color: var(--ink-2); }
+.checkin .detail-list .airline-tag__code { font-size: .95em; padding: 0 3px; }
+.checkin .detail-list .class-chip { height: auto; padding: 0; background: none; border: 0; }
+.checkin .detail-list .class-chip svg { display: none; }
+
+/* Åtgärdsrad: perforering med stansade hack, ingen egen sidfotsyta */
+.checkin__actions {
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 0 6px;
+  background: transparent;
+  border-top: 2px dashed var(--line);
 }
 .checkin__actions::before,
 .checkin__actions::after {
@@ -383,17 +484,18 @@ a.iata-tag:hover { text-decoration: none; filter: brightness(1.15); }
 }
 .checkin__actions::before { left: calc(var(--notch) * -1 - 1px); }
 .checkin__actions::after { right: calc(var(--notch) * -1 - 1px); }
+.checkin__actions .btn--sm { min-height: 36px; }
 
 .kind-chip {
   --chip: var(--muted);
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 26px;
-  padding: 0 10px 0 8px;
+  height: 24px;
+  padding: 0 9px 0 7px;
   border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--chip) 13%, var(--surface));
-  color: var(--chip);
+  background: color-mix(in srgb, var(--chip) 11%, var(--surface));
+  color: color-mix(in srgb, var(--chip) 72%, var(--ink));
   font-size: var(--fs-xs);
   font-weight: 700;
   white-space: nowrap;
@@ -405,7 +507,8 @@ a.iata-tag:hover { text-decoration: none; filter: brightness(1.15); }
 .kind-chip--layover { --chip: var(--violet); }
 
 /* Like */
-.like-btn {
+.like-btn,
+.action-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -420,7 +523,7 @@ a.iata-tag:hover { text-decoration: none; filter: brightness(1.15); }
   font-variant-numeric: tabular-nums;
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
-.like-btn:hover { background: var(--surface-3); color: var(--ink); }
+.like-btn:hover, .action-btn:hover { background: var(--surface-3); color: var(--ink); }
 .like-btn--active, .like-btn--active:hover { color: var(--bad); }
 .like-btn--active svg { fill: currentColor; animation: like-pop 300ms var(--ease); }
 @keyframes like-pop {
@@ -502,29 +605,68 @@ a.iata-tag:hover { text-decoration: none; filter: brightness(1.15); }
 }
 .list__item + .list__item { border-top: 1px solid var(--line); }
 a.list__item:hover, button.list__item:hover { background: var(--surface-2); text-decoration: none; }
+.list__item { text-decoration: none; }
+:is(.list, .result-row, .search-hit, .coverage-table, .podium, .comment, .tile) a:not(.btn) {
+  color: inherit;
+  text-decoration: none;
+}
+:is(.list, .result-row, .search-hit, .coverage-table, .podium, .comment, .tile) a:not(.btn):is(:hover, :focus-visible) {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+}
+.list a.list__item:is(:hover, :focus-visible), a.result-row:is(:hover, :focus-visible) { text-decoration: none; }
 button.list__item { width: 100%; border: 0; background: transparent; text-align: left; }
 
 .rank {
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 2.1rem;
-  height: 2.3rem;
-  border-radius: 5px;
-  background:
-    linear-gradient(to bottom, transparent calc(50% - .5px), rgba(20, 38, 60, .22) calc(50% - .5px), rgba(20, 38, 60, .22) calc(50% + .5px), transparent calc(50% + .5px)),
-    transparent;
-  background-color: var(--surface-3);
+  min-width: 2.1rem;
+  height: 2.1rem;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--surface-3);
   color: var(--ink-2);
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: var(--fs-md);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-lg);
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 .rank--1 { background-color: #FFD45C; color: #2A1D00; }
 .rank--2 { background-color: #D9E1EA; color: #1F2D3D; }
 .rank--3 { background-color: #F1B98A; color: #3A1E08; }
-.rank--1, .rank--2, .rank--3 { box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .12); }
+.rank--1, .rank--2, .rank--3 { box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .14); }
+.rank-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rank-delta--up { color: var(--good); }
+.rank-delta--up::before { content: "\25B2"; font-size: .75em; }
+.rank-delta--down { color: var(--bad); }
+.rank-delta--down::before { content: "\25BC"; font-size: .75em; }
+.rank-delta--same { color: var(--muted); }
+.rank-delta--same::before { content: "\2013"; }
+.rank-delta--new { color: var(--signal-text); }
+
+/* Egen rad i topplistan, kan nålas fast i botten av listan */
+.list__item--me {
+  background: var(--signal-soft);
+  box-shadow: inset 4px 0 0 var(--signal);
+}
+.list__item--pinned {
+  position: sticky;
+  bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom, 0px));
+  z-index: 2;
+  border-top: 1px solid var(--line-strong) !important;
+  box-shadow: inset 4px 0 0 var(--signal), 0 -8px 18px -12px rgba(20, 38, 60, .35);
+}
+@media (min-width: 768px) { .list__item--pinned { bottom: 0; } }
 
 /* ---------- Sök ---------- */
 .searchbar {
@@ -622,7 +764,7 @@ a.search-hit:hover { border-color: var(--line-strong); text-decoration: none; }
   width: var(--avatar-size);
   height: var(--avatar-size);
   border-radius: 50%;
-  background: hsl(var(--hue) 48% 38%);
+  background: hsl(var(--hue) 45% 31%);  /* fast låg ljushet: vit text klarar 4,5:1 för alla nyanser */
   color: #fff;
   font-weight: 700;
   font-size: calc(var(--avatar-size) * .38);
@@ -728,6 +870,11 @@ a.search-hit:hover { border-color: var(--line-strong); text-decoration: none; }
   display: flex;
   gap: var(--sp-1);
   overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 24px;
+  padding-right: 28px;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
   border-bottom: 1px solid var(--line);
   scrollbar-width: none;
 }
@@ -744,6 +891,7 @@ a.search-hit:hover { border-color: var(--line-strong); text-decoration: none; }
   font-size: var(--fs-sm);
   text-decoration: none;
   white-space: nowrap;
+  scroll-snap-align: start;
 }
 .tab:hover { color: var(--ink); text-decoration: none; }
 .tab--active, .tab[aria-selected="true"] { color: var(--ink); }
@@ -758,8 +906,8 @@ a.search-hit:hover { border-color: var(--line-strong); text-decoration: none; }
 
 /* ---------- Touchytor: minst 48x48 px träffyta (Android) ----------
    Visuellt mindre kontroller får en osynlig utökad träffyta. */
-.btn--sm, .like-btn, .segmented__option, .chip, .wish-btn, .toast .icon-btn, .photo-picker__remove, .stars-input__btn, .topbar__link { position: relative; }
-.btn--sm::after, .like-btn::after, .segmented__option::after, .chip::after, .wish-btn::after, .toast .icon-btn::after, .topbar__link::after {
+.icon-btn, .btn--sm, .like-btn, .action-btn, .segmented__option, .chip, .wish-btn, .toast .icon-btn, .photo-picker__remove, .stars-input__btn, .topbar__link { position: relative; }
+.btn--sm::after, .like-btn::after, .action-btn::after, .segmented__option::after, .chip::after, .wish-btn::after, .toast .icon-btn::after, .topbar__link::after {
   content: "";
   position: absolute;
   left: 0; right: 0;

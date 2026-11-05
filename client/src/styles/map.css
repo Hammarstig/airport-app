@@ -34,6 +34,11 @@
 .map__country[data-step="4"] { --fill: var(--map-4); }
 .map__country[data-step="5"] { --fill: var(--map-5); }
 .map__country[data-step="6"] { --fill: var(--map-6); }
+.map__country:not([data-step="0"]):not([data-step=""])[data-step] {
+  stroke: var(--map-visited-stroke);
+  stroke-width: .9;
+}
+.map__country--visited { stroke: var(--map-visited-stroke); stroke-width: .9; }
 .map__country:hover,
 .map__country:focus-visible,
 .map__country--active {
@@ -74,8 +79,10 @@
   row-gap: 4px;
 }
 .map__legend-scale > span {
-  height: 12px;
+  height: 14px;
   font-size: 0;
+  color: transparent;
+  box-shadow: inset 0 0 0 1px var(--map-visited-stroke);
 }
 .map__legend-scale > span:nth-child(1) { background: var(--map-1); border-radius: 3px 0 0 3px; }
 .map__legend-scale > span:nth-child(2) { background: var(--map-2); }
@@ -89,7 +96,7 @@
   width: 14px; height: 14px;
   border-radius: 3px;
   background: var(--map-none);
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--dot-unvisited-stroke);
 }
 .map__swatch--dot { border-radius: 50%; background: var(--dot-unvisited); border: 1.5px solid var(--dot-unvisited-stroke); }
 .map__swatch--dot-visited { border-radius: 50%; background: var(--dot-visited); border: 1.5px solid var(--dot-visited-stroke); }
@@ -139,7 +146,7 @@
   width: calc(var(--value) * 1%);
   min-width: 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--map-3), var(--map-5));
+  background: linear-gradient(90deg, var(--map-1), var(--map-3));
   transition: width 500ms var(--ease);
 }
 

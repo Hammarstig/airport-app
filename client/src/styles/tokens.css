@@ -43,6 +43,7 @@
   --board-tile-hi: #243043;
   --board-text: #FFC629;
   --board-text-2: #E9EEF5;
+  --board-ring: transparent;
 
   --ease: cubic-bezier(.2, .7, .2, 1);
   --dur: 180ms;
@@ -82,21 +83,24 @@
   --hero-bg: linear-gradient(170deg, #DDEFFD 0%, #F2F9FF 55%, #FFFFFF 100%);
   --topbar-bg: rgba(255, 255, 255, .86);
 
-  /* Karta: sekventiell skala 0-100 % besökta flygplatser (gul-grön-blå, färgblindvänlig, ljus -> mörk) */
-  --map-1: #FCEFA6;            /* 1-16 % */
-  --map-2: #C7E9B4;            /* 17-33 % */
-  --map-3: #7FCDBB;            /* 34-50 % */
-  --map-4: #41B6C4;            /* 51-66 % */
-  --map-5: #2C7FB8;            /* 67-83 % */
-  --map-6: #253494;            /* 84-100 % */
-  --map-none: #E3EAF1;         /* obesökt land */
-  --map-border: #FFFFFF;       /* landsgränser */
+  /* Karta: sekventiell skala 0-100 % besökta flygplatser.
+     Ljust: gul -> orange -> röd -> plommon (monoton ljushet, fungerar vid färgblindhet).
+     Steg 1 skiljer sig tydligt i kulör från obesökt; besökta länder får dessutom en mörkare kontur. */
+  --map-1: #F6C744;            /* 1-16 % */
+  --map-2: #F29B38;            /* 17-33 % */
+  --map-3: #E06A3B;            /* 34-50 % */
+  --map-4: #BF4250;            /* 51-66 % */
+  --map-5: #8E2E63;            /* 67-83 % */
+  --map-6: #55205F;            /* 84-100 % */
+  --map-none: #E4EAF0;         /* obesökt land */
+  --map-border: #FFFFFF;       /* landsgränser mellan obesökta */
+  --map-visited-stroke: rgba(40, 20, 0, .55);
   --map-water: transparent;
   --map-hover: #14263C;
   --dot-visited: #FFBE2E;
-  --dot-visited-stroke: #8A5600;
+  --dot-visited-stroke: #6E4500;
   --dot-unvisited: #FFFFFF;
-  --dot-unvisited-stroke: #7C8DA2;
+  --dot-unvisited-stroke: #6B7C91;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -134,19 +138,21 @@
     --shadow-1: 0 1px 0 rgba(0, 0, 0, .3);
     --shadow-2: 0 14px 34px -14px rgba(0, 0, 0, .8);
     --mark-bg: #6B5210;
-    --map-1: #3B3F7A;
-    --map-2: #33628F;
-    --map-3: #23868F;
-    --map-4: #2DA77E;
-    --map-5: #8CC94F;
-    --map-6: #F5E14A;
-    --map-none: #1A2B42;
-    --map-border: #08111E;
+    --board-ring: rgba(255, 255, 255, .22);
+    --map-1: #4C7FD0;
+    --map-2: #3FA5C6;
+    --map-3: #3EBF9F;
+    --map-4: #8AD46A;
+    --map-5: #E2D74C;
+    --map-6: #FFF2A8;
+    --map-none: #1C2D45;
+    --map-border: #0B1525;
+    --map-visited-stroke: rgba(255, 255, 255, .6);
     --map-hover: #FFFFFF;
     --dot-visited: #FFC22E;
     --dot-visited-stroke: #08111E;
     --dot-unvisited: #0F1B2C;
-    --dot-unvisited-stroke: #93A3B8;
+    --dot-unvisited-stroke: #A7B5C8;
   }
 }
 
@@ -184,17 +190,19 @@
   --shadow-1: 0 1px 0 rgba(0, 0, 0, .3);
   --shadow-2: 0 14px 34px -14px rgba(0, 0, 0, .8);
   --mark-bg: #6B5210;
-  --map-1: #3B3F7A;
-  --map-2: #33628F;
-  --map-3: #23868F;
-  --map-4: #2DA77E;
-  --map-5: #8CC94F;
-  --map-6: #F5E14A;
-  --map-none: #1A2B42;
-  --map-border: #08111E;
+  --board-ring: rgba(255, 255, 255, .22);
+  --map-1: #4C7FD0;
+  --map-2: #3FA5C6;
+  --map-3: #3EBF9F;
+  --map-4: #8AD46A;
+  --map-5: #E2D74C;
+  --map-6: #FFF2A8;
+  --map-none: #1C2D45;
+  --map-border: #0B1525;
+  --map-visited-stroke: rgba(255, 255, 255, .6);
   --map-hover: #FFFFFF;
   --dot-visited: #FFC22E;
   --dot-visited-stroke: #08111E;
   --dot-unvisited: #0F1B2C;
-  --dot-unvisited-stroke: #93A3B8;
+  --dot-unvisited-stroke: #A7B5C8;
 }
