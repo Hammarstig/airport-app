@@ -270,3 +270,91 @@ export function IconClose(props) {
     </Svg>
   );
 }
+
+export function IconBell(props) {
+  return (
+    <Svg {...props}>
+      <path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2H5l1.5-2Z" />
+      <path d="M10 20.5a2 2 0 0 0 4 0" />
+    </Svg>
+  );
+}
+
+export function IconComment(props) {
+  return (
+    <Svg {...props}>
+      <path d="M4.5 6a1.5 1.5 0 0 1 1.5-1.5h12A1.5 1.5 0 0 1 19.5 6v9a1.5 1.5 0 0 1-1.5 1.5h-7L6.5 20v-3.5H6A1.5 1.5 0 0 1 4.5 15V6Z" />
+      <path d="M8.5 9.5h7M8.5 12.5h4.5" />
+    </Svg>
+  );
+}
+
+export function IconShare(props) {
+  return (
+    <Svg {...props}>
+      <path d="M12 14.5V3.5M8 7.5l4-4 4 4" />
+      <path d="M8.5 10.5H6.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2" />
+    </Svg>
+  );
+}
+
+export function IconFlame(props) {
+  return (
+    <Svg {...props}>
+      <path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.4 2.4-5.4 3.6-8.3.5 1.7 1.4 2.8 2.4 3.4.2-2.9 1.6-5.2 3.3-6.4-.3 2.8 3.7 5.6 3.7 10.4 0 4.2-2.6 7.1-6.5 7.1Z" />
+      <path d="M12 21c-1.7 0-2.8-1.2-2.8-2.8 0-1.8 1.6-2.7 2.3-4.2.9 1 3.3 2.1 3.3 4.2 0 1.6-1.1 2.8-2.8 2.8Z" />
+    </Svg>
+  );
+}
+
+export function IconUsers(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="9" cy="8.5" r="3.5" />
+      <path d="M2.8 19.5c.6-3.2 3.1-5 6.2-5s5.6 1.8 6.2 5" />
+      <path d="M15.5 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.8c1.9.6 3.3 2.2 3.7 4.7" />
+    </Svg>
+  );
+}
+
+export function IconSettings(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.8l1.6 2.3 2.7-.6.6 2.7 2.3 1.6-1.4 2.4.9 2.6-2.6.9-.6 2.7-2.7-.6L12 21.2l-1.6-2.4-2.7.6-.6-2.7-2.6-.9.9-2.6-1.4-2.4L6.3 7.2l.6-2.7 2.7.6L12 2.8Z" />
+    </Svg>
+  );
+}
+
+export function IconNearby(props) {
+  return (
+    <Svg {...props}>
+      <path d="M20.5 3.5 3.5 10.6l7.2 2.7 2.7 7.2 7.1-17Z" />
+    </Svg>
+  );
+}
+
+export function IconMap(props) {
+  return (
+    <Svg {...props}>
+      <path d="M3.5 6.5 9 4.5l6 2 5.5-2v13l-5.5 2-6-2-5.5 2v-13Z" />
+      <path d="M9 4.5v13M15 6.5v13" />
+    </Svg>
+  );
+}
+
+export function IconChevronLeft(props) {
+  return (
+    <Svg {...props}>
+      <path d="M14.5 5.5 8 12l6.5 6.5" />
+    </Svg>
+  );
+}
+
+export function IconCheck(props) {
+  return (
+    <Svg {...props}>
+      <path d="m4.5 12.5 4.5 4.5 10.5-10.5" />
+    </Svg>
+  );
+}
