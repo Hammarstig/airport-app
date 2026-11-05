@@ -1,0 +1,9 @@
+node_modules
+dist
+test-results
+playwright-report
+server/data
+package-lock.json
+*.md
+client/public
+client/src/assets

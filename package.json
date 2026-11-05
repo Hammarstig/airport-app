@@ -3,18 +3,34 @@
   "private": true,
   "version": "0.1.0",
   "description": "Logga och betygsätt flygplatser (IATA) - Untappd för flygplatser",
-  "workspaces": ["server", "client"],
+  "workspaces": [
+    "server",
+    "client"
+  ],
   "scripts": {
     "dev": "concurrently -n server,client \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
     "start": "npm start -w server",
-    "test": "npm test -w server",
+    "test": "npm test -w server && npm test -w client",
     "test:e2e": "playwright test -c tests/e2e/playwright.config.js",
-    "test:api": "node --disable-warning=ExperimentalWarning --test \"tests/api/*.test.mjs\""
+    "test:api": "node --disable-warning=ExperimentalWarning --test \"tests/api/*.test.mjs\"",
+    "lint": "eslint .",
+    "format": "prettier --write \"client/**/*.{js,jsx,html}\"",
+    "format:check": "prettier --check \"client/**/*.{js,jsx,html}\"",
+    "test:client": "npm test -w client"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "1.63.0",
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.5.0",
+    "prettier": "^3.6.2"
   },
-  "engines": { "node": ">=22.5" }
+  "engines": {
+    "node": ">=22.5"
+  }
 }
