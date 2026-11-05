@@ -1,0 +1,174 @@
+/* Gatelog - kartvy (choropleth per land) och landsvy med flygplatsprickar */
+
+.map {
+  position: relative;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--sky-soft), transparent 70%),
+    var(--surface);
+  overflow: hidden;
+}
+.map__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  touch-action: pan-y pinch-zoom;
+}
+
+/* Land: fyllnad via data-step="0..6" (0 = obesökt) eller --fill */
+.map__country {
+  fill: var(--fill, var(--map-none));
+  stroke: var(--map-border);
+  stroke-width: .6;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  transition: fill var(--dur) var(--ease);
+  cursor: pointer;
+}
+.map__country[data-step="0"] { --fill: var(--map-none); }
+.map__country[data-step="1"] { --fill: var(--map-1); }
+.map__country[data-step="2"] { --fill: var(--map-2); }
+.map__country[data-step="3"] { --fill: var(--map-3); }
+.map__country[data-step="4"] { --fill: var(--map-4); }
+.map__country[data-step="5"] { --fill: var(--map-5); }
+.map__country[data-step="6"] { --fill: var(--map-6); }
+.map__country:hover,
+.map__country:focus-visible,
+.map__country--active {
+  stroke: var(--map-hover);
+  stroke-width: 1.6;
+  outline: none;
+}
+
+/* Flygplatsprickar i landsvyn */
+.map__dot {
+  fill: var(--dot-unvisited);
+  stroke: var(--dot-unvisited-stroke);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+.map__dot--visited {
+  fill: var(--dot-visited);
+  stroke: var(--dot-visited-stroke);
+}
+.map__dot:hover, .map__dot:focus-visible { stroke: var(--map-hover); stroke-width: 2.5; outline: none; }
+
+/* Teckenförklaring */
+.map__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.map__legend-scale {
+  display: grid;
+  grid-template-columns: repeat(6, 28px);
+  row-gap: 4px;
+}
+.map__legend-scale > span {
+  height: 12px;
+  font-size: 0;
+}
+.map__legend-scale > span:nth-child(1) { background: var(--map-1); border-radius: 3px 0 0 3px; }
+.map__legend-scale > span:nth-child(2) { background: var(--map-2); }
+.map__legend-scale > span:nth-child(3) { background: var(--map-3); }
+.map__legend-scale > span:nth-child(4) { background: var(--map-4); }
+.map__legend-scale > span:nth-child(5) { background: var(--map-5); }
+.map__legend-scale > span:nth-child(6) { background: var(--map-6); border-radius: 0 3px 3px 0; }
+.map__legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.map__swatch {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  background: var(--map-none);
+  border: 1px solid var(--line-strong);
+}
+.map__swatch--dot { border-radius: 50%; background: var(--dot-unvisited); border: 1.5px solid var(--dot-unvisited-stroke); }
+.map__swatch--dot-visited { border-radius: 50%; background: var(--dot-visited); border: 1.5px solid var(--dot-visited-stroke); }
+
+/* Tooltip */
+.map__tooltip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  min-width: 140px;
+  max-width: 240px;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: var(--board);
+  color: #fff;
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  box-shadow: var(--shadow-2);
+  transform: translate(-50%, calc(-100% - 12px));
+  white-space: normal;
+}
+.map__tooltip strong { display: block; font-size: var(--fs-md); }
+.map__tooltip::after {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -6px;
+  width: 12px; height: 12px;
+  background: inherit;
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 2px;
+}
+
+/* Täckningsmätare (--value 0-100) */
+.coverage-bar {
+  --value: 0;
+  position: relative;
+  height: 10px;
+  min-width: 80px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.coverage-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--value) * 1%);
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--map-3), var(--map-5));
+  transition: width 500ms var(--ease);
+}
+
+/* Växla karta/lista */
+.map-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+}
+.map-toggle > button, .map-toggle > a, .map-toggle__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  min-width: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  text-decoration: none;
+}
+.map-toggle > [aria-pressed="true"], .map-toggle > [aria-selected="true"], .map-toggle__option--active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-1), inset 0 -2px 0 var(--signal);
+}

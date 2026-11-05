@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gatelog stilguide</title>
+<link rel="stylesheet" href="../styles/index.css">
+<style>
+  .sg-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .sg-swatch { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: .75rem; background: var(--surface); }
+  .sg-swatch > div { height: 44px; }
+  .sg-swatch > p { padding: 6px 8px; margin: 0; }
+  .sg-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+  .sg-icons > div { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: .68rem; color: var(--muted); }
+  .sg-theme { position: fixed; right: 12px; top: 72px; z-index: 50; }
+  .sg-photo { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <a class="topbar__brand" href="#"><img src="../assets/logo.svg" alt="Gatelog" height="30"></a>
+    <nav class="topbar__nav" aria-label="Huvudmeny">
+      <a class="topbar__link topbar__link--active" href="#">Flöde</a>
+      <a class="topbar__link" href="#">Utforska</a>
+      <a class="topbar__link" href="#">Topplistor</a>
+      <a class="topbar__link" href="#">Profil</a>
+      <a class="btn btn--primary btn--sm" href="#">Checka in</a>
+      <button class="icon-btn" aria-label="Logga ut"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4.5H6.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1H14"/><path d="M10.5 12h10M17 8.5l3.5 3.5-3.5 3.5"/></svg></button>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section">
+      <header class="airport-hero">
+        <div class="airport-hero__code">GOT</div>
+        <h1 class="airport-hero__name">Göteborg Landvetter</h1>
+        <p class="airport-hero__place"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.4"/></svg> Göteborg, Sverige - Europa - ICAO ESGG</p>
+        <div class="row" style="margin-top:12px">
+          <a class="btn btn--primary" href="#">Checka in här</a>
+          <button class="wish-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M6.5 4.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16l-5.5-4-5.5 4v-16Z"/></svg> Önskelista</button>
+        </div>
+        <div class="row" style="margin-top:16px; gap:28px">
+          <div class="stat"><div class="stat__value">4,2</div><div class="stat__label">Snittbetyg</div></div>
+          <div class="stat"><div class="stat__value">318</div><div class="stat__label">Check-ins</div></div>
+          <div class="stat"><div class="stat__value">97</div><div class="stat__label">Besökare</div></div>
+        </div>
+      </header>
+    </section>
+
+    <section class="section">
+      <div class="page__header">
+        <div>
+          <h1 class="page__title">Stilguide</h1>
+          <p class="page__subtitle">Alla komponentklasser i Gatelog, i ljust och mörkt tema.</p>
+        </div>
+        <div class="segmented" role="radiogroup" aria-label="Tema">
+          <button class="segmented__option segmented__option--active" onclick="document.documentElement.dataset.theme='light'">Ljust</button>
+          <button class="segmented__option" onclick="document.documentElement.dataset.theme='dark'">Mörkt</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Flöde</h2>
+      <div class="grid grid--2">
+        <article class="card checkin">
+          <div class="checkin__head">
+            <a class="checkin__avatar" href="#"><span class="avatar" style="--hue:24">OH</span></a>
+            <div class="checkin__meta">
+              <div><a href="#"><strong>Oliver H</strong></a> <span class="muted">på <a href="#">Amsterdam Schiphol</a></span></div>
+              <div style="font-size:.85em">3 nov 2026 - Amsterdam, Nederländerna</div>
+            </div>
+            <a class="iata-tag" href="#">AMS</a>
+          </div>
+          <div class="checkin__body">
+            <div class="row">
+              <span class="kind-chip kind-chip--transfer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13.5M14 4.5 17.5 8 14 11.5M20 16H6.5M10 12.5 6.5 16l3.5 3.5"/></svg>Transfer</span>
+              <span class="class-chip class-chip--business">Business</span>
+              <span class="row" style="gap:6px"><span class="stars" style="--value:4.5" role="img" aria-label="4,5 av 5"></span><span class="muted">4,5</span></span>
+            </div>
+            <ul class="row" style="gap:6px"><li class="badge">Säkerhet 5/5</li><li class="badge">Wifi 3/5</li></ul>
+            <p class="checkin__comment">Säkerhetskontrollen tog sju minuter en måndag morgon. Lounge 41 har bra kaffe men blir trång efter nio.</p>
+            <dl class="detail-list">
+              <div><dt>Flygbolag</dt><dd><span class="airline-tag"><span class="airline-tag__code">KL</span><span class="airline-tag__name">KLM</span></span></dd></div>
+              <div><dt>Flight</dt><dd class="detail-list__mono">KL1150</dd></div>
+              <div><dt>Gate</dt><dd class="detail-list__mono">D7</dd></div>
+              <div><dt>Plats</dt><dd class="detail-list__mono">2A</dd></div>
+            </dl>
+            <div class="photo-strip">
+              <button aria-label="Visa foto 1"><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#9FD3F7"/><rect y="46" width="72" height="26" fill="#5E7D99"/><path d="M8 40l20-6 4 3 26-8" stroke="#fff" stroke-width="3" fill="none"/></svg></button>
+              <button aria-label="Visa foto 2"><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#FFD27A"/><rect x="10" y="18" width="52" height="30" rx="4" fill="#14263C"/><text x="36" y="38" fill="#FFC629" font-family="monospace" font-size="12" text-anchor="middle">D7 09:40</text></svg></button>
+              <button aria-label="Visa foto 3"><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#C7E9B4"/><circle cx="36" cy="36" r="16" fill="#41B6C4"/></svg></button>
+            </div>
+          </div>
+          <div class="checkin__actions">
+            <button class="like-btn like-btn--active" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 20s-7.5-4.6-8.9-9.2C2.2 7.6 4.3 4.5 7.5 4.5c2 0 3.5 1.1 4.5 2.7 1-1.6 2.5-2.7 4.5-2.7 3.2 0 5.3 3.1 4.4 6.3C19.5 15.4 12 20 12 20Z"/></svg><span>12</span></button>
+            <span class="spacer"></span>
+            <button class="btn btn--ghost btn--sm btn--danger">Radera</button>
+          </div>
+        </article>
+
+        <article class="card checkin">
+          <div class="checkin__head">
+            <span class="avatar" style="--hue:200">MS</span>
+            <div class="checkin__meta">
+              <div><strong>Maja S</strong> <span class="muted">på Tokyo Haneda</span></div>
+              <div style="font-size:.85em">28 okt 2026 - Tokyo, Japan</div>
+            </div>
+            <a class="iata-tag" href="#">HND</a>
+          </div>
+          <div class="checkin__body">
+            <div class="row">
+              <span class="kind-chip kind-chip--departure">Avgång</span>
+              <span class="kind-chip kind-chip--arrival">Ankomst</span>
+              <span class="kind-chip kind-chip--layover">Mellanlandning</span>
+              <span class="stars" style="--value:5" role="img" aria-label="5 av 5"></span>
+            </div>
+            <p class="checkin__comment">Renaste flygplatsen jag varit på.</p>
+          </div>
+          <div class="checkin__actions">
+            <button class="like-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 20s-7.5-4.6-8.9-9.2C2.2 7.6 4.3 4.5 7.5 4.5c2 0 3.5 1.1 4.5 2.7 1-1.6 2.5-2.7 4.5-2.7 3.2 0 5.3 3.1 4.4 6.3C19.5 15.4 12 20 12 20Z"/></svg><span>3</span></button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Betyg</h2>
+      <div class="grid grid--2">
+        <div class="card"><div class="card__header">Snitt och delbetyg</div><div class="card__body stack">
+          <div class="row"><span class="rating-badge rating-badge--good">4,6</span><span class="rating-badge rating-badge--mid">3,4</span><span class="rating-badge rating-badge--bad">1,9</span><span class="rating-badge">-</span></div>
+          <div class="row"><span class="stars stars--lg" style="--value:3.5" role="img" aria-label="3,5 av 5"></span><span class="stars" style="--value:2" role="img" aria-label="2 av 5"></span></div>
+          <div>
+            <div class="subrating"><span class="subrating__label">Säkerhet</span><span class="subrating__bar"><span class="subrating__fill" style="--value:4.6"></span></span><span class="muted">4,6</span></div>
+            <div class="subrating"><span class="subrating__label">Renlighet</span><span class="subrating__bar"><span class="subrating__fill" style="--value:4.1"></span></span><span class="muted">4,1</span></div>
+            <div class="subrating"><span class="subrating__label">Mat</span><span class="subrating__bar"><span class="subrating__fill" style="--value:2.8"></span></span><span class="muted">2,8</span></div>
+            <div class="subrating"><span class="subrating__label">Wifi</span><span class="subrating__bar"><span class="subrating__fill" style="--value:3.5"></span></span><span class="muted">3,5</span></div>
+          </div>
+        </div></div>
+        <div class="card"><div class="card__header">Ny check-in</div><div class="card__body stack">
+          <div class="field"><label class="field__label" for="sg-ap">Flygplats</label>
+            <div class="searchbar" style="flex-wrap:wrap">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.4 15.4 5.1 5.1"/></svg>
+              <input id="sg-ap" class="searchbar__input" value="göt" type="search">
+              <ul class="autocomplete" style="position:static;margin-top:6px">
+                <li class="autocomplete__item autocomplete__item--active"><span class="iata-tag">GOT</span><span>Göteborg Landvetter<br><span class="muted" style="font-size:.85em">Göteborg, Sverige</span></span><span class="match-hint">Stad</span></li>
+                <li class="autocomplete__item"><span class="iata-tag">GSE</span><span>Göteborg Säve<br><span class="muted" style="font-size:.85em">Göteborg, Sverige</span></span><span class="match-hint">Stad</span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="field"><span class="field__label">Typ av besök</span>
+            <div class="segmented"><span class="segmented__option segmented__option--active">Avgång</span><span class="segmented__option">Ankomst</span><span class="segmented__option">Transfer</span><span class="segmented__option">Mellanl.</span></div>
+          </div>
+          <div class="field"><span class="field__label">Betyg</span>
+            <div class="stars-input" role="slider" aria-valuenow="3.5">
+              <button class="stars-input__btn" style="--fill:1">★</button><button class="stars-input__btn" style="--fill:1">★</button><button class="stars-input__btn" style="--fill:1">★</button><button class="stars-input__btn" style="--fill:.5">★</button><button class="stars-input__btn" style="--fill:0">★</button>
+            </div>
+          </div>
+          <div class="field"><label class="field__label" for="sg-c">Kommentar</label><textarea id="sg-c" class="textarea" placeholder="Hur var säkerhetskontrollen, maten, wifi?"></textarea><span class="field__hint">Syns för alla och går att söka på.</span></div>
+          <div class="field"><label class="field__label" for="sg-s">Reseklass</label><select id="sg-s" class="select"><option>Ekonomi</option></select></div>
+          <div class="field"><label class="field__label" for="sg-e">Flightnummer</label><input id="sg-e" class="input" aria-invalid="true" value="KL11500"><span class="field__error">Flightnummer har 2 tecken för bolaget och 1-4 siffror, t.ex. KL1150.</span></div>
+          <div class="field"><span class="field__label">Foton</span>
+            <div class="photo-picker">
+              <div class="photo-picker__tile"><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#9FD3F7"/><rect y="46" width="72" height="26" fill="#5E7D99"/></svg><button class="photo-picker__remove" aria-label="Ta bort foto">×</button></div>
+              <div class="photo-picker__tile"><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#FFD27A"/></svg><button class="photo-picker__remove" aria-label="Ta bort foto">×</button></div>
+              <label class="photo-picker__add"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2.5L9 4.5h6L16.5 7H19a1.5 1.5 0 0 1 1.5 1.5v9.5A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18V8.5Z"/><circle cx="12" cy="13" r="3.5"/></svg>Lägg till foto<input type="file" accept="image/*"></label>
+            </div>
+          </div>
+        </div>
+        <div class="card__footer"><button class="btn btn--primary btn--block">Checka in</button></div></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Knappar och etiketter</h2>
+      <div class="stack">
+        <div class="row"><button class="btn btn--primary">Checka in</button><button class="btn">Avbryt</button><button class="btn btn--ghost">Visa fler</button><button class="btn btn--danger">Radera konto</button><button class="btn btn--sm">Liten</button><button class="icon-btn" aria-label="Lägg till">+</button><button class="wish-btn wish-btn--active" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M6.5 4.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16l-5.5-4-5.5 4v-16Z"/></svg> På önskelistan</button></div>
+        <div class="row"><span class="badge">12 länder</span><span class="badge badge--signal">Ny</span><span class="class-chip class-chip--economy">Ekonomi</span><span class="class-chip class-chip--premium_economy">Premium ekonomi</span><span class="class-chip class-chip--business">Business</span><span class="class-chip class-chip--first">First</span><span class="airline-tag"><span class="airline-tag__code">SK</span><span class="airline-tag__name">SAS</span></span></div>
+        <div class="row"><span class="iata-tag">ARN</span><span class="iata-tag">LHR</span><span class="iata-tag">JFK</span><span class="avatar avatar--sm" style="--hue:140">AB</span><span class="avatar" style="--hue:280">KL</span><span class="avatar avatar--lg" style="--hue:30">OH</span><span class="spinner"></span></div>
+        <div class="tabs"><button class="tab tab--active">Check-ins</button><button class="tab">Lounger</button><button class="tab">Foton</button><button class="tab">Statistik</button></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Utforska</h2>
+      <div class="stack">
+        <div class="filters">
+          <fieldset class="filters__group"><legend>Kontinent</legend>
+            <button class="chip chip--active">Europa <span class="chip__count">412</span></button><button class="chip">Asien</button><button class="chip">Nordamerika</button><button class="chip">Afrika</button>
+          </fieldset>
+          <fieldset class="filters__group"><legend>Storlek</legend>
+            <button class="chip">Stor</button><button class="chip chip--active">Medel</button><button class="chip">Liten</button>
+          </fieldset>
+        </div>
+        <div>
+          <div class="sortbar"><span><strong>412</strong> flygplatser</span><select class="select"><option>Flest check-ins</option></select></div>
+          <div class="list">
+            <a class="result-row" href="#"><span class="result-row__code"><span class="iata-tag">CPH</span></span><span class="result-row__main">Köpenhamn Kastrup</span><span class="result-row__meta">Köpenhamn, Danmark - 1 204 check-ins</span><span class="result-row__score"><span class="rating-badge rating-badge--good">4,3</span>212 betyg</span></a>
+            <a class="result-row" href="#"><span class="result-row__code"><span class="iata-tag">FRA</span></span><span class="result-row__main">Frankfurt am Main</span><span class="result-row__meta">Frankfurt, Tyskland - 988 check-ins</span><span class="result-row__score"><span class="rating-badge rating-badge--mid">3,2</span>180 betyg</span></a>
+          </div>
+        </div>
+        <div class="carousel">
+          <div class="carousel__item"><a class="tile tile--continent" data-continent="EU" href="#"><span class="tile__title">Europa</span><span class="tile__meta">1 342 flygplatser - 41 länder</span></a></div>
+          <div class="carousel__item"><a class="tile tile--continent" data-continent="AS" href="#"><span class="tile__title">Asien</span><span class="tile__meta">1 870 flygplatser</span></a></div>
+          <div class="carousel__item"><a class="tile tile--continent" data-continent="NA" href="#"><span class="tile__title">Nordamerika</span><span class="tile__meta">2 210 flygplatser</span></a></div>
+          <div class="carousel__item"><a class="tile tile--continent" data-continent="OC" href="#"><span class="tile__title">Oceanien</span><span class="tile__meta">402 flygplatser</span></a></div>
+        </div>
+        <div class="grid grid--3">
+          <a class="tile" href="#"><span class="tile__code">SE</span><span class="tile__title">Sverige</span><span class="tile__meta">39 flygplatser - snitt 4,1</span></a>
+          <a class="tile" href="#"><span class="tile__code">NO</span><span class="tile__title">Norge</span><span class="tile__meta">52 flygplatser - snitt 3,9</span></a>
+          <a class="tile" href="#"><span class="tile__code">IS</span><span class="tile__title">Island</span><span class="tile__meta">12 flygplatser</span></a>
+        </div>
+        <ol class="list">
+          <li class="list__item"><span class="rank rank--1">1</span><span class="avatar avatar--sm" style="--hue:24">OH</span><strong style="flex:1">Oliver H</strong><span class="muted">142 flygplatser</span></li>
+          <li class="list__item"><span class="rank rank--2">2</span><span class="avatar avatar--sm" style="--hue:200">MS</span><strong style="flex:1">Maja S</strong><span class="muted">118</span></li>
+          <li class="list__item"><span class="rank rank--3">3</span><span class="avatar avatar--sm" style="--hue:300">JL</span><strong style="flex:1">Jonas L</strong><span class="muted">97</span></li>
+          <li class="list__item"><span class="rank">4</span><span class="avatar avatar--sm" style="--hue:90">AK</span><strong style="flex:1">Anna K</strong><span class="muted">80</span></li>
+        </ol>
+        <div class="search-hit"><div class="row" style="margin-bottom:6px"><span class="iata-tag">MUC</span><strong>München</strong><span class="stars" style="--value:4"></span></div><p>Bästa <mark>loungen</mark> i Terminal 2, och <mark>loungen</mark> har riktig mat.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Karta</h2>
+      <div class="stack">
+        <div class="row row--between"><div class="map-toggle"><button aria-pressed="true">Karta</button><button aria-pressed="false">Lista</button></div><span class="muted">23 av 213 länder</span></div>
+        <div class="map">
+          <svg class="map__svg" viewBox="0 0 400 180" role="img" aria-label="Exempelkarta">
+            <path class="map__country" data-step="6" d="M20 30h60v40H20z"/>
+            <path class="map__country" data-step="5" d="M80 30h50v40H80z"/>
+            <path class="map__country" data-step="4" d="M130 30h50v40h-50z"/>
+            <path class="map__country map__country--active" data-step="3" d="M180 30h60v40h-60z"/>
+            <path class="map__country" data-step="2" d="M240 30h50v40h-50z"/>
+            <path class="map__country" data-step="1" d="M290 30h50v40h-50z"/>
+            <path class="map__country" data-step="0" d="M340 30h40v40h-40z"/>
+            <path class="map__country" data-step="0" d="M40 90h130v60H40z"/>
+            <circle class="map__dot map__dot--visited" cx="70" cy="110" r="5"/><circle class="map__dot" cx="110" cy="130" r="5"/><circle class="map__dot map__dot--visited" cx="140" cy="105" r="5"/>
+          </svg>
+          <div class="map__tooltip" style="left:50%; top:110px"><strong>Tyskland</strong>9 av 24 flygplatser (38 %)</div>
+          <div class="map__legend">
+            <span>0 %</span><span class="map__legend-scale"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span></span><span>100 %</span>
+            <span class="map__legend-item"><span class="map__swatch"></span>Obesökt</span>
+            <span class="map__legend-item"><span class="map__swatch map__swatch--dot-visited"></span>Besökt</span>
+            <span class="map__legend-item"><span class="map__swatch map__swatch--dot"></span>Ej besökt</span>
+          </div>
+        </div>
+        <div class="row row--nowrap"><span style="min-width:6rem">Sverige</span><div class="coverage-bar" style="--value:41; flex:1"></div><strong>41 %</strong></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Märken</h2>
+      <div class="badge-grid" id="badges"></div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Galleri och tomt läge</h2>
+      <div class="grid grid--2">
+        <div class="gallery">
+          <button><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#9FD3F7"/><rect y="46" width="72" height="26" fill="#5E7D99"/></svg><span class="gallery__caption">Oliver H, 3 nov</span></button>
+          <button><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#FFD27A"/></svg></button>
+          <button><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#C7E9B4"/></svg></button>
+          <button><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#7FCDBB"/></svg></button>
+        </div>
+        <div class="empty-state">
+          <span class="empty-state__icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M10.2 13.8 4 12.3l-1.2-1.5 1.5-.6 6 .9 4.6-4.6c.9-.9 2.6-1.5 3.3-.8.7.7.1 2.4-.8 3.3l-4.6 4.6.9 6-.6 1.5-1.5-1.2-1.5-6.2"/></svg></span>
+          <h3>Inga check-ins än</h3>
+          <p>Logga din första flygplats så hamnar den här.</p>
+          <a class="btn btn--primary" href="#">Checka in</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Palett</h2>
+      <div class="sg-swatches" id="swatches"></div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Nytt märke (modal)</h2>
+      <div class="card" style="max-width:420px; margin:0 auto; padding:24px">
+        <div class="badge-unlock">
+          <div class="badge-unlock__icon"><img src="../assets/badges/countries-5.svg" alt=""></div>
+          <div class="badge-unlock__title">Nytt märke upplåst</div>
+          <div class="badge-unlock__name">5 länder</div>
+          <p class="badge-unlock__desc">Du har checkat in i fem olika länder.</p>
+          <button class="btn btn--primary">Fortsätt</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast-region" style="position:static;transform:none;margin:0 auto 96px"><div class="toast" role="status"><span>Incheckad på GOT.</span><button class="icon-btn" aria-label="Stäng">×</button></div></div>
+
+  <nav class="bottom-nav" aria-label="Huvudmeny mobil">
+    <a class="bottom-nav__item bottom-nav__item--active" href="#"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.8l8.5 6.7"/><path d="M5.5 9v10.5a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V9"/></svg><span>Flöde</span></a>
+    <a class="bottom-nav__item" href="#"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.4 15.4 5.1 5.1"/></svg><span>Sök</span></a>
+    <a class="bottom-nav__item" href="#"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Checka in</span></a>
+    <a class="bottom-nav__item" href="#"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4h9v5.5a4.5 4.5 0 0 1-9 0V4Z"/><path d="M7.5 6H4.5v1.5a3 3 0 0 0 3 3M16.5 6h3v1.5a3 3 0 0 1-3 3"/><path d="M12 14v3.5M8.5 20.5h7"/></svg><span>Topplistor</span></a>
+    <a class="bottom-nav__item" href="#"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c.8-3.8 3.8-6 7.5-6s6.7 2.2 7.5 6"/></svg><span>Profil</span></a>
+  </nav>
+</div>
+<script>
+  const badges = [
+    ['first-checkin','Första check-in',1,1],['airports-10','10 flygplatser',10,10],['airports-25','25 flygplatser',25,25],['airports-50','50 flygplatser',31,50],
+    ['airports-100','100 flygplatser',31,100],['countries-5','5 länder',5,5],['countries-15','15 länder',12,15],['countries-30','30 länder',12,30],
+    ['all-continents','Alla kontinenter',4,6],['nordic','Nordisk resenär',5,5],['transfer-king','Transferkung',10,10],['lounge-expert','Loungeexpert',2,5],
+    ['home-turf','Hemmaplan',5,5],['reviewer','Recensent',20,20]
+  ];
+  document.getElementById('badges').innerHTML = badges.map(([id, name, c, t]) => {
+    const locked = c < t;
+    return `<div class="badge-card${locked ? ' badge-card--locked' : ''}"><div class="badge-card__icon"><img src="../assets/badges/${id}.svg" alt=""></div><div class="badge-card__name">${name}</div>${locked ? `<div class="badge-card__desc">${c} av ${t}</div><div class="badge-card__progress" style="--progress:${c / t}"></div>` : '<div class="badge-card__date">Upplåst 2 nov</div>'}</div>`;
+  }).join('');
+  const sw = ['--bg','--surface','--surface-3','--ink','--muted','--line-strong','--signal','--signal-text','--signal-soft','--sky','--info','--good','--bad','--violet','--board','--board-text','--map-1','--map-2','--map-3','--map-4','--map-5','--map-6','--map-none'];
+  document.getElementById('swatches').innerHTML = sw.map(v => `<div class="sg-swatch"><div style="background:var(${v})"></div><p>${v}</p></div>`).join('');
+</script>
+</body>
+</html>

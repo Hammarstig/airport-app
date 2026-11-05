@@ -1,0 +1,200 @@
+/* Gatelog - designtokens
+   Riktning: avgångstavla och boardingkort. Natthimmel/plattform-marin + signalgul.
+   Ljust tema = terminalhall i dagsljus (kall gråblå), mörkt tema = plattan på natten. */
+
+:root {
+  /* Typsnitt */
+  --font-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", "Helvetica Neue", sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Typskala (1.25) */
+  --fs-xs: 0.8rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.5625rem;
+  --fs-2xl: 1.953rem;
+  --fs-3xl: 2.441rem;
+  --fs-4xl: 3.052rem;
+
+  /* Avstånd (4px-bas) */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+
+  /* Radier: små på kontroller, större på kort, tavlan har egna */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  --content-max: 1100px;
+  --topbar-h: 60px;
+  --bottomnav-h: 64px;
+
+  /* Fasta tavelfärger (avgångstavlan är alltid mörk, oavsett tema) */
+  --board: #0F1724;
+  --board-tile: #1C2635;
+  --board-tile-hi: #243043;
+  --board-text: #FFC629;
+  --board-text-2: #E9EEF5;
+
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --dur: 180ms;
+
+  /* Ljust tema - huvudtema: ljus himmel, luftiga ytor, signalgul accent */
+  color-scheme: light;
+  --bg: #F3F7FB;               /* ljus himmel, nästan vit */
+  --surface: #FFFFFF;
+  --surface-2: #F7FAFD;
+  --surface-3: #E6EEF6;
+  --ink: #14263C;              /* text, 15.5:1 mot vit */
+  --ink-2: #34465C;
+  --muted: #5A6B80;            /* 5.4:1 mot --bg */
+  --line: #DCE5EE;
+  --line-strong: #B7C6D6;
+  --navy: #E4EEF8;             /* neutral bricka */
+  --navy-ink: #14263C;
+  --sky: #8FCBF5;              /* dekor: himmel */
+  --sky-soft: #E3F2FD;
+  --signal: #FFBE2E;           /* signalgul - fyllnad (knappar, stjärnor) */
+  --signal-ink: #1E1600;       /* text på signalgul, 11:1 */
+  --signal-text: #8A5600;      /* signalgul som text på ljus yta (AA) */
+  --signal-soft: #FFF4D6;
+  --good: #1D7A4C;
+  --good-soft: #DDF2E6;
+  --mid: #9A6200;
+  --mid-soft: #FFF0CF;
+  --bad: #B8322A;
+  --bad-soft: #FBE1DE;
+  --info: #1E6BB0;
+  --violet: #6A48B8;
+  --focus: #1E6BB0;
+  --star-empty: #D3DDE7;
+  --shadow-1: 0 1px 2px rgba(20, 38, 60, .06), 0 2px 8px -4px rgba(20, 38, 60, .10);
+  --shadow-2: 0 18px 40px -18px rgba(20, 38, 60, .35);
+  --mark-bg: #FFE08A;
+  --hero-bg: linear-gradient(170deg, #DDEFFD 0%, #F2F9FF 55%, #FFFFFF 100%);
+  --topbar-bg: rgba(255, 255, 255, .86);
+
+  /* Karta: sekventiell skala 0-100 % besökta flygplatser (gul-grön-blå, färgblindvänlig, ljus -> mörk) */
+  --map-1: #FCEFA6;            /* 1-16 % */
+  --map-2: #C7E9B4;            /* 17-33 % */
+  --map-3: #7FCDBB;            /* 34-50 % */
+  --map-4: #41B6C4;            /* 51-66 % */
+  --map-5: #2C7FB8;            /* 67-83 % */
+  --map-6: #253494;            /* 84-100 % */
+  --map-none: #E3EAF1;         /* obesökt land */
+  --map-border: #FFFFFF;       /* landsgränser */
+  --map-water: transparent;
+  --map-hover: #14263C;
+  --dot-visited: #FFBE2E;
+  --dot-visited-stroke: #8A5600;
+  --dot-unvisited: #FFFFFF;
+  --dot-unvisited-stroke: #7C8DA2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #08111E;
+    --surface: #0F1B2C;
+    --surface-2: #15243A;
+    --surface-3: #1C2E47;
+    --ink: #E9EEF5;
+    --ink-2: #C6D0DD;
+    --muted: #93A3B8;
+    --line: #22344D;
+    --line-strong: #34496A;
+    --navy: #1E3354;
+    --sky: #3E7FB8;
+    --sky-soft: #12263D;
+    --hero-bg: linear-gradient(170deg, #17304D 0%, #0F1B2C 70%);
+    --topbar-bg: rgba(11, 21, 35, .88);
+    --navy-ink: #FFFFFF;
+    --signal: #FFC22E;
+    --signal-ink: #1A1300;
+    --signal-text: #FFCB4F;
+    --signal-soft: #2E2510;
+    --good: #4CC287;
+    --good-soft: #10301F;
+    --mid: #FFC94D;
+    --mid-soft: #2E2510;
+    --bad: #FF7A6B;
+    --bad-soft: #3A1714;
+    --info: #7FB3F0;
+    --violet: #B9A2FF;
+    --focus: #7FB3F0;
+    --star-empty: #2C3E57;
+    --shadow-1: 0 1px 0 rgba(0, 0, 0, .3);
+    --shadow-2: 0 14px 34px -14px rgba(0, 0, 0, .8);
+    --mark-bg: #6B5210;
+    --map-1: #3B3F7A;
+    --map-2: #33628F;
+    --map-3: #23868F;
+    --map-4: #2DA77E;
+    --map-5: #8CC94F;
+    --map-6: #F5E14A;
+    --map-none: #1A2B42;
+    --map-border: #08111E;
+    --map-hover: #FFFFFF;
+    --dot-visited: #FFC22E;
+    --dot-visited-stroke: #08111E;
+    --dot-unvisited: #0F1B2C;
+    --dot-unvisited-stroke: #93A3B8;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #08111E;
+  --surface: #0F1B2C;
+  --surface-2: #15243A;
+  --surface-3: #1C2E47;
+  --ink: #E9EEF5;
+  --ink-2: #C6D0DD;
+  --muted: #93A3B8;
+  --line: #22344D;
+  --line-strong: #34496A;
+  --navy: #1E3354;
+  --navy-ink: #FFFFFF;
+  --sky: #3E7FB8;
+  --sky-soft: #12263D;
+  --hero-bg: linear-gradient(170deg, #17304D 0%, #0F1B2C 70%);
+  --topbar-bg: rgba(11, 21, 35, .88);
+  --signal: #FFC22E;
+  --signal-ink: #1A1300;
+  --signal-text: #FFCB4F;
+  --signal-soft: #2E2510;
+  --good: #4CC287;
+  --good-soft: #10301F;
+  --mid: #FFC94D;
+  --mid-soft: #2E2510;
+  --bad: #FF7A6B;
+  --bad-soft: #3A1714;
+  --info: #7FB3F0;
+  --violet: #B9A2FF;
+  --focus: #7FB3F0;
+  --star-empty: #2C3E57;
+  --shadow-1: 0 1px 0 rgba(0, 0, 0, .3);
+  --shadow-2: 0 14px 34px -14px rgba(0, 0, 0, .8);
+  --mark-bg: #6B5210;
+  --map-1: #3B3F7A;
+  --map-2: #33628F;
+  --map-3: #23868F;
+  --map-4: #2DA77E;
+  --map-5: #8CC94F;
+  --map-6: #F5E14A;
+  --map-none: #1A2B42;
+  --map-border: #08111E;
+  --map-hover: #FFFFFF;
+  --dot-visited: #FFC22E;
+  --dot-visited-stroke: #08111E;
+  --dot-unvisited: #0F1B2C;
+  --dot-unvisited-stroke: #93A3B8;
+}

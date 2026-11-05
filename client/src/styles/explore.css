@@ -1,0 +1,381 @@
+/* Gatelog - utforska, filter, märken, modal (v1.1) */
+
+/* ---------- Filter ---------- */
+.filters {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.filters__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.filters__group > legend,
+.filters__label {
+  flex-basis: 100%;
+  padding: 0;
+  margin-bottom: 2px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.filters__group > legend + * { margin-top: 0; }
+.filters__group .select { width: auto; min-width: 12rem; flex: 1 1 12rem; }
+@media (min-width: 960px) {
+  .filters--sidebar { position: sticky; top: calc(var(--topbar-h) + var(--sp-4)); }
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.chip:hover { border-color: var(--ink-2); color: var(--ink); text-decoration: none; }
+.chip svg { width: 16px; height: 16px; }
+.chip--active,
+.chip[aria-pressed="true"],
+.chip[aria-checked="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
+.chip--active:hover { color: var(--surface); }
+.chip__count { opacity: .7; font-variant-numeric: tabular-nums; }
+
+.sortbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+  padding-bottom: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.sortbar strong { color: var(--ink); }
+.sortbar .select { width: auto; min-height: 38px; padding-top: 6px; padding-bottom: 6px; font-size: var(--fs-sm); }
+
+/* ---------- Resultatrad för flygplats ---------- */
+.result-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  color: inherit;
+  text-decoration: none;
+  background: var(--surface);
+}
+.result-row + .result-row { border-top: 1px solid var(--line); }
+a.result-row:hover { background: var(--surface-2); text-decoration: none; }
+.list > .result-row { background: transparent; }
+.result-row__code { grid-row: span 2; align-self: center; }
+.result-row__code .iata-tag, .result-row__code.iata-tag { font-size: 1.05rem; }
+.result-row__main {
+  min-width: 0;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-row__meta {
+  grid-column: 2;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-row__score {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.result-row__score .rating-badge { font-size: var(--fs-md); }
+
+/* ---------- Kontinent- och landskort ---------- */
+.tile {
+  --tile-accent: var(--signal);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  min-height: 112px;
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  isolation: isolate;
+  transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+a.tile:hover, button.tile:hover { border-color: var(--line-strong); text-decoration: none; transform: translateY(-2px); }
+button.tile { width: 100%; text-align: left; font: inherit; }
+.tile__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-xl);
+  line-height: 1.05;
+  color: var(--ink);
+}
+.tile__meta { font-size: var(--fs-sm); color: var(--muted); }
+.tile .iata-tag, .tile__code {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+}
+.tile__code {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+/* Kontinent: ljus himmelston per kontinent med gradnät och streckad flygrutt */
+.tile--continent {
+  min-height: 150px;
+  background-color: color-mix(in srgb, var(--tile-accent) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--tile-accent) 30%, var(--line));
+}
+.tile--continent::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 160' preserveAspectRatio='xMaxYMin slice'%3E%3Cg fill='none' stroke='%237F93AB' stroke-opacity='.3' stroke-width='1'%3E%3Cellipse cx='250' cy='70' rx='110' ry='110'/%3E%3Cellipse cx='250' cy='70' rx='70' ry='110'/%3E%3Cellipse cx='250' cy='70' rx='28' ry='110'/%3E%3Cpath d='M140 70h220M150 25h200M150 115h200'/%3E%3C/g%3E%3C/svg%3E") right top / cover no-repeat;
+}
+.tile--continent::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 160' preserveAspectRatio='xMaxYMin slice'%3E%3Cpath d='M200 78 Q 250 8 312 36' fill='none' stroke='%23E09B00' stroke-width='2.2' stroke-dasharray='2 7' stroke-linecap='round'/%3E%3Ccircle cx='200' cy='78' r='4.5' fill='%23E09B00'/%3E%3Ccircle cx='312' cy='36' r='4.5' fill='%23E09B00'/%3E%3C/svg%3E") right top / cover no-repeat;
+}
+.tile--continent .tile__title { font-size: var(--fs-2xl); }
+.tile--continent[data-continent="EU"] { --tile-accent: #3D86F0; }
+.tile--continent[data-continent="NA"] { --tile-accent: #FF7A4D; }
+.tile--continent[data-continent="SA"] { --tile-accent: #3FD08A; }
+.tile--continent[data-continent="AS"] { --tile-accent: #FF4D7A; }
+.tile--continent[data-continent="AF"] { --tile-accent: #FFC629; }
+.tile--continent[data-continent="OC"] { --tile-accent: #2FD3E0; }
+.tile--continent[data-continent="AN"] { --tile-accent: #B9C7DA; }
+
+/* ---------- Kategorirader med horisontell scroll ---------- */
+.carousel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(78%, 1fr);
+  gap: var(--sp-3);
+  margin: 0 calc(var(--sp-4) * -1);
+  padding: 2px var(--sp-4) var(--sp-3);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--sp-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+@media (min-width: 640px) {
+  .carousel { grid-auto-columns: 260px; margin: 0; padding-left: 0; padding-right: 0; scroll-padding-inline: 0; }
+}
+.carousel__item { scroll-snap-align: start; min-width: 0; }
+.carousel__item > .card, .carousel__item > .tile { height: 100%; }
+
+/* ---------- Märken ---------- */
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--sp-3);
+}
+.badge-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  text-align: center;
+  min-width: 0;
+}
+.badge-card__icon {
+  width: 88px;
+  height: 88px;
+  filter: drop-shadow(0 4px 6px rgba(15, 27, 45, .25));
+}
+.badge-card__icon img, .badge-card__icon svg { width: 100%; height: 100%; }
+.badge-card__name { font-weight: 700; color: var(--ink); line-height: 1.25; }
+.badge-card__desc { font-size: var(--fs-xs); color: var(--muted); line-height: 1.35; }
+.badge-card__date { font-size: var(--fs-xs); color: var(--signal-text); font-weight: 700; }
+.badge-card__progress {
+  --progress: 0;
+  position: relative;
+  width: 100%;
+  height: 6px;
+  margin-top: auto;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.badge-card__progress::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--progress) * 100%);
+  border-radius: inherit;
+  background: var(--signal);
+}
+.badge-card--locked { background: var(--surface-2); border-style: dashed; border-color: var(--line-strong); }
+.badge-card--locked .badge-card__icon { filter: grayscale(1) contrast(.85); opacity: .38; }
+.badge-card--locked .badge-card__name { color: var(--ink-2); }
+
+/* ---------- Önskelista ---------- */
+.wish-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.wish-btn:hover { background: var(--surface-2); }
+.wish-btn--active, .wish-btn[aria-pressed="true"] {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--signal-ink);
+}
+.wish-btn--active:hover { background: color-mix(in srgb, var(--signal) 88%, #fff); }
+.wish-btn--active svg { fill: currentColor; animation: like-pop 300ms var(--ease); }
+
+/* ---------- Modal ---------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 10, 18, .62);
+  animation: fade-in 200ms var(--ease);
+}
+.modal__panel {
+  position: relative;
+  width: 100%;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: var(--sp-5) var(--sp-4) calc(var(--sp-5) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: var(--shadow-2);
+  animation: sheet-up 260ms var(--ease);
+}
+.modal__panel:focus { outline: none; }
+.modal__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.modal__title { flex: 1; font-family: var(--font-display); font-weight: 800; font-size: var(--fs-2xl); line-height: 1.05; }
+.modal__footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-5); }
+@media (min-width: 640px) {
+  .modal { align-items: center; padding: var(--sp-5); }
+  .modal__panel { max-width: 520px; padding: var(--sp-5); border-radius: var(--r-lg); animation-name: pop-in; }
+}
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } }
+@keyframes pop-in { from { transform: translateY(12px) scale(.98); opacity: 0; } }
+
+/* ---------- Nytt märke: firande ---------- */
+.badge-unlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0 var(--sp-2);
+  text-align: center;
+}
+.badge-unlock__icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 160px;
+  height: 160px;
+  margin-bottom: var(--sp-2);
+  isolation: isolate;
+}
+.badge-unlock__icon::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  z-index: -1;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--signal) 40%, transparent) 0 6deg, transparent 6deg 22.5deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 38%, #000 52%, transparent 100%);
+  mask: radial-gradient(closest-side, transparent 38%, #000 52%, transparent 100%);
+  animation: rays-in 1200ms var(--ease) both;
+}
+.badge-unlock__icon img, .badge-unlock__icon svg {
+  width: 112px;
+  height: 112px;
+  filter: drop-shadow(0 8px 12px rgba(5, 10, 18, .35));
+  animation: badge-drop 700ms cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.badge-unlock__title { font-size: var(--fs-sm); font-weight: 700; color: var(--signal-text); }
+.badge-unlock__name { font-family: var(--font-display); font-weight: 800; font-size: var(--fs-2xl); line-height: 1.05; }
+.badge-unlock__desc { color: var(--muted); max-width: 32ch; }
+@keyframes badge-drop {
+  0% { transform: scale(.4) rotate(-12deg); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes rays-in {
+  0% { transform: scale(.6) rotate(-30deg); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
