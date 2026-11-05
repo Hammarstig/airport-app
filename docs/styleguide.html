@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gatelog stilguide</title>
+<!-- Stilguide för Gatelog. Öppna med en statisk server från repots rot där /fonts pekar på client/public/fonts
+     (se docs/DESIGN.md). Öppnad direkt från disk används systemtypsnitt. -->
+<link rel="stylesheet" href="../client/src/styles/index.css">
+<style>
+  .sg-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+  .sg-swatch { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: .72rem; background: var(--surface); }
+  .sg-swatch > div { height: 40px; }
+  .sg-swatch > p { padding: 6px 8px; margin: 0; }
+  .sg-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+  .sg-icons > div { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: .68rem; color: var(--muted); }
+  .sg-photo { width: 100%; height: 100%; display: block; }
+  .sg-note { font-size: var(--fs-sm); color: var(--muted); margin-bottom: var(--sp-3); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <a class="topbar__brand" href="#"><img src="../client/src/assets/logo.svg" alt="Gatelog" height="30"></a>
+    <nav class="topbar__nav" aria-label="Huvudmeny">
+      <a class="topbar__link topbar__link--active" href="#">Flöde</a>
+      <a class="topbar__link" href="#">Utforska</a>
+      <a class="topbar__link" href="#">Karta</a>
+      <a class="topbar__link" href="#">Profil</a>
+      <a class="btn btn--primary btn--sm" href="#">Checka in</a>
+    </nav>
+    <div class="topbar__actions">
+      <button class="icon-btn" aria-label="Notiser, 3 olästa"><i data-i="Bell" data-s="22"></i><span class="notif-dot">3</span></button>
+      <a class="icon-btn" href="#" aria-label="Inställningar"><i data-i="Settings" data-s="22"></i></a>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="layout-split">
+    <div class="stack stack--lg">
+
+    <section class="section" id="feed">
+      <h2 class="section__title">Flöde</h2>
+      <div class="stack">
+        <article class="card checkin">
+          <div class="checkin__head">
+            <a class="checkin__avatar" href="#"><span class="avatar" style="--hue:24">OH</span></a>
+            <div class="checkin__meta">
+              <div><a href="#"><strong>Oliver H</strong></a> <span class="muted">på <a href="#">Amsterdam Schiphol</a></span></div>
+              <div><time>i går</time> - Amsterdam, Nederländerna</div>
+            </div>
+            <a class="iata-tag" href="#">AMS</a>
+          </div>
+          <div class="checkin__body">
+            <div class="row">
+              <span class="kind-chip kind-chip--transfer"><i data-i="Transfer" data-s="14"></i>Transfer</span>
+              <span class="row gap-1"><span class="stars" style="--value:4.5" role="img" aria-label="4,5 av 5"></span><span class="muted text-sm">4,5</span></span>
+              <span class="xp-chip">+40 XP</span>
+            </div>
+            <ul class="row" aria-label="Delbetyg"><li class="badge">Säkerhet 5/5</li><li class="badge">Wifi 3/5</li><li class="badge">Mat 4/5</li><li class="badge">Renlighet 4/5</li><li class="badge">Lounge 4/5</li></ul>
+            <p class="checkin__comment">Säkerhetskontrollen tog sju minuter en måndag morgon. Lounge 41 har bra kaffe men blir trång efter nio.</p>
+            <dl class="detail-list">
+              <div><dt>Flight</dt><dd class="detail-list__mono">KL1150</dd></div>
+              <div><dt>Flygbolag</dt><dd><span class="airline-tag"><span class="airline-tag__code">KL</span><span class="airline-tag__name">KLM</span></span></dd></div>
+              <div><dt>Klass</dt><dd><span class="class-chip class-chip--business">Business</span></dd></div>
+            </dl>
+          </div>
+          <div class="checkin__actions">
+            <button class="like-btn like-btn--active" aria-pressed="true"><i data-i="Heart" data-s="18"></i><span>12</span></button>
+            <button class="action-btn"><i data-i="Comment" data-s="18"></i><span>3</span></button>
+            <button class="action-btn" aria-label="Dela"><i data-i="Share" data-s="18"></i></button>
+          </div>
+        </article>
+
+        <article class="card checkin">
+          <div class="checkin__head">
+            <span class="avatar" style="--hue:200">MS</span>
+            <div class="checkin__meta">
+              <div><strong>Maja S</strong> <span class="muted">på Tokyo Haneda</span></div>
+              <div>28 okt - Tokyo, Japan</div>
+            </div>
+            <a class="iata-tag" href="#">HND</a>
+          </div>
+          <div class="checkin__body">
+            <div class="row">
+              <span class="kind-chip kind-chip--arrival"><i data-i="Arrival" data-s="14"></i>Ankomst</span>
+              <span class="stars" style="--value:5" role="img" aria-label="5 av 5"></span>
+            </div>
+            <div class="photo-strip">
+              <button aria-label="Visa foto 1"><svg class="sg-photo" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice"><rect width="320" height="180" fill="#9FD3F7"/><rect y="118" width="320" height="62" fill="#5E7D99"/><path d="M30 104l90-22 18 12 120-34" stroke="#fff" stroke-width="6" fill="none"/></svg></button>
+              <button aria-label="Visa foto 2"><svg class="sg-photo" viewBox="0 0 72 72"><rect width="72" height="72" fill="#FFD27A"/></svg></button>
+            </div>
+            <p class="checkin__comment">Renaste flygplatsen jag varit på.</p>
+            <ul class="comment-thread">
+              <li class="comment"><span class="avatar" style="--hue:24">OH</span><div class="comment__body"><div class="comment__meta"><strong>Oliver H</strong><span>2 tim</span></div><p class="comment__text">Testade du sushin i terminal 3?</p></div></li>
+              <li class="comment comment--reply"><span class="avatar" style="--hue:200">MS</span><div class="comment__body"><div class="comment__meta"><strong>Maja S</strong><span>1 tim</span></div><p class="comment__text">Ja, bästa flygplatsmaten hittills.</p><div class="comment__actions"><button>Gilla</button><button>Svara</button></div></div></li>
+              <li><form class="comment-form" onsubmit="return false"><input class="input" placeholder="Skriv en kommentar" aria-label="Kommentar"><button class="icon-btn" aria-label="Skicka"><i data-i="Check" data-s="20"></i></button></form></li>
+            </ul>
+          </div>
+          <div class="checkin__actions">
+            <button class="like-btn"><i data-i="Heart" data-s="18"></i><span>3</span></button>
+            <button class="action-btn"><i data-i="Comment" data-s="18"></i><span>2</span></button>
+            <button class="action-btn" aria-label="Dela"><i data-i="Share" data-s="18"></i></button>
+          </div>
+        </article>
+
+        <article class="card checkin">
+          <div class="checkin__head">
+            <span class="avatar" style="--hue:60">JL</span>
+            <div class="checkin__meta">
+              <div><strong>Jonas L</strong> <span class="muted">på Frankfurt am Main</span></div>
+              <div>27 okt - Frankfurt, Tyskland</div>
+            </div>
+            <a class="iata-tag" href="#">FRA</a>
+          </div>
+          <div class="checkin__body">
+            <div class="row">
+              <span class="kind-chip kind-chip--departure"><i data-i="Departure" data-s="14"></i>Avgång</span>
+              <span class="stars" style="--value:2.5" role="img" aria-label="2,5 av 5"></span>
+            </div>
+            <p class="checkin__comment">Lång väg mellan A och Z. Ta tåget direkt.</p>
+          </div>
+          <div class="checkin__actions">
+            <button class="like-btn"><i data-i="Heart" data-s="18"></i><span>0</span></button>
+            <button class="action-btn"><i data-i="Comment" data-s="18"></i><span>0</span></button>
+            <button class="action-btn" aria-label="Dela"><i data-i="Share" data-s="18"></i></button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="airport">
+      <h2 class="section__title">Flygplats</h2>
+      <header class="airport-hero">
+        <div class="airport-hero__code">GOT</div>
+        <h1 class="airport-hero__name">Göteborg Landvetter</h1>
+        <p class="airport-hero__place"><i data-i="MapPin" data-s="16"></i> Göteborg, Sverige - Europa - ICAO ESGG</p>
+        <div class="row mt-2">
+          <a class="btn btn--primary" href="#"><i data-i="Plus" data-s="18"></i> Checka in här</a>
+          <button class="wish-btn"><i data-i="Bookmark" data-s="18"></i> Önskelista</button>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><div class="stat__value">4,2<span class="stars" style="--value:4.2"></span></div><div class="stat__label">Snittbetyg</div></div>
+          <div class="stat"><div class="stat__value">318</div><div class="stat__label">Check-ins</div></div>
+          <div class="stat"><div class="stat__value">97</div><div class="stat__label">Besökare</div></div>
+        </div>
+      </header>
+    </section>
+
+    <section class="section" id="profile">
+      <h2 class="section__title">Profil och nivå</h2>
+      <div class="card"><div class="card__body stack">
+        <div class="user-row">
+          <span class="avatar avatar--lg" style="--hue:24">OH</span>
+          <div class="user-row__main"><div class="user-row__name" style="font-family:var(--font-display);font-size:var(--fs-2xl);font-weight:800">Oliver H</div><div class="user-row__meta">Hemmaflygplats GOT - 48 följare</div></div>
+          <button class="follow-btn" aria-pressed="false">Följ</button>
+        </div>
+        <div class="row"><span class="streak streak--active"><i data-i="Flame" data-s="20"></i><span class="streak__count">7</span><span class="streak__unit">månader i rad</span></span><span class="streak streak--cold"><i data-i="Flame" data-s="20"></i><span class="streak__count">0</span><span class="streak__unit">veckor</span></span><button class="follow-btn follow-btn--active" aria-pressed="true"><i data-i="Check" data-s="16"></i>Följer</button></div>
+        <div class="level-bar" style="--value:64">
+          <div class="level-bar__level"><span><small>NIVÅ</small>12</span></div>
+          <div class="level-bar__title">Kontinentalresenär</div>
+          <div class="level-bar__track"></div>
+          <div class="level-bar__meta"><span>2 560 / 4 000 XP</span><span>1 440 XP till nivå 13</span></div>
+        </div>
+        <div class="grid grid--3">
+          <div class="stat"><div class="stat__value">142</div><div class="stat__label">Flygplatser</div></div>
+          <div class="stat"><div class="stat__value">38</div><div class="stat__label">Länder</div></div>
+          <div class="stat"><div class="stat__value">5</div><div class="stat__label">Kontinenter</div></div>
+        </div>
+      </div></div>
+    </section>
+
+    <section class="section" id="leaderboard">
+      <h2 class="section__title">Topplista</h2>
+      <div class="stack">
+        <div class="tabs" role="tablist"><button class="tab tab--active">Vänner</button><button class="tab">Sverige</button><button class="tab">Världen</button><button class="tab">Bäst betyg</button><button class="tab">Lounger</button><button class="tab">Användare</button></div>
+        <div class="podium">
+          <a class="podium__place podium__place--1" href="#"><span class="podium__avatar"><span class="avatar" style="--hue:24">OH</span></span><span class="podium__name">Oliver H</span><span class="podium__value"><strong>142</strong> flygpl.</span><span class="podium__block">1</span></a>
+          <a class="podium__place podium__place--2" href="#"><span class="podium__avatar"><span class="avatar" style="--hue:200">MS</span></span><span class="podium__name">Maja S</span><span class="podium__value"><strong>118</strong> flygpl.</span><span class="podium__block">2</span></a>
+          <a class="podium__place podium__place--3" href="#"><span class="podium__avatar"><span class="avatar" style="--hue:300">JL</span></span><span class="podium__name">Jonas Lindqvist</span><span class="podium__value"><strong>97</strong> flygpl.</span><span class="podium__block">3</span></a>
+        </div>
+        <ol class="list">
+          <li><a class="list__item" href="#"><span class="rank">4</span><span class="avatar avatar--sm" style="--hue:90">AK</span><span class="flex-1 bold">Anna K</span><span class="rank-delta rank-delta--up">2</span><span class="muted tabular">80</span></a></li>
+          <li><a class="list__item" href="#"><span class="rank">5</span><span class="avatar avatar--sm" style="--hue:150">PE</span><span class="flex-1 bold">Per E</span><span class="rank-delta rank-delta--down">1</span><span class="muted tabular">77</span></a></li>
+          <li><a class="list__item" href="#"><span class="rank">6</span><span class="avatar avatar--sm" style="--hue:330">SB</span><span class="flex-1 bold">Sara B</span><span class="rank-delta rank-delta--same"></span><span class="muted tabular">61</span></a></li>
+          <li><a class="list__item list__item--me list__item--pinned" href="#"><span class="rank">23</span><span class="avatar avatar--sm" style="--hue:45">DU</span><span class="flex-1 bold">Du</span><span class="rank-delta rank-delta--up">4</span><span class="muted tabular">31</span></a></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section" id="done">
+      <h2 class="section__title">Check-in klar</h2>
+      <div class="card">
+        <div class="checkin-done">
+          <div class="checkin-done__stamp"><span class="checkin-done__stamp-code">GOT</span><span class="checkin-done__stamp-date">5 NOV 2026</span><span class="checkin-done__stamp-kind">AVGÅNG</span></div>
+          <div class="checkin-done__title">Incheckad!</div>
+          <p class="checkin-done__subtitle">Göteborg Landvetter är din 43:e flygplats.</p>
+          <div class="checkin-done__xp">+120 XP</div>
+          <div class="checkin-done__panel">
+            <div class="level-bar level-bar--compact" style="--value:72"><div class="level-bar__level"><span>12</span></div><div class="level-bar__track"></div><div class="level-bar__meta"><span>2 880 / 4 000 XP</span><span>Nivå 13 snart</span></div></div>
+            <div class="row row--between"><span class="streak streak--active"><i data-i="Flame" data-s="20"></i><span class="streak__count">8</span><span class="streak__unit">månader i rad</span></span><span class="text-sm muted">Nytt personligt rekord</span></div>
+            <p class="checkin-done__next">Nästa märke: <strong>50 flygplatser</strong> - 7 kvar</p>
+          </div>
+          <div class="checkin-done__badges">
+            <div class="checkin-done__badge"><img src="../client/src/assets/badges/tiers/countries-15--silver.svg" alt="">15 länder</div>
+            <div class="checkin-done__badge"><img src="../client/src/assets/badges/tiers/transfer-king--gold.svg" alt="">Transferkung</div>
+          </div>
+          <div class="checkin-done__actions"><button class="btn"><i data-i="Share" data-s="18"></i> Dela</button><button class="btn btn--primary">Klar</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="badges">
+      <h2 class="section__title">Märken och nivåer</h2>
+      <p class="sg-note">Brons, silver, guld och platina. Varje märke finns i alla fyra nivåer under <code>assets/badges/tiers/</code>.</p>
+      <div class="badge-grid" id="tiers"></div>
+      <div class="badge-grid mt-4" id="badgegrid"></div>
+    </section>
+
+    <section class="section" id="share">
+      <h2 class="section__title">Delningskort</h2>
+      <div class="grid grid--2">
+        <div class="share-card"><div class="share-card__inner">
+          <div class="share-card__brand"><img src="../client/src/assets/logo.svg" alt="Gatelog"></div>
+          <div class="share-card__title">Mitt 2026 i flygplatser</div>
+          <div class="share-card__hero">43</div>
+          <div class="share-card__label">flygplatser</div>
+          <div class="share-card__stats"><div class="share-card__stat"><b>17</b><span>länder</span></div><div class="share-card__stat"><b>4</b><span>kontinenter</span></div><div class="share-card__stat"><b>8</b><span>månader i rad</span></div></div>
+          <div class="share-card__codes"><span class="iata-tag">GOT</span><span class="iata-tag">AMS</span><span class="iata-tag">HND</span><span class="iata-tag">JFK</span></div>
+        </div><div class="share-card__footer"><span>gatelog.app/u/oliver</span><span class="share-card__barcode"></span></div></div>
+        <div class="share-card share-card--dark"><div class="share-card__inner">
+          <div class="share-card__brand" style="color:#fff">Gatelog</div>
+          <div class="share-card__title">Nytt märke</div>
+          <div class="share-card__hero" style="font-size:24cqw">15</div>
+          <div class="share-card__label">länder besökta</div>
+          <div style="margin-top:8cqw"><img src="../client/src/assets/badges/tiers/countries-15--silver.svg" alt="" style="width:34cqw"></div>
+        </div><div class="share-card__footer"><span>Maja S</span><span class="share-card__barcode"></span></div></div>
+      </div>
+    </section>
+
+    <section class="section" id="ui">
+      <h2 class="section__title">Knappar, etiketter, formulär</h2>
+      <div class="stack">
+        <div class="row"><button class="btn btn--primary">Checka in</button><button class="btn">Avbryt</button><button class="btn btn--ghost">Visa fler</button><button class="btn btn--danger">Radera konto</button><button class="btn btn--sm">Liten</button><button class="wish-btn wish-btn--active" aria-pressed="true"><i data-i="Bookmark" data-s="18"></i> På önskelistan</button></div>
+        <div class="row"><span class="kind-chip kind-chip--departure">Avgång</span><span class="kind-chip kind-chip--arrival">Ankomst</span><span class="kind-chip kind-chip--transfer">Transfer</span><span class="kind-chip kind-chip--layover">Mellanlandning</span><span class="class-chip class-chip--economy">Ekonomi</span><span class="class-chip class-chip--premium_economy">Premium</span><span class="class-chip class-chip--business">Business</span><span class="class-chip class-chip--first">First</span><span class="tier-chip tier--bronze">Brons</span><span class="tier-chip tier--silver">Silver</span><span class="tier-chip tier--gold">Guld</span><span class="tier-chip tier--platinum">Platina</span></div>
+        <div class="row"><span class="rating-badge rating-badge--good">4,6</span><span class="rating-badge rating-badge--mid">3,4</span><span class="rating-badge rating-badge--bad">1,9</span><span class="iata-tag">ARN</span><span class="iata-tag">LHR</span><span class="avatar" style="--hue:0">AA</span><span class="avatar" style="--hue:60">BB</span><span class="avatar" style="--hue:120">CC</span><span class="avatar" style="--hue:180">DD</span><span class="avatar" style="--hue:240">EE</span><span class="avatar" style="--hue:300">FF</span></div>
+        <div class="field"><span class="field__label">Betyg</span><div class="stars-input"><button class="stars-input__btn" style="--fill:1">★</button><button class="stars-input__btn" style="--fill:1">★</button><button class="stars-input__btn" style="--fill:1">★</button><button class="stars-input__btn" style="--fill:.5">★</button><button class="stars-input__btn" style="--fill:0">★</button></div></div>
+      </div>
+    </section>
+
+    <section class="section" id="map">
+      <h2 class="section__title">Karta</h2>
+      <div class="stack">
+        <div class="row row--between"><div class="map-toggle"><button aria-pressed="true">Karta</button><button aria-pressed="false">Lista</button></div><span class="muted text-sm">23 av 213 länder</span></div>
+        <div class="map">
+          <svg class="map__svg" viewBox="0 0 400 170" role="img" aria-label="Exempelkarta">
+            <path class="map__country" data-step="0" d="M14 20h56v40H14z"/>
+            <path class="map__country" data-step="1" d="M70 20h50v40H70z"/>
+            <path class="map__country" data-step="2" d="M120 20h50v40h-50z"/>
+            <path class="map__country" data-step="3" d="M170 20h50v40h-50z"/>
+            <path class="map__country" data-step="4" d="M220 20h50v40h-50z"/>
+            <path class="map__country" data-step="5" d="M270 20h50v40h-50z"/>
+            <path class="map__country" data-step="6" d="M320 20h56v40h-56z"/>
+            <path class="map__country" data-step="0" d="M30 80h100v70H30z"/><path class="map__country" data-step="1" d="M130 80h70v70h-70z"/><path class="map__country" data-step="0" d="M200 80h90v70h-90z"/>
+            <circle class="map__dot map__dot--visited" cx="160" cy="110" r="5"/><circle class="map__dot" cx="60" cy="120" r="5"/><circle class="map__dot" cx="240" cy="100" r="5"/>
+          </svg>
+          <div class="map__legend">
+            <span>1 %</span><span class="map__legend-scale"><span></span><span></span><span></span><span></span><span></span><span></span></span><span>100 %</span>
+            <span class="map__legend-item"><span class="map__swatch"></span>Obesökt</span>
+            <span class="map__legend-item"><span class="map__swatch map__swatch--dot-visited"></span>Besökt</span>
+            <span class="map__legend-item"><span class="map__swatch map__swatch--dot"></span>Ej besökt</span>
+          </div>
+        </div>
+        <div class="row row--nowrap"><span style="min-width:5rem">Sverige</span><div class="coverage-bar flex-1" style="--value:41"></div><strong>41 %</strong></div>
+      </div>
+    </section>
+
+    <section class="section" id="icons">
+      <h2 class="section__title">Ikoner</h2>
+      <div class="sg-icons" id="iconlist"></div>
+    </section>
+
+    <section class="section" id="palette">
+      <h2 class="section__title">Palett</h2>
+      <div class="sg-swatches" id="swatches"></div>
+    </section>
+    </div>
+
+    <aside class="layout-split__aside" aria-label="Sidopanel">
+      <div class="card"><div class="card__body stack">
+        <div class="level-bar level-bar--compact" style="--value:64"><div class="level-bar__level"><span>12</span></div><div class="level-bar__track"></div><div class="level-bar__meta"><span>2 560 XP</span><span>Nivå 13</span></div></div>
+        <span class="streak streak--active"><i data-i="Flame" data-s="20"></i><span class="streak__count">7</span><span class="streak__unit">månader i rad</span></span>
+      </div></div>
+      <div class="card"><div class="card__header">Nära att låsa upp</div><div class="card__body stack stack--sm">
+        <div class="user-row"><img src="../client/src/assets/badges/tiers/airports-50--gold.svg" alt="" width="44" height="44"><div class="user-row__main"><div class="user-row__name">50 flygplatser</div><div class="badge-card__progress" style="--progress:.86"></div></div></div>
+        <div class="user-row"><img src="../client/src/assets/badges/tiers/lounge-expert--silver.svg" alt="" width="44" height="44"><div class="user-row__main"><div class="user-row__name">Loungeexpert</div><div class="badge-card__progress" style="--progress:.4"></div></div></div>
+      </div></div>
+      <div class="card"><div class="card__header">Notiser</div>
+        <ul class="list" style="border:0">
+          <li class="list__item notif-item notif-item--unread"><span class="avatar avatar--sm" style="--hue:200">MS</span><span class="notif-item__text"><b>Maja S</b> kommenterade din check-in på AMS<span class="notif-item__time">2 tim</span></span></li>
+          <li class="list__item notif-item"><span class="avatar avatar--sm" style="--hue:300">JL</span><span class="notif-item__text"><b>Jonas L</b> började följa dig<span class="notif-item__time">i går</span></span></li>
+        </ul>
+      </div>
+    </aside>
+    </div>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Huvudmeny mobil">
+    <a class="bottom-nav__item bottom-nav__item--active" href="#"><i data-i="Home" data-s="22"></i><span>Flöde</span></a>
+    <a class="bottom-nav__item" href="#"><i data-i="Search" data-s="22"></i><span>Utforska</span></a>
+    <a class="bottom-nav__item" href="#"><i data-i="Plus" data-s="22"></i><span>Checka in</span></a>
+    <a class="bottom-nav__item" href="#"><i data-i="Map" data-s="22"></i><span>Karta</span></a>
+    <a class="bottom-nav__item" href="#"><i data-i="User" data-s="22"></i><span>Profil</span></a>
+  </nav>
+</div>
+<script>
+  const ICONS = {"Plane": "<path d=\"M10.2 13.8 4 12.3l-1.2-1.5 1.5-.6 6 .9 4.6-4.6c.9-.9 2.6-1.5 3.3-.8.7.7.1 2.4-.8 3.3l-4.6 4.6.9 6-.6 1.5-1.5-1.2-1.5-6.2\" /> <path d=\"M10.2 13.8 7.4 16.6l-2.6-.3-.9.9 2.8 1.3 1.3 2.8.9-.9-.3-2.6\" />", "Home": "<path d=\"M3.5 10.5 12 3.8l8.5 6.7\" /> <path d=\"M5.5 9v10.5a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V9\" />", "Search": "<circle cx=\"10.5\" cy=\"10.5\" r=\"6.5\" /> <path d=\"m15.4 15.4 5.1 5.1\" />", "Trophy": "<path d=\"M7.5 4h9v5.5a4.5 4.5 0 0 1-9 0V4Z\" /> <path d=\"M7.5 6H4.5v1.5a3 3 0 0 0 3 3M16.5 6h3v1.5a3 3 0 0 1-3 3\" /> <path d=\"M12 14v3.5M8.5 20.5h7M9.5 20.5l.6-3h3.8l.6 3\" />", "User": "<circle cx=\"12\" cy=\"8\" r=\"4\" /> <path d=\"M4.5 20.5c.8-3.8 3.8-6 7.5-6s6.7 2.2 7.5 6\" />", "Star": "<path d=\"m12 3.2 2.7 5.6 6.1.8-4.5 4.2 1.2 6.1L12 17l-5.5 2.9 1.2-6.1-4.5-4.2 6.1-.8L12 3.2Z\" />", "Heart": "<path d=\"M12 20s-7.5-4.6-8.9-9.2C2.2 7.6 4.3 4.5 7.5 4.5c2 0 3.5 1.1 4.5 2.7 1-1.6 2.5-2.7 4.5-2.7 3.2 0 5.3 3.1 4.4 6.3C19.5 15.4 12 20 12 20Z\" />", "Lounge": "<path d=\"M6 11V8a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v3\" /> <path d=\"M3.5 11.5a1.5 1.5 0 0 1 3 0V14h11v-2.5a1.5 1.5 0 0 1 3 0V17a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5.5Z\" /> <path d=\"M6 18v2M18 18v2\" />", "MapPin": "<path d=\"M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z\" /> <circle cx=\"12\" cy=\"10\" r=\"2.4\" />", "Plus": "<path d=\"M12 5v14M5 12h14\" />", "Logout": "<path d=\"M14 4.5H6.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1H14\" /> <path d=\"M10.5 12h10M17 8.5l3.5 3.5-3.5 3.5\" />", "Transfer": "<path d=\"M4 8h13.5M14 4.5 17.5 8 14 11.5\" /> <path d=\"M20 16H6.5M10 12.5 6.5 16l3.5 3.5\" />", "Departure": "<path d=\"M3 20.5h18\" /> <path d=\"m4.5 15.5 2.5-.6 3.4-4.4-4-3.2 1.6-.6 5.6 2 4.1-1.9c1-.5 2.4-.6 2.8.2.4.8-.4 1.8-1.4 2.3l-11 5.6-2.9.3-.7-1.7Z\" />", "Arrival": "<path d=\"M3 20.5h18\" /> <path d=\"m3.6 8.7.9-1.6 1.7 2.3 3.8.6-.8-5.6 1.6.2 3.3 5 4.5.8c1.1.2 2.3.9 2.1 1.8-.2.9-1.5 1.2-2.6 1l-12.1-2.3-2.4-2.2Z\" />", "Clock": "<circle cx=\"12\" cy=\"12\" r=\"8.5\" /> <path d=\"M12 7.5V12l3 2\" />", "Globe": "<circle cx=\"12\" cy=\"12\" r=\"8.5\" /> <path d=\"M3.5 12h17M12 3.5c2.4 2.4 3.5 5.3 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.3-3.5-8.5s1.1-6.1 3.5-8.5Z\" />", "Filter": "<path d=\"M4 6.5h16M7 12h10M10 17.5h4\" />", "Bookmark": "<path d=\"M6.5 4.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16l-5.5-4-5.5 4v-16Z\" />", "Badge": "<circle cx=\"12\" cy=\"9.5\" r=\"6\" /> <path d=\"m12 6.8 1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3 1-2Z\" /> <path d=\"M8.5 14.5 7 21l5-2.5 5 2.5-1.5-6.5\" />", "Shield": "<path d=\"M12 3.2 19 6v5.5c0 4.4-3 7.9-7 9.3-4-1.4-7-4.9-7-9.3V6l7-2.8Z\" /> <path d=\"m8.8 12 2.2 2.2 4.2-4.4\" />", "Wifi": "<path d=\"M2.8 9a13 13 0 0 1 18.4 0M5.8 12.3a8.6 8.6 0 0 1 12.4 0M8.8 15.5a4.3 4.3 0 0 1 6.4 0\" /> <circle cx=\"12\" cy=\"18.8\" r=\".9\" fill=\"currentColor\" />", "Food": "<path d=\"M6.5 3.5v7M4.5 3.5v5a2 2 0 0 0 4 0v-5M6.5 10.5v10\" /> <path d=\"M17.5 20.5v-17c-2.2 0-3.5 2.7-3.5 6.5v4h3.5\" />", "Sparkle": "<path d=\"M11 3.5c.6 4.3 2.2 5.9 6.5 6.5-4.3.6-5.9 2.2-6.5 6.5-.6-4.3-2.2-5.9-6.5-6.5 4.3-.6 5.9-2.2 6.5-6.5Z\" /> <path d=\"M18 15c.3 1.9 1 2.6 2.9 2.9-1.9.3-2.6 1-2.9 2.9-.3-1.9-1-2.6-2.9-2.9 1.9-.3 2.6-1 2.9-2.9Z\" />", "Camera": "<path d=\"M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2.5L9 4.5h6L16.5 7H19a1.5 1.5 0 0 1 1.5 1.5v9.5A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18V8.5Z\" /> <circle cx=\"12\" cy=\"13\" r=\"3.5\" />", "Seat": "<path d=\"M7 3.5h3l1.5 9h6a1.5 1.5 0 0 1 1.5 1.5v1.5H9.5L7 3.5Z\" /> <path d=\"M9.5 15.5 9 20.5M17.5 15.5l.5 5M7.5 20.5h12\" />", "Ticket": "<path d=\"M3.5 7a1 1 0 0 1 1-1h15a1 1 0 0 1 1 1v2.5a2.5 2.5 0 0 0 0 5V17a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-2.5a2.5 2.5 0 0 0 0-5V7Z\" /> <path d=\"M15 6.5v1.5M15 11.2v1.6M15 16v1.5\" />", "Image": "<rect x=\"3.5\" y=\"4.5\" width=\"17\" height=\"15\" rx=\"1.5\" /> <circle cx=\"9\" cy=\"9.5\" r=\"1.6\" /> <path d=\"m4 17.5 5-4.5 3.5 3 3-2.5 4.5 4\" />", "Close": "<path d=\"M6 6l12 12M18 6 6 18\" />", "Bell": "<path d=\"M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2H5l1.5-2Z\" /> <path d=\"M10 20.5a2 2 0 0 0 4 0\" />", "Comment": "<path d=\"M4.5 6a1.5 1.5 0 0 1 1.5-1.5h12A1.5 1.5 0 0 1 19.5 6v9a1.5 1.5 0 0 1-1.5 1.5h-7L6.5 20v-3.5H6A1.5 1.5 0 0 1 4.5 15V6Z\" /> <path d=\"M8.5 9.5h7M8.5 12.5h4.5\" />", "Share": "<path d=\"M12 14.5V3.5M8 7.5l4-4 4 4\" /> <path d=\"M8.5 10.5H6.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2\" />", "Flame": "<path d=\"M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.4 2.4-5.4 3.6-8.3.5 1.7 1.4 2.8 2.4 3.4.2-2.9 1.6-5.2 3.3-6.4-.3 2.8 3.7 5.6 3.7 10.4 0 4.2-2.6 7.1-6.5 7.1Z\" /> <path d=\"M12 21c-1.7 0-2.8-1.2-2.8-2.8 0-1.8 1.6-2.7 2.3-4.2.9 1 3.3 2.1 3.3 4.2 0 1.6-1.1 2.8-2.8 2.8Z\" />", "Users": "<circle cx=\"9\" cy=\"8.5\" r=\"3.5\" /> <path d=\"M2.8 19.5c.6-3.2 3.1-5 6.2-5s5.6 1.8 6.2 5\" /> <path d=\"M15.5 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.8c1.9.6 3.3 2.2 3.7 4.7\" />", "Settings": "<circle cx=\"12\" cy=\"12\" r=\"3\" /> <path d=\"M12 2.8l1.6 2.3 2.7-.6.6 2.7 2.3 1.6-1.4 2.4.9 2.6-2.6.9-.6 2.7-2.7-.6L12 21.2l-1.6-2.4-2.7.6-.6-2.7-2.6-.9.9-2.6-1.4-2.4L6.3 7.2l.6-2.7 2.7.6L12 2.8Z\" />", "Nearby": "<path d=\"M20.5 3.5 3.5 10.6l7.2 2.7 2.7 7.2 7.1-17Z\" />", "Map": "<path d=\"M3.5 6.5 9 4.5l6 2 5.5-2v13l-5.5 2-6-2-5.5 2v-13Z\" /> <path d=\"M9 4.5v13M15 6.5v13\" />", "ChevronLeft": "<path d=\"M14.5 5.5 8 12l6.5 6.5\" />", "Check": "<path d=\"m4.5 12.5 4.5 4.5 10.5-10.5\" />"};
+  const svg = (n, s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+  document.querySelectorAll('i[data-i]').forEach(el => { el.outerHTML = svg(el.dataset.i, el.dataset.s || 20); });
+  document.getElementById('iconlist').innerHTML = Object.keys(ICONS).map(n => `<div>${svg(n, 24)}Icon${n}</div>`).join('');
+  const B = '../client/src/assets/badges/';
+  document.getElementById('tiers').innerHTML = ['bronze', 'silver', 'gold', 'platinum'].map((t, i) =>
+    `<div class="badge-card badge-card--${t}"><div class="badge-card__icon"><img src="${B}tiers/transfer-king--${t}.svg" alt=""></div><div class="badge-card__name">Transferkung</div><span class="tier-chip tier--${t}">Nivå ${[1, 4, 7, 10][i]}</span></div>`).join('');
+  const badges = [
+    ['first-checkin','Första check-in',1,1,'gold'],['airports-10','10 flygplatser',10,10,'bronze'],['airports-25','25 flygplatser',25,25,'silver'],['airports-50','50 flygplatser',43,50,'gold'],
+    ['airports-100','100 flygplatser',43,100,'platinum'],['countries-5','5 länder',5,5,'bronze'],['countries-15','15 länder',15,15,'silver'],['countries-30','30 länder',17,30,'gold'],
+    ['all-continents','Alla kontinenter',4,6,'platinum'],['nordic','Nordisk resenär',5,5,'silver'],['transfer-king','Transferkung',10,10,'gold'],['lounge-expert','Loungeexpert',2,5,'gold'],
+    ['home-turf','Hemmaplan',5,5,'bronze'],['reviewer','Recensent',20,20,'silver']];
+  document.getElementById('badgegrid').innerHTML = badges.map(([id, name, c, t, tier]) => {
+    const locked = c < t;
+    return `<div class="badge-card badge-card--${tier}${locked ? ' badge-card--locked' : ''}"><div class="badge-card__icon"><img src="${B}${id}.svg" alt=""></div><div class="badge-card__name">${name}</div>${locked ? `<div class="badge-card__desc">${c} av ${t}</div><div class="badge-card__progress" style="--progress:${c / t}"></div>` : '<div class="badge-card__date">Upplåst 2 nov</div>'}</div>`;
+  }).join('');
+  const sw = ['--bg','--surface','--surface-3','--ink','--muted','--line-strong','--signal','--signal-text','--signal-soft','--sky','--info','--good','--bad','--violet','--board','--board-text','--map-none','--map-1','--map-2','--map-3','--map-4','--map-5','--map-6','--tier-bronze','--tier-silver','--tier-gold','--tier-platinum'];
+  document.getElementById('swatches').innerHTML = sw.map(v => `<div class="sg-swatch"><div style="background:var(${v})"></div><p>${v}</p></div>`).join('');
+  if (location.hash.startsWith('#theme=')) document.documentElement.dataset.theme = location.hash.slice(7);
+</script>
+</body>
+</html>
