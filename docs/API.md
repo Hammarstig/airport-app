@@ -175,3 +175,19 @@ Svaren ska vara snabba (< 50 ms med demodata): en aggregerad SQL-fråga per anro
 - Android först: PWA installerbar i Chrome på Android (manifest med maskable-ikoner 192/512 PNG, service worker som cachar app-skal och statiska filer, offline-sida). Kamera via `<input type="file" accept="image/*" capture="environment">`. iPhone (Safari/PWA) i nästa steg, men bryt inget där.
 - Upplevd snabbhet: skeleton-laddning, optimistisk UI för gilla/önskelista, debounce 150 ms på autocomplete med avbrytning (AbortController), kodsplittning per route (React.lazy), kartbiblioteket laddas bara på kartsidan. Mål: initial JS < 200 kB gzip, LCP < 2,5 s på "Moto G Power"-emulering med 4G-throttling, inga layoutskutt.
 - API: gzip-komprimering, ETag/Cache-Control för flygplatsdata, inga N+1-frågor.
+
+# Förtydliganden från backend (implementation)
+- Fel utöver ovan: 413 för för stor body (JSON > 50 kB eller foto > 5 MB), 429 vid rate limit på `/api/auth` (default 100 anrop/15 min per IP, env `AUTH_RATE_MAX`, `AUTH_RATE_WINDOW_MS`).
+- `username` gemenas innan validering vid register/login ("Kalle" blir "kalle").
+- `visitedOn` får vara högst dagens datum i UTC eller Europe/Stockholm (det senare av de två).
+- `stats.subAverages`: objektet finns alltid, varje fält är `null` om inga delbetyg finns för det.
+- Ordning: `/api/feed` efter `createdAt` (nyast först); flygplatsens och användarens check-ins efter `visitedOn` (nyast först).
+- `GET /api/airports`: en exakt landskod ("se") rankas direkt efter IATA/ICAO så att landet inte drunknar i stadsprefix (`matchedOn: "country"`). En söksträng utan sökbara tecken ger `[]`.
+- `GET /api/airports/:iata`: `onMyWishlist` (false) och `myVisits` (0) finns även utan inloggning.
+- `POST /api/wishlist` är idempotent (201 även om flygplatsen redan finns i listan) och svarar `{ airport, addedAt }`. `DELETE /api/wishlist/:iata` ger 204 även om den inte fanns.
+- Märken: `icon` är en emoji. `earnedAt` är `visitedOn` (YYYY-MM-DD) för den check-in/recension som nådde målet. Id: `first-checkin`, `airports-10|25|50|100`, `countries-5|15|30`, `all-continents`, `nordic`, `transfer-king`, `home-turf`, `reviewer`, `lounge-expert`.
+- `POST /api/checkins` med `newLounge` återanvänder en befintlig lounge med samma namn (skiftlägesokänsligt) på samma flygplats. Loungerecensioner skapade via check-in raderas med check-in:en. Sökfiltren `airline`/`travelClass` matchar loungerecensioner via kopplad check-in.
+- Foton: 409 när check-in:en redan har 4 foton, 400 om filen inte är JPEG/PNG/WEBP enligt magic bytes. `width`/`height` läses ur bildhuvudet (kan vara null).
+- `GET /api/countries` sorteras på svenskt namn (valfritt `sort=checkins|rating`). Ett lands kontinent är den vanligaste bland dess flygplatser.
+- Kartor: `regions[].code` kan vara null (namn "Okänd region"). `airports` i `/map/:country` innehåller även besökta flygplatser utanför scope, men de räknas inte i `total`.
+- Caching: API-svar har `Cache-Control: private, no-cache` + ETag (304 vid oförändrat), kartor `private, max-age=30`, `/api/airlines` `public, max-age=3600`. gzip för svar > 1 kB.
