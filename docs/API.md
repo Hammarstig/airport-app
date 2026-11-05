@@ -124,3 +124,37 @@ Check-in-svar (POST /api/checkins) får fältet `newBadges: Badge[]` med märken
 
 ## Flöde
 `GET /api/feed?scope=global|mine&iata=` - scope mine = egna check-ins (auth).
+
+---
+# v1.2 - Sök på allt, resedetaljer och foto
+
+## Flygplatssök matchar stad, namn, land och IATA
+`GET /api/airports?q=` ska matcha (skiftlägesokänsligt, diakritik-tolerant så "goteborg" hittar "Göteborg"):
+1. IATA exakt (t.ex. "got") - högst
+2. ICAO exakt
+3. Stad (prefix och ord-prefix, t.ex. "stock" -> ARN, BMA, NYO)
+4. Flygplatsnamn (ord-prefix, t.ex. "landvetter", "heathrow")
+5. Land - landsnamn på svenska OCH engelska samt landskod ("sverige", "sweden", "se") -> listar landets flygplatser, stora först
+Inom samma nivå: large > medium > small, sedan antal check-ins. Varje träff får `matchedOn: "iata"|"icao"|"city"|"name"|"country"` och `countryName` (svenska).
+Implementera t.ex. med en normaliserad sökkolumn (gemener, utan diakritik) + FTS5-tabell för flygplatser.
+
+## Flygbolag
+Data: `server/data/airlines.json` (986 aktiva bolag med IATA-kod, från OpenFlights, ODbL). Seeda till tabell `airlines`.
+`GET /api/airlines?q=sas&limit=10` -> `[{ iata, icao, name, country }]` (matchar IATA-kod exakt först, sedan namn-prefix/ord).
+
+## Check-in får resedetaljer
+POST /api/checkins tar även (alla valfria):
+- `airlineIata`: "SK" (måste finnas i airlines)
+- `travelClass`: "economy" | "premium_economy" | "business" | "first"
+- `loungeId`: id för lounge på samma flygplats, ELLER `newLounge: { name, terminal? }` som skapar loungen
+- `loungeRating`: 1-5 i steg om 0.5 - skapar samtidigt en LoungeReview (med checkin-kommentaren om ingen separat `loungeComment` anges)
+- `flightNumber`: t.ex. "SK1421" (valfri, max 8 tecken, [A-Z0-9])
+Checkin-objektet får: `airline: {iata, name} | null, travelClass | null, lounge: {id, name, terminal} | null, flightNumber | null, photos: Photo[]`.
+Sök (`/api/search`) får filter `airline=SK`, `travelClass=business`. Flygplatssidans stats får `topAirlines: [{airline, checkins}]` (5 st) och `classMix: {economy, premium_economy, business, first}`.
+
+## Foto ("kort") på check-in
+- `POST /api/checkins/:id/photos` (auth, ägare) - `multipart/form-data`, fält `photo` (jpeg/png/webp, max 5 MB, max 4 foton per check-in). Klienten skalar ner till max 1600 px JPEG innan uppladdning. Servern kontrollerar magic bytes, sparar med slumpat filnamn under `server/data/uploads/` (env `UPLOAD_DIR`) och returnerar 201 `Photo`.
+- `Photo`: `{ id, url: "/uploads/<fil>", width?, height?, createdAt }`
+- `DELETE /api/photos/:id` (ägare) -> 204
+- `GET /uploads/<fil>` serveras statiskt med `X-Content-Type-Options: nosniff`.
+- Flygplatssidan får `photos: Photo[]` (senaste 12) för ett galleri.
