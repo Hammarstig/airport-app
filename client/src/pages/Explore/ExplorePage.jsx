@@ -14,8 +14,8 @@ function CategoryRow({ cat }) {
   );
   return (
     <div className="card">
-      <div className="card__header row" style={{ alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '1rem' }}>Bäst på {cat.label.toLowerCase()}</h3>
+      <div className="card__header row items-center">
+        <h3 className="mt-0 mb-0">Bäst på {cat.label.toLowerCase()}</h3>
         <span className="spacer" />
         <Link to={`/top/${cat.key}`} className="btn btn--ghost btn--sm" aria-label={`Visa topplistan för ${cat.label}`}>
           Visa alla
@@ -24,13 +24,9 @@ function CategoryRow({ cat }) {
       <div className="card__body">
         {loading && <Spinner />}
         {error && <p className="muted">{error.message}</p>}
-        {data && data.length === 0 && (
-          <p className="muted" style={{ margin: 0 }}>
-            Inga betyg ännu.
-          </p>
-        )}
+        {data && data.length === 0 && <p className="muted mt-0 mb-0">Inga betyg ännu.</p>}
         {data && data.length > 0 && (
-          <ol className="list" style={{ margin: 0 }}>
+          <ol className="list mt-0 mb-0">
             {data.map((r) => (
               <AirportRow
                 key={r.airport.iata}
@@ -124,11 +120,11 @@ export default function ExplorePage() {
                 <span className="badge" aria-hidden="true">
                   {c.code}
                 </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <Link to={`/country/${c.code}`} style={{ fontWeight: 600, display: 'block' }}>
+                <div className="flex-1 min-w-0">
+                  <Link to={`/country/${c.code}`} className="bold block">
                     {c.name}
                   </Link>
-                  <span className="muted" style={{ fontSize: '0.85em' }}>
+                  <span className="muted text-sm">
                     {c.airports} flygplatser · {c.checkins} check-ins
                   </span>
                 </div>

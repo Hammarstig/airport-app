@@ -1,0 +1,58 @@
+/*
+ * Layout för nya komponenter som ännu saknar klasser i designsystemet (client/src/styles/).
+ * Bara tokens från designsystemet används. Grafik-agenten kan flytta in dessa i styles/ och ta bort filen.
+ */
+
+/* Check-in: snabbval, vald flygplats, hopfällbara sektioner, klistrig knapp */
+.quick-pick__title { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: 700; color: var(--ink-2); }
+.quick-pick__list { display: grid; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+.quick-pick__item {
+  display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: 56px; padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.quick-pick__item:hover, .quick-pick__item:focus-visible { border-color: var(--signal); background: var(--surface-2); }
+.quick-pick__text { display: flex; flex-direction: column; min-width: 0; }
+.quick-pick__name { font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quick-pick__meta { font-size: var(--fs-sm); color: var(--muted); }
+
+.selected-airport { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.selected-airport__text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+
+.disclosure-group { display: grid; gap: var(--sp-2); }
+.disclosure { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.disclosure__summary { display: flex; align-items: center; gap: var(--sp-3); min-height: 48px; padding: 0 var(--sp-4); cursor: pointer; list-style: none; }
+.disclosure__summary::-webkit-details-marker { display: none; }
+.disclosure__summary::after { content: ""; width: 8px; height: 8px; margin-left: var(--sp-2); border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); transition: transform var(--dur) var(--ease); }
+.disclosure[open] > .disclosure__summary::after { transform: rotate(-135deg); }
+.disclosure__title { font-weight: 700; color: var(--ink); }
+.disclosure__meta { margin-left: auto; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.disclosure__body { padding: 0 var(--sp-4) var(--sp-4); }
+.fieldset-plain { margin: 0; padding: 0; border: 0; min-width: 0; }
+
+.sticky-actions {
+  position: sticky; bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom, 0px)); z-index: 5;
+  margin: 0 calc(var(--sp-4) * -1); padding: var(--sp-3) var(--sp-4);
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+@media (min-width: 768px) { .sticky-actions { bottom: 0; } }
+
+/* Bottom-nav: centrerad Checka in som flytande knapp */
+.bottom-nav__item--fab svg {
+  box-sizing: content-box; padding: 10px; margin-top: -18px; border-radius: 50%;
+  background: var(--signal); color: var(--signal-ink); box-shadow: var(--shadow-2);
+}
+.bottom-nav__item--fab.bottom-nav__item--active svg { color: var(--signal-ink); }
+
+/* Flygplatssidan: vänner som varit här */
+.friends-visited { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-3); }
+.avatar-stack { display: inline-flex; }
+.avatar-stack > * + * { margin-left: -8px; }
+.avatar-stack .avatar { box-shadow: 0 0 0 2px var(--bg); }
+
+.tabpanel { margin-top: var(--sp-4); }
+.search-hit__snippet { margin: var(--sp-2) 0 0; }
+.stat__rating { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Hjälpklasser som saknas i designsystemets uppsättning */
+.mb-0 { margin-bottom: 0; }
+.block { display: block; }

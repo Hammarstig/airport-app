@@ -6,6 +6,12 @@ import FeedPage from './pages/Feed/FeedPage.jsx';
 
 // Startsidan (flödet) laddas direkt, övriga sidor delas upp per route.
 const CheckinPage = lazy(() => import('./pages/Checkin/CheckinPage.jsx'));
+const DonePage = lazy(() => import('./pages/Checkin/DonePage.jsx'));
+const SettingsPage = lazy(() => import('./pages/Settings/SettingsPage.jsx'));
+const NotificationsPage = lazy(() => import('./pages/Notifications/NotificationsPage.jsx'));
+const FollowPage = lazy(() => import('./pages/Profile/FollowPage.jsx'));
+const CheckinDetailPage = lazy(() => import('./pages/CheckinDetail/CheckinDetailPage.jsx'));
+const AboutPage = lazy(() => import('./pages/About/AboutPage.jsx'));
 const AirportPage = lazy(() => import('./pages/Airport/AirportPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage.jsx'));
 const MapPage = lazy(() => import('./pages/Map/MapPage.jsx'));
@@ -28,6 +34,7 @@ function ScrollToTop() {
 }
 
 const s = (el) => <Suspense fallback={<PageSkeleton />}>{el}</Suspense>;
+const auth = (el) => s(<RequireAuth>{el}</RequireAuth>);
 
 export function App() {
   return (
@@ -36,14 +43,15 @@ export function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<FeedPage />} />
-          <Route
-            path="checkin"
-            element={s(
-              <RequireAuth>
-                <CheckinPage />
-              </RequireAuth>
-            )}
-          />
+          <Route path="checkin" element={auth(<CheckinPage />)} />
+          <Route path="checkin/done" element={auth(<DonePage />)} />
+          <Route path="checkin/:id/edit" element={auth(<CheckinPage />)} />
+          <Route path="c/:id" element={s(<CheckinDetailPage />)} />
+          <Route path="settings" element={auth(<SettingsPage />)} />
+          <Route path="notifications" element={auth(<NotificationsPage />)} />
+          <Route path="u/:username/followers" element={s(<FollowPage list="followers" />)} />
+          <Route path="u/:username/following" element={s(<FollowPage list="following" />)} />
+          <Route path="about" element={s(<AboutPage />)} />
           <Route path="airport/:iata" element={s(<AirportPage />)} />
           <Route path="u/:username" element={s(<ProfilePage />)} />
           <Route path="u/:username/map" element={s(<MapPage />)} />

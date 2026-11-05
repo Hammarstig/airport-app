@@ -5,6 +5,7 @@ import { TRAVEL_CLASSES, formatDate } from '../../lib/format.js';
 import { AirportAutocomplete, AirlineAutocomplete } from '../../components/AirportAutocomplete.jsx';
 import { AirlineTag, ClassChip } from '../../components/TravelDetails.jsx';
 import { EmptyState, IataTag, Stars } from '../../components/ui.jsx';
+import { Snippet } from '../../components/Snippet.jsx';
 import { IconSearch } from '../../assets/icons.jsx';
 import { PAGE, FilterSelect, Results, useSearchResults } from './shared.jsx';
 
@@ -33,7 +34,7 @@ export function ReviewsTab({ qs, q }) {
         .then(setIataAirport)
         .catch(() => {});
     if (!iata) setIataAirport(null);
-  }, [iata]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [iata]); // eslint-disable-line react-hooks/exhaustive-deps -- hämta bara när IATA i URL:en ändras
 
   return (
     <div className="stack">
@@ -73,20 +74,20 @@ export function ReviewsTab({ qs, q }) {
       </div>
       {!enabled ? (
         <EmptyState icon={IconSearch} title="Sök i kommentarer och loungerecensioner">
-          <p className="muted">Skriv ett sökord, till exempel "wifi" eller "kö", eller välj en flygplats.</p>
+          <p className="muted">Skriv ett sökord, till exempel ”wifi” eller ”kö”, eller välj en flygplats.</p>
         </EmptyState>
       ) : (
         <Results res={res} empty={<EmptyState icon={IconSearch} title="Inga recensioner matchar" />}>
           <ul className="list" aria-label="Recensioner">
             {res.items.map((h) => (
-              <li key={`${h.type}-${h.id}`} className="list__item search-hit" style={{ display: 'block' }}>
-                <div className="row" style={{ alignItems: 'center', gap: 8 }}>
+              <li key={`${h.type}-${h.id}`} className="list__item search-hit block">
+                <div className="row items-center gap-2">
                   <IataTag iata={h.airport.iata} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Link to={`/airport/${h.airport.iata}`} style={{ fontWeight: 600 }}>
+                  <div className="flex-1 min-w-0">
+                    <Link to={`/airport/${h.airport.iata}`} className="bold">
                       {h.type === 'lounge_review' && h.loungeName ? h.loungeName : h.airport.name}
                     </Link>
-                    <div className="muted" style={{ fontSize: '0.85em' }}>
+                    <div className="muted text-sm">
                       {h.type === 'lounge_review' ? 'Loungerecension' : 'Check-in'} av{' '}
                       <Link to={`/u/${h.user.username}`}>{h.user.displayName || h.user.username}</Link> ·{' '}
                       {formatDate(h.visitedOn)}
@@ -95,13 +96,12 @@ export function ReviewsTab({ qs, q }) {
                   {h.rating != null && <Stars value={h.rating} />}
                 </div>
                 {(h.airline || h.travelClass) && (
-                  <div className="row" style={{ marginTop: 6, gap: 8 }}>
+                  <div className="row mt-2 gap-2">
                     <AirlineTag airline={h.airline} />
                     <ClassChip travelClass={h.travelClass} />
                   </div>
                 )}
-                {/* snippet är server-escapad HTML med endast <mark>-taggar enligt API-kontraktet */}
-                <p style={{ margin: '8px 0 0' }} dangerouslySetInnerHTML={{ __html: h.snippet || '' }} />
+                <Snippet className="search-hit__snippet" parts={h.snippetParts} snippet={h.snippet} />
               </li>
             ))}
           </ul>

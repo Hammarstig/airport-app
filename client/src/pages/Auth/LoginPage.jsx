@@ -63,7 +63,7 @@ export default function LoginPage() {
           <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
             {busy ? 'Loggar in...' : 'Logga in'}
           </button>
-          <p className="muted" style={{ margin: 0, textAlign: 'center' }}>
+          <p className="muted mt-0 mb-0 text-center">
             Inget konto?{' '}
             <Link to="/register" state={location.state}>
               Registrera dig

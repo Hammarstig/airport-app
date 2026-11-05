@@ -6,7 +6,7 @@ export function CheckinList({ paged, empty, onDeleteItem, ...cardProps }) {
   if (error && items.length === 0) {
     return (
       <div className="empty-state" role="alert">
-        <p style={{ margin: 0 }}>{error.message}</p>
+        <p className="mt-0 mb-0">{error.message}</p>
         <button type="button" className="btn btn--sm" onClick={reload}>
           Försök igen
         </button>
@@ -19,14 +19,10 @@ export function CheckinList({ paged, empty, onDeleteItem, ...cardProps }) {
         <CheckinCard
           key={c.id}
           checkin={c}
-          onDelete={
-            onDeleteItem
-              ? (id) => {
-                  setItems((xs) => xs.filter((x) => x.id !== id));
-                  onDeleteItem(id);
-                }
-              : undefined
-          }
+          onDelete={(id) => {
+            setItems((xs) => xs.filter((x) => x.id !== id));
+            onDeleteItem && onDeleteItem(id);
+          }}
           {...cardProps}
         />
       ))}

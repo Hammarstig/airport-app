@@ -14,13 +14,11 @@ export function AirportCoverageList({ airports }) {
       <Link to={`/airport/${a.iata}`} className="iata-tag">
         {a.iata}
       </Link>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Link to={`/airport/${a.iata}`} style={{ fontWeight: 600, display: 'block' }}>
+      <div className="flex-1 min-w-0">
+        <Link to={`/airport/${a.iata}`} className="bold block">
           {a.name}
         </Link>
-        <span className="muted" style={{ fontSize: '0.85em' }}>
-          {a.city}
-        </span>
+        <span className="muted text-sm">{a.city}</span>
       </div>
       {a.visited ? <span className="badge badge--signal">{a.visits} besök</span> : null}
     </li>
@@ -40,18 +38,13 @@ export function AirportCoverageList({ airports }) {
         <>
           <button
             type="button"
-            className="btn btn--ghost btn--sm"
+            className="btn btn--ghost btn--sm mt-2"
             aria-expanded={showAll}
             onClick={() => setShowAll((v) => !v)}
-            style={{ marginTop: 8 }}
           >
             {showAll ? 'Dölj ej besökta' : `Visa ${other.length} ej besökta`}
           </button>
-          {showAll && (
-            <ul className="list" style={{ marginTop: 8 }}>
-              {other.map(row)}
-            </ul>
-          )}
+          {showAll && <ul className="list mt-2">{other.map(row)}</ul>}
         </>
       )}
     </section>

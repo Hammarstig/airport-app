@@ -6,7 +6,7 @@ import { useAsync } from '../../hooks/useAsync.js';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
 import { formatDate, formatRating, placeLine } from '../../lib/format.js';
 import { ReviewForm } from '../../components/LoungeForms.jsx';
-import { Avatar, EmptyState, ErrorState, Spinner, Stars, Stat } from '../../components/ui.jsx';
+import { Avatar, EmptyState, ErrorState, Spinner, Stars, StatRow } from '../../components/ui.jsx';
 import { IconLounge } from '../../assets/icons.jsx';
 import NotFoundPage from '../NotFound/NotFoundPage.jsx';
 
@@ -67,14 +67,17 @@ export default function LoungePage() {
       </header>
 
       <section className="section" aria-label="Statistik">
-        <div className="grid grid--2">
-          <Stat value={formatRating(lounge.avgRating)} label="Snittbetyg" />
-          <Stat value={lounge.reviewCount ?? reviews.length} label="Recensioner" />
-        </div>
+        <StatRow
+          label="Statistik"
+          items={[
+            [formatRating(lounge.avgRating), 'Snittbetyg'],
+            [lounge.reviewCount ?? reviews.length, 'Recensioner']
+          ]}
+        />
       </section>
 
       <section className="section" aria-labelledby="lr-title">
-        <div className="row" style={{ alignItems: 'center' }}>
+        <div className="row items-center">
           <h2 className="section__title" id="lr-title">
             Recensioner
           </h2>
@@ -110,17 +113,15 @@ export default function LoungePage() {
         ) : (
           <ul className="list">
             {reviews.map((r) => (
-              <li key={r.id} className="list__item" style={{ alignItems: 'flex-start' }}>
+              <li key={r.id} className="list__item">
                 <Avatar user={r.user} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="row" style={{ alignItems: 'center', gap: 6 }}>
+                <div className="flex-1 min-w-0">
+                  <div className="row items-center gap-1">
                     <Link to={`/u/${r.user.username}`}>
                       <strong>{r.user.displayName || r.user.username}</strong>
                     </Link>
                     <Stars value={r.rating} />
-                    <span className="muted" style={{ fontSize: '0.85em' }}>
-                      {formatDate(r.visitedOn)}
-                    </span>
+                    <span className="muted text-sm">{formatDate(r.visitedOn)}</span>
                   </div>
                   {r.comment && <p style={{ margin: '4px 0 0' }}>{r.comment}</p>}
                 </div>

@@ -19,9 +19,7 @@ export function SubRatingBars({ averages }) {
           >
             <span className="subrating__fill" style={{ '--value': averages[s.key] }} />
           </span>
-          <span className="muted" style={{ minWidth: 28, textAlign: 'right' }}>
-            {formatRating(averages[s.key])}
-          </span>
+          <span className="muted text-right tabular">{formatRating(averages[s.key])}</span>
         </div>
       ))}
     </div>

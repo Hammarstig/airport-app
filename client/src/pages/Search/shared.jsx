@@ -39,7 +39,7 @@ export function useSearchResults(key, fetcher, enabled = true) {
     return () => {
       cancelled = true;
     };
-  }, [key, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, enabled]); // eslint-disable-line react-hooks/exhaustive-deps -- key beskriver alla parametrar
 
   const loadMore = async () => {
     setState((s) => ({ ...s, loading: true }));

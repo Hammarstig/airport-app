@@ -17,11 +17,12 @@ export function BadgesTab({ username }) {
   if (loading && !data) return <SkeletonRows count={3} />;
   if (error) return <ErrorState error={error} onRetry={reload} />;
   if (!data.length) return <EmptyState icon={IconBadge} title="Inga märken ännu" />;
-  const earned = data.filter((b) => b.earnedAt).length;
+  const earned = data.filter((b) => b.tierLevel > 0).length;
+  const tiers = data.reduce((n, b) => n + (b.tierLevel || 0), 0);
   return (
     <div className="stack">
-      <p className="muted" style={{ margin: 0 }}>
-        {earned} av {data.length} märken upplåsta
+      <p className="muted mt-0 mb-0">
+        {earned} av {data.length} märken upplåsta · {tiers} nivåer totalt
       </p>
       <BadgeGrid badges={data} />
     </div>
@@ -41,7 +42,7 @@ export function WishlistTab({ username, isMe }) {
       <EmptyState icon={IconBookmark} title="Önskelistan är tom">
         {isMe && (
           <p className="muted">
-            Tryck på "Vill besöka" på en flygplatssida. <Link to="/explore">Utforska flygplatser</Link>
+            Tryck på ”Vill besöka” på en flygplatssida. <Link to="/explore">Utforska flygplatser</Link>
           </p>
         )}
       </EmptyState>

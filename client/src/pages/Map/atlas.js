@@ -34,15 +34,16 @@ export async function loadCountryShapes(code) {
   return (await loadDetailed()).filter((f) => f.alpha2 === code);
 }
 
-/** Färgsteg 0-6 för täckningsgrad i procent (0 = obesökt). */
+/** Färgsteg 0-6 enligt DESIGN.md: 0 % = 0, 1-16 = 1, 17-33 = 2, 34-50 = 3, 51-66 = 4, 67-83 = 5, 84-100 = 6. */
 export function coverageStep(visited, pct) {
   if (!visited) return 0;
-  if (pct < 5) return 1;
-  if (pct < 10) return 2;
-  if (pct < 25) return 3;
-  if (pct < 50) return 4;
-  if (pct < 75) return 5;
+  const p = Math.round(pct);
+  if (p <= 16) return 1;
+  if (p <= 33) return 2;
+  if (p <= 50) return 3;
+  if (p <= 66) return 4;
+  if (p <= 83) return 5;
   return 6;
 }
 
-export const STEP_LABELS = ['<5 %', '5-10 %', '10-25 %', '25-50 %', '50-75 %', '75-100 %'];
+export const STEP_LABELS = ['1-16 %', '17-33 %', '34-50 %', '51-66 %', '67-83 %', '84-100 %'];

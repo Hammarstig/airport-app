@@ -3,7 +3,7 @@ import { api } from '../../lib/api.js';
 import { useAsync } from '../../hooks/useAsync.js';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
 import { PageSkeleton } from '../../components/Skeleton.jsx';
-import { ErrorState, Stat } from '../../components/ui.jsx';
+import { ErrorState, StatRow } from '../../components/ui.jsx';
 import NotFoundPage from '../NotFound/NotFoundPage.jsx';
 import { WorldMap } from './WorldMap.jsx';
 import { CountryMap } from './CountryMap.jsx';
@@ -42,11 +42,14 @@ function WorldView({ username, scope }) {
 
   return (
     <div className="stack stack--lg">
-      <div className="grid grid--3">
-        <Stat value={pctText(data.totals.pct)} label="av världens flygplatser" />
-        <Stat value={`${data.totals.visited} / ${data.totals.total}`} label="Besökta flygplatser" />
-        <Stat value={visitedCountries.length} label="Länder" />
-      </div>
+      <StatRow
+        label="Täckning"
+        items={[
+          [pctText(data.totals.pct), 'av världens flygplatser'],
+          [`${data.totals.visited}/${data.totals.total}`, 'Flygplatser'],
+          [visitedCountries.length, 'Länder']
+        ]}
+      />
       <WorldMap username={username} countries={data.countries} />
       <section className="section" aria-labelledby="cont-title">
         <h2 className="section__title" id="cont-title">
@@ -88,18 +91,19 @@ function CountryView({ username, code, scope }) {
   return (
     <div className="stack stack--lg">
       <div className="row" style={{ alignItems: 'baseline' }}>
-        <h2 className="section__title" style={{ margin: 0 }}>
-          {c.name}
-        </h2>
+        <h2 className="section__title mt-0 mb-0">{c.name}</h2>
         <span className="spacer" />
         <Link to={`/country/${c.code}`} className="btn btn--ghost btn--sm">
           Landets sida
         </Link>
       </div>
-      <div className="grid grid--2">
-        <Stat value={pctText(c.pct)} label="av landets flygplatser" />
-        <Stat value={`${c.visited} / ${c.total}`} label="Besökta flygplatser" />
-      </div>
+      <StatRow
+        label="Täckning"
+        items={[
+          [pctText(c.pct), 'av landets flygplatser'],
+          [`${c.visited}/${c.total}`, 'Flygplatser']
+        ]}
+      />
       <CountryMap code={c.code} airports={data.airports || []} />
       {regions.length > 0 && (
         <section className="section" aria-labelledby="reg-title">
@@ -125,7 +129,7 @@ export default function MapPage() {
     <div className="page">
       <header className="page__header">
         <div>
-          <p className="page__subtitle" style={{ margin: 0 }}>
+          <p className="page__subtitle mt-0 mb-0">
             <Link to={`/u/${username}`}>@{username}</Link>
             {code && (
               <>

@@ -9,10 +9,10 @@ import { CheckinList } from '../../components/CheckinList.jsx';
 import { SubRatingBars } from '../../components/SubRatingBars.jsx';
 import { LoungeSection } from '../../components/Lounges.jsx';
 import { PageSkeleton } from '../../components/Skeleton.jsx';
-import { EmptyState, ErrorState, Stars, Stat } from '../../components/ui.jsx';
+import { EmptyState, ErrorState, Stars, StatRow } from '../../components/ui.jsx';
 import { IconMapPin, IconPlane, IconPlus } from '../../assets/icons.jsx';
 import NotFoundPage from '../NotFound/NotFoundPage.jsx';
-import { ClassMix, PhotoGallery, TopAirlines, WishButton } from './AirportExtras.jsx';
+import { ClassMix, FriendsVisited, PhotoGallery, TopAirlines, WishButton } from './AirportExtras.jsx';
 
 export default function AirportPage() {
   const { iata: raw } = useParams();
@@ -72,7 +72,7 @@ export default function AirportPage() {
             Du har besökt {airport.iata} {airport.myVisits} {airport.myVisits === 1 ? 'gång' : 'gånger'}.
           </p>
         )}
-        <div className="row" style={{ marginTop: 12 }}>
+        <div className="row mt-2">
           <Link to={`/checkin?iata=${airport.iata}`} className="btn btn--primary">
             <IconPlus size={18} aria-hidden="true" /> Checka in här
           </Link>
@@ -81,19 +81,20 @@ export default function AirportPage() {
       </header>
 
       <section className="section" aria-label="Statistik">
-        <div className="grid grid--3">
-          <Stat value={s.visitors ?? 0} label="Besökare" />
-          <Stat value={s.checkins ?? 0} label="Check-ins" />
-          <Stat
-            value={formatRating(s.avgRating)}
-            label={s.ratingCount ? `Snittbetyg (${s.ratingCount})` : 'Snittbetyg'}
-          />
-        </div>
-        {s.avgRating != null && (
-          <div className="row" style={{ justifyContent: 'center', marginTop: 8 }}>
-            <Stars value={s.avgRating} large />
-          </div>
-        )}
+        <StatRow
+          label="Statistik"
+          items={[
+            [s.visitors ?? 0, 'Besökare'],
+            [s.checkins ?? 0, 'Check-ins'],
+            [
+              <span key="r" className="stat__rating">
+                {formatRating(s.avgRating)} {s.avgRating != null && <Stars value={s.avgRating} />}
+              </span>,
+              s.ratingCount ? `Snittbetyg (${s.ratingCount})` : 'Snittbetyg'
+            ]
+          ]}
+        />
+        <FriendsVisited friends={airport.friendsVisited} />
       </section>
 
       <section className="section" aria-labelledby="sub-title">

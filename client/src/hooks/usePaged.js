@@ -36,10 +36,11 @@ export function usePaged(fetchPage, deps, pageSize = 20, peekFirst) {
     setItems(cached || []);
     setHasMore(!!cached && cached.length === pageSize);
     load(0, true, !!cached);
+    const g = gen;
     return () => {
-      gen.current++;
+      g.current++;
     };
-  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps -- anroparen anger beroenden (som useEffect)
 
   return {
     items,

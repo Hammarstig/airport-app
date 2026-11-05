@@ -42,7 +42,11 @@ self.addEventListener('fetch', (event) => {
           caches.open(SHELL).then((c) => c.put('/index.html', copy));
           return res;
         })
-        .catch(async () => (await caches.match(OFFLINE_URL)) || Response.error())
+        .catch(
+          async () =>
+            // App-skalet från cache i första hand (appen visar sin egen offlinestatus), offlinesidan som sista utväg.
+            (await caches.match('/index.html')) || (await caches.match(OFFLINE_URL)) || Response.error()
+        )
     );
     return;
   }

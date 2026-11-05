@@ -25,3 +25,10 @@ export function cacheSet(key, data) {
 export function cacheClear() {
   store.clear();
 }
+
+/** Släng cachade svar vars URL börjar med något av prefixen. */
+export function cacheInvalidate(prefixes) {
+  for (const key of [...store.keys()]) {
+    if (prefixes.some((p) => key.startsWith(p))) store.delete(key);
+  }
+}

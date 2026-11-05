@@ -9,7 +9,7 @@ export default function NotFoundPage({ message }) {
     <div className="page">
       <EmptyState icon={IconPlane} title="Fel gate">
         <p className="muted">{message || 'Sidan du letar efter finns inte.'}</p>
-        <div className="row" style={{ justifyContent: 'center' }}>
+        <div className="row justify-center">
           <Link to="/" className="btn btn--primary">
             Till flödet
           </Link>

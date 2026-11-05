@@ -24,12 +24,14 @@ export function Lightbox({ photos, index, onIndex, onClose }) {
       document.body.style.overflow = overflow;
       prevFocus && prevFocus.focus && prevFocus.focus();
     };
-  }); // eslint-disable-line react-hooks/exhaustive-deps
+  });
 
   // Svep vänster/höger på touch.
   const touchX = useRef(null);
   if (!p) return null;
   return (
+    // Bakgrundsklick stänger; tangentbordet (Escape, pilar) hanteras på document ovan.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
     <div
       className="lightbox"
       role="dialog"

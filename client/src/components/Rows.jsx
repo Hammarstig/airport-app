@@ -16,7 +16,7 @@ export function AirportRow({ airport, rank, avgRating, ratingCount, checkins, ex
   if (ratingCount != null) counts.push(`${ratingCount} betyg`);
   return (
     <li className="result-row">
-      <span className="result-row__code row row--nowrap" style={{ gap: 8 }}>
+      <span className="result-row__code row row--nowrap gap-2">
         {rank != null && <Rank n={rank} />}
         <IataTag iata={airport.iata} />
       </span>
@@ -43,11 +43,11 @@ export function LoungeRow({ lounge, airport, rank, avgRating, reviewCount }) {
     <li className="list__item">
       {rank != null && <Rank n={rank} />}
       <IconLounge size={20} aria-hidden="true" />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Link to={`/lounge/${lounge.id}`} style={{ fontWeight: 600, display: 'block' }}>
+      <div className="flex-1 min-w-0">
+        <Link to={`/lounge/${lounge.id}`} className="bold block">
           {lounge.name}
         </Link>
-        <span className="muted" style={{ fontSize: '0.85em' }}>
+        <span className="muted text-sm">
           {ap ? (
             <>
               <Link to={`/airport/${ap.iata}`}>{ap.iata}</Link> {ap.city ? `${ap.city} · ` : ''}

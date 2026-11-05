@@ -9,11 +9,9 @@ export function AirportOption({ airport: a }) {
   return (
     <>
       <span className="iata-tag">{a.iata}</span>
-      <span style={{ minWidth: 0, flex: 1 }}>
-        <span style={{ display: 'block', fontWeight: 600 }}>{a.name}</span>
-        <span className="muted" style={{ fontSize: '0.85em' }}>
-          {[a.city, country].filter(Boolean).join(', ')}
-        </span>
+      <span className="flex-1 min-w-0">
+        <span className="bold block">{a.name}</span>
+        <span className="muted text-sm">{[a.city, country].filter(Boolean).join(', ')}</span>
       </span>
       {a.matchedOn && (
         <span className="match-hint" title="Matchade på">
@@ -55,13 +53,9 @@ export function AirlineAutocomplete({
       renderItem={(a) => (
         <>
           <span className="airline-tag__code">{a.iata}</span>
-          <span style={{ minWidth: 0, flex: 1 }}>
-            <span style={{ display: 'block', fontWeight: 600 }}>{a.name}</span>
-            {a.country && (
-              <span className="muted" style={{ fontSize: '0.85em' }}>
-                {a.country}
-              </span>
-            )}
+          <span className="flex-1 min-w-0">
+            <span className="bold block">{a.name}</span>
+            {a.country && <span className="muted text-sm">{a.country}</span>}
           </span>
         </>
       )}

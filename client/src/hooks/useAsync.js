@@ -36,10 +36,11 @@ export function useAsync(fn, deps, peek) {
 
   useEffect(() => {
     run(false);
+    const g = gen;
     return () => {
-      gen.current++;
+      g.current++;
     };
-  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps -- anroparen anger beroenden (som useEffect)
 
   const reload = useCallback(() => run(true), [run]);
   const setData = useCallback(

@@ -39,21 +39,21 @@ function LoungeItem({ lounge, onChange }) {
   };
 
   return (
-    <li className="list__item" style={{ display: 'block' }}>
-      <div className="row" style={{ alignItems: 'center' }}>
+    <li className="list__item block">
+      <div className="row items-center">
         <IconLounge size={20} aria-hidden="true" />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Link to={`/lounge/${lounge.id}`} style={{ fontWeight: 600, display: 'block' }}>
+        <div className="flex-1 min-w-0">
+          <Link to={`/lounge/${lounge.id}`} className="bold block">
             {lounge.name}
           </Link>
-          <div className="muted" style={{ fontSize: '0.85em' }}>
+          <div className="muted text-sm">
             {lounge.terminal ? `Terminal ${lounge.terminal} · ` : ''}
             {lounge.reviewCount} {lounge.reviewCount === 1 ? 'recension' : 'recensioner'}
           </div>
         </div>
         <RatingBadge value={lounge.avgRating} />
       </div>
-      <div className="row" style={{ marginTop: 8 }}>
+      <div className="row mt-2">
         {lounge.reviewCount > 0 && (
           <button
             type="button"
@@ -81,21 +81,19 @@ function LoungeItem({ lounge, onChange }) {
       </div>
       {mode === 'review' && <ReviewForm lounge={lounge} onSaved={onSaved} onCancel={() => setMode(null)} />}
       {mode === 'reviews' && (
-        <div className="stack" style={{ marginTop: 12 }}>
+        <div className="stack mt-2">
           {!reviews && <span className="spinner" role="status" aria-label="Laddar recensioner" />}
           {reviews &&
             reviews.map((r) => (
-              <div key={r.id} className="row" style={{ alignItems: 'flex-start' }}>
+              <div key={r.id} className="row">
                 <Avatar user={r.user} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="row" style={{ alignItems: 'center', gap: 6 }}>
+                <div className="flex-1 min-w-0">
+                  <div className="row items-center gap-1">
                     <Link to={`/u/${r.user.username}`}>
                       <strong>{r.user.displayName || r.user.username}</strong>
                     </Link>
                     <Stars value={r.rating} />
-                    <span className="muted" style={{ fontSize: '0.85em' }}>
-                      {formatDate(r.visitedOn)}
-                    </span>
+                    <span className="muted text-sm">{formatDate(r.visitedOn)}</span>
                   </div>
                   {r.comment && <p style={{ margin: '4px 0 0' }}>{r.comment}</p>}
                 </div>
@@ -113,7 +111,7 @@ export function LoungeSection({ iata, lounges, setLounges }) {
 
   return (
     <section className="section" aria-labelledby="lounges-title">
-      <div className="row" style={{ alignItems: 'center' }}>
+      <div className="row items-center">
         <h2 className="section__title" id="lounges-title">
           Lounger
         </h2>

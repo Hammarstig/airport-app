@@ -106,13 +106,7 @@ export function ReviewForm({ lounge, onSaved, onCancel }) {
   };
 
   return (
-    <form
-      className="stack"
-      onSubmit={submit}
-      noValidate
-      aria-label={`Recensera ${lounge.name}`}
-      style={{ marginTop: 12 }}
-    >
+    <form className="stack mt-2" onSubmit={submit} noValidate aria-label={`Recensera ${lounge.name}`}>
       <div className="field">
         <span className="field__label">Betyg</span>
         <StarsInput

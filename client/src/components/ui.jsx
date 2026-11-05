@@ -85,7 +85,7 @@ export function EmptyState({ icon: Icon, title, children }) {
           <Icon size={32} />
         </span>
       )}
-      {title && <p style={{ fontWeight: 600, margin: 0 }}>{title}</p>}
+      {title && <p className="bold mt-0 mb-0">{title}</p>}
       {children}
     </div>
   );
@@ -94,7 +94,7 @@ export function EmptyState({ icon: Icon, title, children }) {
 export function ErrorState({ error, onRetry }) {
   return (
     <div className="empty-state" role="alert">
-      <p style={{ margin: 0 }}>{error?.message || 'Något gick fel.'}</p>
+      <p className="mt-0 mb-0">{error?.message || 'Något gick fel.'}</p>
       {onRetry && (
         <button type="button" className="btn btn--sm" onClick={onRetry}>
           Försök igen
@@ -168,6 +168,17 @@ export function Segmented({ options, value, onChange, label, name }) {
           </label>
         );
       })}
+    </div>
+  );
+}
+
+/** Statistikrad: alltid tre (eller fyra) kolumner, även på 360 px. items: [[värde, etikett], ...] */
+export function StatRow({ items, label }) {
+  return (
+    <div className="stat-row" role="group" aria-label={label}>
+      {items.map(([value, lbl]) => (
+        <Stat key={lbl} value={value} label={lbl} />
+      ))}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
 import { usePaged } from '../../hooks/usePaged.js';
 import { continentName, formatRating } from '../../lib/format.js';
 import { AirportRow } from '../../components/Rows.jsx';
-import { EmptyState, ErrorState, Segmented, Spinner, Stat } from '../../components/ui.jsx';
+import { EmptyState, ErrorState, Segmented, Spinner, StatRow } from '../../components/ui.jsx';
 import { IconPlane } from '../../assets/icons.jsx';
 import NotFoundPage from '../NotFound/NotFoundPage.jsx';
 
@@ -52,12 +52,15 @@ export default function CountryPage() {
       </header>
 
       <section className="section" aria-label="Statistik">
-        <div className="grid grid--2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
-          <Stat value={c.airports ?? 0} label="Flygplatser" />
-          <Stat value={c.checkins ?? 0} label="Check-ins" />
-          <Stat value={c.visitors ?? 0} label="Besökare" />
-          <Stat value={formatRating(c.avgRating)} label="Snittbetyg" />
-        </div>
+        <StatRow
+          label="Statistik"
+          items={[
+            [c.airports ?? 0, 'Flygplatser'],
+            [c.checkins ?? 0, 'Check-ins'],
+            [c.visitors ?? 0, 'Besökare'],
+            [formatRating(c.avgRating), 'Snittbetyg']
+          ]}
+        />
       </section>
 
       <section className="section" aria-labelledby="c-top">
@@ -80,7 +83,7 @@ export default function CountryPage() {
             ))}
           </ol>
         )}
-        <div className="row" style={{ marginTop: 8 }}>
+        <div className="row mt-2">
           <Link to={`/top/overall?country=${c.code}`} className="btn btn--ghost btn--sm">
             Kategoritopplistor för {c.name}
           </Link>
@@ -92,7 +95,7 @@ export default function CountryPage() {
           Alla flygplatser
         </h2>
         <Segmented options={SORTS} value={sort} onChange={setSort} label="Sortera flygplatser" name="country-sort" />
-        <ul className="list" style={{ marginTop: 12 }}>
+        <ul className="list mt-2">
           {paged.items.map((a) => (
             <AirportRow key={a.iata} airport={a} avgRating={a.avgRating} checkins={a.checkins ?? 0} />
           ))}

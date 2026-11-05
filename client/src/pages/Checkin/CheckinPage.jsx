@@ -1,219 +1,244 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '../../lib/api.js';
+import { useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useToast } from '../../components/Toast.jsx';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
-import { KINDS, SUB_RATINGS, todayIso } from '../../lib/format.js';
+import { KINDS, SUB_RATINGS, formatDate, placeLine, todayIso } from '../../lib/format.js';
 import { AirportAutocomplete } from '../../components/AirportAutocomplete.jsx';
 import { StarsInput } from '../../components/StarsInput.jsx';
 import { PhotoPicker } from '../../components/PhotoPicker.jsx';
-import { Segmented } from '../../components/ui.jsx';
+import { PageSkeleton } from '../../components/Skeleton.jsx';
+import { ErrorState, Segmented } from '../../components/ui.jsx';
 import { TravelSection } from './TravelSection.jsx';
-import { submitCheckin } from './submitCheckin.js';
+import { QuickPick } from './QuickPick.jsx';
+import { Disclosure } from './Disclosure.jsx';
+import { MAX_COMMENT, useCheckinForm, validate } from './useCheckinForm.js';
+import { saveEdit, submitCheckin } from './submitCheckin.js';
 
-const MAX_COMMENT = 1000;
-const EMPTY_TRAVEL = {
-  airline: null,
-  flightNumber: '',
-  travelClass: '',
-  loungeChoice: '',
-  newLounge: { name: '', terminal: '' },
-  loungeRating: null
+const KIND_HINT = {
+  departure: 'Du flög härifrån.',
+  arrival: 'Du landade här och lämnade flygplatsen.',
+  transfer: 'Du bytte flyg här utan att lämna flygplatsen.',
+  layover: 'Längre uppehåll, eller planet stannade och flög vidare.'
 };
 
+function SelectedAirport({ airport, onChange }) {
+  return (
+    <div className="selected-airport">
+      <span className="iata-tag iata-tag--lg">{airport.iata}</span>
+      <span className="selected-airport__text">
+        <strong>{airport.name}</strong>
+        <span className="muted">{placeLine(airport)}</span>
+      </span>
+      {onChange && (
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onChange}>
+          Byt
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function CheckinPage() {
-  useDocumentTitle('Checka in');
+  const { id: editId } = useParams();
   const [params] = useSearchParams();
+  const preset = { iata: (params.get('iata') || '').toUpperCase(), date: params.get('date'), kind: params.get('kind') };
+  const editing = !!editId;
+  useDocumentTitle(editing ? 'Redigera check-in' : 'Checka in');
   const navigate = useNavigate();
   const toast = useToast();
-
-  const [airport, setAirport] = useState(null);
-  const [lounges, setLounges] = useState([]);
-  const [visitedOn, setVisitedOn] = useState(todayIso());
-  const [kind, setKind] = useState('departure');
-  const [rating, setRating] = useState(null);
-  const [ratings, setRatings] = useState({});
-  const [showSubs, setShowSubs] = useState(false);
-  const [comment, setComment] = useState('');
-  const [travel, setTravel] = useState(EMPTY_TRAVEL);
-  const [photos, setPhotos] = useState([]);
+  const form = useCheckinForm(editId, preset);
+  const { f, set, setTravel } = form;
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(null);
 
-  const preIata = (params.get('iata') || '').toUpperCase();
-  useEffect(() => {
-    if (!/^[A-Z]{3}$/.test(preIata)) return;
-    api
-      .airport(preIata)
-      .then(setAirport)
-      .catch(() => toast.error(`Hittade ingen flygplats med koden ${preIata}.`));
-  }, [preIata]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Lounger för vald flygplats (flygplatsobjektet från /airports/:iata har dem redan).
-  useEffect(() => {
-    setTravel((t) => ({ ...t, loungeChoice: '', loungeRating: null }));
-    if (!airport) return setLounges([]);
-    if (airport.lounges) return setLounges(airport.lounges);
-    let live = true;
-    api
-      .airport(airport.iata)
-      .then((a) => live && setLounges(a.lounges || []))
-      .catch(() => live && setLounges([]));
-    return () => {
-      live = false;
-    };
-  }, [airport?.iata]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const today = todayIso();
+  if (form.loading) return <PageSkeleton />;
+  if (editing && form.loadError)
+    return (
+      <div className="page">
+        <ErrorState error={form.loadError} />
+      </div>
+    );
 
   const submit = async (e) => {
     e.preventDefault();
-    const errs = {};
-    if (!airport) errs.airport = 'Välj en flygplats i listan.';
-    if (!visitedOn) errs.visitedOn = 'Ange datum.';
-    else if (visitedOn > today) errs.visitedOn = 'Datumet kan inte vara i framtiden.';
-    if (comment.length > MAX_COMMENT) errs.comment = `Max ${MAX_COMMENT} tecken.`;
-    if (travel.flightNumber && !/^[A-Z0-9]{2,8}$/.test(travel.flightNumber))
-      errs.flightNumber = 'Ange t.ex. SK1421 (2-8 tecken A-Z, 0-9).';
-    if (travel.loungeChoice === 'new' && !travel.newLounge.name.trim()) errs.newLounge = 'Ange loungens namn.';
+    const errs = validate(f);
     setErrors(errs);
     if (Object.keys(errs).length) {
-      const first = document.querySelector('[aria-invalid="true"]');
-      first && first.focus();
+      // Öppna sektionen med felet och fokusera fältet.
+      requestAnimationFrame(() => {
+        const el = document.querySelector('[aria-invalid="true"]');
+        el?.closest('details')?.setAttribute('open', '');
+        el?.focus();
+      });
       return;
     }
-
     setSaving('Sparar...');
     try {
-      const { checkin, failedPhotos } = await submitCheckin(
-        { airport, visitedOn, kind, rating, ratings, comment, travel, photos },
-        setSaving
-      );
-      if (failedPhotos) toast.error(`${failedPhotos} foto(n) kunde inte laddas upp.`);
-      toast.show(`Incheckad på ${airport.iata}!`);
-      navigate(`/airport/${airport.iata}`, { state: { newBadges: checkin.newBadges || [] } });
+      if (editing) {
+        const { failedPhotos } = await saveEdit(editId, { ...f, photos: form.photos }, form.removedPhotos, setSaving);
+        if (failedPhotos) toast.error(`${failedPhotos} foto(n) kunde inte sparas.`);
+        toast.show('Check-in uppdaterad.');
+        navigate(-1);
+        return;
+      }
+      const res = await submitCheckin({ ...f, photos: form.photos }, setSaving);
+      if (res.failedPhotos) toast.error(`${res.failedPhotos} foto(n) kunde inte laddas upp.`);
+      navigate('/checkin/done', {
+        replace: true,
+        state: res.queued ? { queued: true, airport: f.airport, visitedOn: f.visitedOn } : { result: res.checkin }
+      });
     } catch (err) {
       toast.error(err);
       setSaving(null);
     }
   };
 
+  const subCount = SUB_RATINGS.filter((s) => f.ratings[s.key] != null).length;
+  const photoCount = f.existingPhotos.length + form.photos.length;
+  const t = f.travel;
+  const travelSummary = [t.flightNumber, t.airline?.iata, t.travelClass && 'klass', t.loungeChoice && 'lounge']
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <div className="page">
       <header className="page__header">
-        <h1 className="page__title">Checka in</h1>
-        <p className="page__subtitle">Logga ett flygplatsbesök och betygsätt upplevelsen.</p>
+        <h1 className="page__title">{editing ? 'Redigera check-in' : 'Checka in'}</h1>
       </header>
 
-      <form className="card" onSubmit={submit} noValidate>
-        <div className="card__body stack stack--lg">
-          <AirportAutocomplete
-            label="Flygplats"
-            value={airport}
-            onSelect={setAirport}
-            autoFocus={!preIata}
-            required
-            error={errors.airport}
-          />
-
-          <div className="field">
-            <label className="field__label" htmlFor="visitedOn">
-              Datum
-            </label>
-            <input
-              id="visitedOn"
-              className="input"
-              type="date"
-              max={today}
-              value={visitedOn}
-              onChange={(e) => setVisitedOn(e.target.value)}
-              aria-invalid={errors.visitedOn ? true : undefined}
-              aria-describedby={errors.visitedOn ? 'visitedOn-err' : undefined}
-              required
+      <form onSubmit={submit} noValidate className="stack stack--lg">
+        {!f.airport ? (
+          <div className="stack">
+            <QuickPick onPick={(a) => set({ airport: a })} />
+            <AirportAutocomplete
+              label="Sök flygplats"
+              placeholder="Stad, flygplats eller IATA"
+              value={null}
+              onSelect={(a) => a && set({ airport: a })}
+              error={errors.airport}
             />
-            {errors.visitedOn && (
-              <div className="field__error" id="visitedOn-err">
-                {errors.visitedOn}
-              </div>
-            )}
           </div>
+        ) : (
+          <SelectedAirport airport={f.airport} onChange={editing ? null : () => set({ airport: null })} />
+        )}
 
-          <div className="field">
-            <span className="field__label">Typ av besök</span>
-            <Segmented options={KINDS} value={kind} onChange={setKind} label="Typ av besök" name="kind" />
-          </div>
-
-          <div className="field">
-            <span className="field__label">Totalbetyg</span>
-            <StarsInput value={rating} onChange={setRating} label="Totalbetyg" />
-            <span className="field__hint">Tryck på vänster halva av en stjärna för halvt betyg. Valfritt.</span>
-          </div>
-
-          <div className="field">
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              aria-expanded={showSubs}
-              aria-controls="subratings"
-              onClick={() => setShowSubs((v) => !v)}
-              style={{ alignSelf: 'flex-start' }}
-            >
-              {showSubs ? 'Dölj delbetyg' : 'Lägg till delbetyg'}
-            </button>
-            {showSubs && (
-              <div id="subratings" className="stack" style={{ marginTop: 8 }}>
-                {SUB_RATINGS.map((s) => (
-                  <div key={s.key} className="row row--between" style={{ alignItems: 'center' }}>
-                    <span>{s.label}</span>
-                    <StarsInput
-                      half={false}
-                      size="1.6rem"
-                      value={ratings[s.key] ?? null}
-                      onChange={(v) => setRatings((r) => ({ ...r, [s.key]: v }))}
-                      label={s.label}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="field">
-            <label className="field__label" htmlFor="comment">
-              Kommentar
-            </label>
-            <textarea
-              id="comment"
-              className="textarea"
-              rows={4}
-              maxLength={MAX_COMMENT}
-              placeholder="Hur var säkerhetskontrollen, maten, loungen?"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              aria-describedby="comment-count"
-            />
-            <div
-              id="comment-count"
-              className={comment.length > MAX_COMMENT - 50 ? 'field__error' : 'field__hint'}
-              aria-live="polite"
-            >
-              {comment.length} / {MAX_COMMENT} tecken
+        {
+          <>
+            <div className="field">
+              <span className="field__label">Typ av besök</span>
+              <Segmented
+                options={KINDS}
+                value={f.kind}
+                onChange={(kind) => set({ kind })}
+                label="Typ av besök"
+                name="kind"
+              />
+              <span className="field__hint">{KIND_HINT[f.kind]}</span>
             </div>
-          </div>
 
-          <PhotoPicker value={photos} onChange={setPhotos} onError={toast.error} />
+            <div className="field">
+              <span className="field__label">Betyg</span>
+              <StarsInput value={f.rating} onChange={(rating) => set({ rating })} label="Totalbetyg" />
+            </div>
 
-          <TravelSection
-            v={travel}
-            set={(patch) => setTravel((t) => ({ ...t, ...patch }))}
-            lounges={lounges}
-            airportChosen={!!airport}
-            errors={errors}
-          />
-        </div>
-        <div className="card__footer">
-          <button type="submit" className="btn btn--primary btn--block" disabled={!!saving}>
-            {saving || 'Checka in'}
+            <div className="field">
+              <label className="field__label" htmlFor="comment">
+                Kommentar
+              </label>
+              <textarea
+                id="comment"
+                className="textarea"
+                rows={3}
+                maxLength={MAX_COMMENT}
+                placeholder="Säkerhetskontroll, mat, lounge, tips..."
+                value={f.comment}
+                onChange={(e) => set({ comment: e.target.value })}
+                aria-describedby="comment-count"
+              />
+              {f.comment.length > MAX_COMMENT - 200 && (
+                <div id="comment-count" className="field__hint" aria-live="polite">
+                  {f.comment.length} / {MAX_COMMENT} tecken
+                </div>
+              )}
+            </div>
+
+            <div className="disclosure-group">
+              <Disclosure
+                title="Datum"
+                summary={f.visitedOn === todayIso() ? 'Idag' : formatDate(f.visitedOn)}
+                defaultOpen={!!errors.visitedOn}
+              >
+                <div className="field">
+                  <label className="visually-hidden" htmlFor="visitedOn">
+                    Datum
+                  </label>
+                  <input
+                    id="visitedOn"
+                    className="input"
+                    type="date"
+                    max={todayIso()}
+                    value={f.visitedOn}
+                    onChange={(e) => set({ visitedOn: e.target.value })}
+                    aria-invalid={errors.visitedOn ? true : undefined}
+                    aria-describedby={errors.visitedOn ? 'visitedOn-err' : undefined}
+                  />
+                  {errors.visitedOn && (
+                    <div className="field__error" id="visitedOn-err">
+                      {errors.visitedOn}
+                    </div>
+                  )}
+                </div>
+              </Disclosure>
+
+              <Disclosure title="Delbetyg" summary={subCount ? `${subCount} av ${SUB_RATINGS.length}` : 'Valfritt'}>
+                <div className="stack">
+                  {SUB_RATINGS.map((s) => (
+                    <div key={s.key} className="row row--between row--nowrap">
+                      <span>{s.label}</span>
+                      <StarsInput
+                        half={false}
+                        size="1.6rem"
+                        value={f.ratings[s.key] ?? null}
+                        onChange={(v) => set((cur) => ({ ratings: { ...cur.ratings, [s.key]: v } }))}
+                        label={s.label}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Disclosure>
+
+              <Disclosure title="Foton" summary={photoCount ? `${photoCount} st` : 'Valfritt'}>
+                <PhotoPicker
+                  hideLabel
+                  value={form.photos}
+                  onChange={form.setPhotos}
+                  onError={toast.error}
+                  existing={f.existingPhotos}
+                  onRemoveExisting={form.removeExisting}
+                />
+              </Disclosure>
+
+              <Disclosure
+                title="Resedetaljer"
+                summary={travelSummary || 'Flygbolag, flight, klass, lounge'}
+                defaultOpen={!!(errors.flightNumber || errors.newLounge)}
+              >
+                <TravelSection
+                  v={t}
+                  set={setTravel}
+                  lounges={form.lounges}
+                  airportChosen
+                  errors={errors}
+                  allowNewLounge={!editing}
+                />
+              </Disclosure>
+            </div>
+          </>
+        }
+
+        <div className="sticky-actions">
+          <button type="submit" className="btn btn--primary btn--block" disabled={!!saving || !f.airport}>
+            {saving || (editing ? 'Spara ändringar' : f.airport ? `Checka in på ${f.airport.iata}` : 'Välj flygplats')}
           </button>
         </div>
       </form>

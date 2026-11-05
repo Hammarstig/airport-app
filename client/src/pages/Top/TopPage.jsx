@@ -115,7 +115,7 @@ function TopCategory({ category }) {
         ))}
       </nav>
 
-      <div className="filters" role="group" aria-label="Filter" style={{ marginTop: 16 }}>
+      <div className="filters mt-4" role="group" aria-label="Filter">
         <div className="grid grid--3">
           <Select
             id="t-country"
@@ -144,7 +144,7 @@ function TopCategory({ category }) {
         </div>
       </div>
 
-      <div style={{ marginTop: 16 }}>
+      <div className="mt-4">
         {loading && <Spinner />}
         {error && <ErrorState error={error} onRetry={reload} />}
         {data && data.length === 0 && <EmptyState icon={IconTrophy} title="Inga betyg i denna kategori ännu" />}

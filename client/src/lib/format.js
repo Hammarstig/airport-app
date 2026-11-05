@@ -164,3 +164,19 @@ export const MATCHED_ON_LABEL = {
   name: 'Flygplatsnamn',
   country: 'Land'
 };
+
+const rtf =
+  typeof Intl.RelativeTimeFormat === 'function' ? new Intl.RelativeTimeFormat('sv', { numeric: 'auto' }) : null;
+
+/** "för 5 minuter sedan", "igår", annars datum. */
+export function timeAgo(iso) {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const s = Math.round((t - Date.now()) / 1000);
+  if (!rtf) return formatDate(iso);
+  if (Math.abs(s) < 60) return 'nyss';
+  if (Math.abs(s) < 3600) return rtf.format(Math.round(s / 60), 'minute');
+  if (Math.abs(s) < 86400) return rtf.format(Math.round(s / 3600), 'hour');
+  if (Math.abs(s) < 7 * 86400) return rtf.format(Math.round(s / 86400), 'day');
+  return formatDate(iso);
+}

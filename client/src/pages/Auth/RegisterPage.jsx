@@ -89,7 +89,7 @@ export default function RegisterPage() {
           <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
             {busy ? 'Skapar konto...' : 'Skapa konto'}
           </button>
-          <p className="muted" style={{ margin: 0, textAlign: 'center' }}>
+          <p className="muted mt-0 mb-0 text-center">
             Har du redan ett konto?{' '}
             <Link to="/login" state={location.state}>
               Logga in

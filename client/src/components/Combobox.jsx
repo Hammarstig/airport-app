@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useDebounced } from '../hooks/useDebounced.js';
 import { IconSearch } from '../assets/icons.jsx';
 
@@ -37,7 +37,14 @@ export function Combobox({
   const [searched, setSearched] = useState('');
   const q = useDebounced(text, 150);
 
+  // Synka fältet från value bara när ändringen kommer utifrån (ett val eller en återställning),
+  // inte när value nollställs för att användaren själv börjat skriva (BUG-03).
+  const typing = useRef(false);
   useEffect(() => {
+    if (typing.current) {
+      typing.current = false;
+      if (!selectedText) return;
+    }
     setText(selectedText);
   }, [selectedText]);
 
@@ -65,7 +72,7 @@ export function Combobox({
       })
       .finally(() => !ctrl.signal.aborted && setLoading(false));
     return () => ctrl.abort();
-  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps -- sök bara när den fördröjda texten ändras
 
   const choose = (item) => {
     setText(itemText(item));
@@ -78,12 +85,12 @@ export function Combobox({
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setOpen(true);
-      setActive((i) => Math.min(items.length - 1, i + 1));
+      if (fresh) setActive((i) => Math.min(items.length - 1, i + 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActive((i) => Math.max(0, i - 1));
     } else if (e.key === 'Enter') {
-      if (open && active >= 0 && items[active]) {
+      if (open && fresh && active >= 0 && items[active]) {
         e.preventDefault();
         choose(items[active]);
       }
@@ -95,8 +102,10 @@ export function Combobox({
     }
   };
 
-  const showList = open && items.length > 0;
-  const noHits = open && !loading && searched && searched === q.trim() && items.length === 0;
+  // Förslagen gäller bara om de hör till exakt det som står i fältet nu (BUG-04).
+  const fresh = searched !== '' && searched === text.trim();
+  const showList = open && fresh && items.length > 0;
+  const noHits = open && !loading && fresh && items.length === 0;
   const describedBy = [error && `${id}-err`, hint && `${id}-hint`].filter(Boolean).join(' ') || undefined;
 
   return (
@@ -126,7 +135,10 @@ export function Combobox({
           onChange={(e) => {
             setText(e.target.value);
             setOpen(true);
-            if (value && onSelect) onSelect(null);
+            if (value && onSelect) {
+              typing.current = true;
+              onSelect(null);
+            }
           }}
           onKeyDown={onKey}
           onFocus={() => items.length && setOpen(true)}
@@ -146,6 +158,8 @@ export function Combobox({
       )}
       <ul id={listId} role="listbox" className="autocomplete" aria-label={listLabel} hidden={!showList}>
         {items.map((it, i) => (
+          // Tangentbordet hanteras i sökfältet (aria-activedescendant), därför bara klick här.
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events
           <li
             key={itemKey(it)}
             id={`${listId}-${i}`}

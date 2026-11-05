@@ -7,16 +7,11 @@ import { TRAVEL_CLASSES } from '../../lib/format.js';
  * Sektionen "Resedetaljer": flygbolag, flightnummer, reseklass och lounge med betyg.
  * v = { airline, flightNumber, travelClass, loungeChoice ('' | 'new' | id), newLounge: {name, terminal}, loungeRating }
  */
-export function TravelSection({ v, set, lounges, airportChosen, errors }) {
+export function TravelSection({ v, set, lounges, airportChosen, errors, allowNewLounge = true }) {
   const classOptions = [{ value: '', label: 'Ingen' }, ...TRAVEL_CLASSES];
   return (
-    <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-      <legend className="section__title" style={{ padding: 0 }}>
-        Resedetaljer{' '}
-        <span className="muted" style={{ fontWeight: 400, fontSize: '0.8em' }}>
-          (valfritt)
-        </span>
-      </legend>
+    <fieldset className="stack fieldset-plain">
+      <legend className="visually-hidden">Resedetaljer</legend>
 
       <AirlineAutocomplete value={v.airline} onSelect={(a) => set({ airline: a })} />
 
@@ -26,7 +21,7 @@ export function TravelSection({ v, set, lounges, airportChosen, errors }) {
         </label>
         <input
           id="flightNumber"
-          className="input"
+          className="input detail-list__mono"
           inputMode="text"
           autoCapitalize="characters"
           autoComplete="off"
@@ -36,7 +31,6 @@ export function TravelSection({ v, set, lounges, airportChosen, errors }) {
           onChange={(e) => set({ flightNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
           aria-invalid={errors.flightNumber ? true : undefined}
           aria-describedby={errors.flightNumber ? 'flightNumber-err' : undefined}
-          style={{ fontFamily: 'var(--font-mono)' }}
         />
         {errors.flightNumber && (
           <div className="field__error" id="flightNumber-err">
@@ -74,7 +68,7 @@ export function TravelSection({ v, set, lounges, airportChosen, errors }) {
               {l.terminal ? ` (terminal ${l.terminal})` : ''}
             </option>
           ))}
-          {airportChosen && <option value="new">+ Lägg till ny lounge</option>}
+          {airportChosen && allowNewLounge && <option value="new">+ Lägg till ny lounge</option>}
         </select>
       </div>
 
@@ -109,7 +103,7 @@ export function TravelSection({ v, set, lounges, airportChosen, errors }) {
         </div>
       )}
 
-      {v.loungeChoice && (
+      {v.loungeChoice && allowNewLounge && (
         <div className="field">
           <span className="field__label">Loungebetyg</span>
           <StarsInput value={v.loungeRating} onChange={(r) => set({ loungeRating: r })} label="Loungebetyg" />

@@ -36,7 +36,7 @@ export default function SearchPage() {
 
   useEffect(() => {
     if (q !== qs.get('q')) qs.set({ q });
-  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps -- sök bara när den fördröjda texten ändras
 
   const switchTab = (t) => {
     // Behåll bara sökord vid flikbyte - filtren skiljer sig per flik.
@@ -83,10 +83,10 @@ export default function SearchPage() {
         </div>
       </form>
 
-      <div style={{ marginTop: 12 }}>
+      <div className="mt-2">
         <Tabs tabs={TABS} value={tab} onChange={switchTab} label="Sökkategorier" />
       </div>
-      <div role="tabpanel" aria-labelledby={`tab-${tab}`} style={{ marginTop: 16 }}>
+      <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-4">
         {tab === 'airports' && <AirportsTab qs={qs} q={q} />}
         {tab === 'reviews' && <ReviewsTab qs={qs} q={q} />}
         {tab === 'lounges' && <LoungesTab qs={qs} q={q} />}

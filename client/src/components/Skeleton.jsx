@@ -11,7 +11,7 @@ export function SkeletonCard() {
   return (
     <div className="card skeleton" aria-hidden="true">
       <div className="card__body stack">
-        <div className="row" style={{ alignItems: 'center' }}>
+        <div className="row items-center">
           <span style={{ ...bar(40, 40), borderRadius: '50%' }} />
           <span className="stack" style={{ flex: 1, gap: 6 }}>
             <span style={bar('55%')} />

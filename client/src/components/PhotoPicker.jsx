@@ -8,9 +8,10 @@ export const MAX_PHOTOS = 4;
  * Fotoväljare: "Ta foto" öppnar kameran direkt på Android (capture="environment"),
  * "Välj från galleri" öppnar bildväljaren. value: [{ file, url (data-URL), key }].
  */
-export function PhotoPicker({ value, onChange, onError }) {
+export function PhotoPicker({ value, onChange, onError, existing = [], onRemoveExisting, hideLabel = false }) {
   const id = useId().replace(/:/g, '');
-  const left = MAX_PHOTOS - value.length;
+  const count = existing.length + value.length;
+  const left = MAX_PHOTOS - count;
 
   const add = async (e) => {
     const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith('image/'));
@@ -38,10 +39,23 @@ export function PhotoPicker({ value, onChange, onError }) {
 
   return (
     <div className="field">
-      <span className="field__label" id={`${id}-label`}>
-        Foton ({value.length}/{MAX_PHOTOS})
+      <span className={hideLabel ? 'visually-hidden' : 'field__label'} id={`${id}-label`}>
+        Foton ({count}/{MAX_PHOTOS})
       </span>
       <div className="photo-picker" role="group" aria-labelledby={`${id}-label`}>
+        {existing.map((p, i) => (
+          <div className="photo-picker__tile" key={`e${p.id}`}>
+            <img src={p.url} alt={`Sparat foto ${i + 1}`} />
+            <button
+              type="button"
+              className="photo-picker__remove"
+              aria-label={`Ta bort sparat foto ${i + 1}`}
+              onClick={() => onRemoveExisting(p.id)}
+            >
+              <IconClose aria-hidden="true" />
+            </button>
+          </div>
+        ))}
         {value.map((p, i) => (
           <div className="photo-picker__tile" key={p.key}>
             <img src={p.url} alt={`Valt foto ${i + 1}`} />

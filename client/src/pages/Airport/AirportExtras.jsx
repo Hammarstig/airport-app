@@ -7,6 +7,8 @@ import { TRAVEL_CLASSES } from '../../lib/format.js';
 import { AirlineTag } from '../../components/TravelDetails.jsx';
 import { Lightbox } from '../../components/Lightbox.jsx';
 import { IconBookmark } from '../../assets/icons.jsx';
+import { Avatar } from '../../components/ui.jsx';
+import { Link } from 'react-router-dom';
 
 /** "Vill besöka"-knapp med optimistisk uppdatering. */
 export function WishButton({ iata, initial }) {
@@ -82,9 +84,7 @@ export function ClassMix({ mix }) {
             >
               <span className="subrating__fill" style={{ '--value': (pct / 100) * 5 }} />
             </span>
-            <span className="muted" style={{ minWidth: 40, textAlign: 'right' }}>
-              {pct} %
-            </span>
+            <span className="muted text-right tabular">{pct} %</span>
           </div>
         );
       })}
@@ -119,5 +119,24 @@ export function PhotoGallery({ photos, iata }) {
         />
       )}
     </>
+  );
+}
+
+/** "Vänner som varit här": avatarer för personer jag följer som checkat in på flygplatsen. */
+export function FriendsVisited({ friends }) {
+  if (!friends || friends.length === 0) return null;
+  const names = friends.map((f) => f.displayName || f.username);
+  const text = names.length <= 2 ? names.join(' och ') : `${names.slice(0, 2).join(', ')} och ${names.length - 2} till`;
+  return (
+    <div className="friends-visited">
+      <span className="avatar-stack">
+        {friends.slice(0, 5).map((f) => (
+          <Link key={f.username} to={`/u/${f.username}`} aria-label={f.displayName || f.username}>
+            <Avatar user={f} size="sm" />
+          </Link>
+        ))}
+      </span>
+      <span className="muted text-sm">{text} har varit här</span>
+    </div>
   );
 }
