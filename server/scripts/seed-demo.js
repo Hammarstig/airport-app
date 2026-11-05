@@ -3,6 +3,8 @@
 // Befintliga demoanvändare tas bort och skapas om, så skriptet kan köras flera gånger.
 import bcrypt from 'bcryptjs';
 import { openDb, transaction } from '../src/db.js';
+import { syncBadges } from '../src/badges.js';
+import { notify, notifyHomeVisit } from '../src/notify.js';
 
 const PASSWORD = 'demo1234';
 
@@ -63,6 +65,30 @@ const LIKES = [
   ['mads', 'sarah', 'SIN'], ['anna', 'sarah', 'GOT'],
 ];
 
+// Följrelationer: [följare, följd]
+const FOLLOWS = [
+  ['oliver', 'anna'], ['oliver', 'mads'], ['anna', 'oliver'], ['anna', 'sarah'],
+  ['mads', 'oliver'], ['sarah', 'oliver'], ['sarah', 'anna'],
+];
+
+// Kommentarer: [författare, check-in-ägare, iata, text]
+const COMMENTS = [
+  ['anna', 'oliver', 'DOH', 'Avundsjuk! Hur var sovrummen i loungen?'],
+  ['oliver', 'oliver', 'DOH', 'Riktigt bra, tyst och mörkt. Sov fyra timmar.'],
+  ['mads', 'oliver', 'HEL', 'The sauna in that lounge is the best thing in Nordic aviation.'],
+  ['sarah', 'mads', 'IST', 'Agreed, the pide station is worth the layover alone.'],
+  ['oliver', 'anna', 'CDG', 'Håller med, CDG är en labyrint. Terminal 2E är värst.'],
+  ['anna', 'sarah', 'GOT', 'Kul att du gillade Landvetter!'],
+];
+
+// Veckovisa check-ins bakåt från idag så att anna har en pågående streak (dagar före idag).
+const STREAK = [
+  ['anna', 'ARN', 21, 'departure', 3.5, 'Lugn söndagskväll på Arlanda, inga köer.'],
+  ['anna', 'LHR', 14, 'arrival', 3, null],
+  ['anna', 'ARN', 7, 'arrival', 4, 'Nya bagagebandet i T5 går snabbt.'],
+  ['anna', 'ARN', 0, 'departure', 4, 'Morgonflyg, fast track tog fem minuter.'],
+];
+
 const WISHLIST = {
   oliver: ['HND', 'SYD', 'CPT', 'GRU'],
   anna: ['HEL', 'DOH', 'ICN'],
@@ -72,6 +98,10 @@ const WISHLIST = {
 
 export function seedDemo(db) {
   const hash = bcrypt.hashSync(PASSWORD, 10);
+  const daysAgo = (n) => {
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date());
+    return new Date(Date.parse(today + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10);
+  };
   const ids = {};
   const checkinIds = {};
   const ts = Date.parse('2026-01-01T00:00:00Z');
@@ -95,7 +125,18 @@ export function seedDemo(db) {
     const insReview = db.prepare(`INSERT INTO lounge_reviews (lounge_id, user_id, rating, comment, visited_on, created_at, checkin_id)
       VALUES (?, ?, ?, ?, ?, ?, ?)`);
 
-    CHECKINS.forEach(([user, iata, date, kind, rating, rt, airline, cls, flight, comment, lounge], i) => {
+    const insFollow = db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) VALUES (?, ?, ?)');
+    for (const [a, b] of FOLLOWS) {
+      insFollow.run(ids[a], ids[b], stamp('2026-01-05'));
+      notify(db, { userId: ids[b], type: 'follow', actorId: ids[a] });
+    }
+
+    const all = [
+      ...CHECKINS,
+      ...STREAK.map(([user, iata, ago, kind, rating, comment]) => [user, iata, daysAgo(ago), kind, rating,
+        [null, null, null, null, null, null], 'SK', 'economy', null, comment, null]),
+    ];
+    all.forEach(([user, iata, date, kind, rating, rt, airline, cls, flight, comment, lounge], i) => {
       const created = stamp(date, i);
       let loungeId = null;
       if (lounge) {
@@ -107,6 +148,7 @@ export function seedDemo(db) {
         airline, cls, loungeId, flight).lastInsertRowid);
       checkinIds[`${user}:${iata}`] ??= id;
       if (lounge) insReview.run(loungeId, ids[user], lounge[2], lounge[3], date, created, id);
+      notifyHomeVisit(db, { actorId: ids[user], checkinId: id, iata });
     });
 
     // Fristående loungerecension (utan check-in)
@@ -116,15 +158,29 @@ export function seedDemo(db) {
     const insLike = db.prepare('INSERT OR IGNORE INTO likes (checkin_id, user_id, created_at) VALUES (?, ?, ?)');
     for (const [liker, owner, iata] of LIKES) {
       const cid = checkinIds[`${owner}:${iata}`];
-      if (cid) insLike.run(cid, ids[liker], new Date().toISOString());
+      if (cid) {
+        insLike.run(cid, ids[liker], new Date().toISOString());
+        notify(db, { userId: ids[owner], type: 'like', actorId: ids[liker], checkinId: cid });
+      }
     }
+
+    const insComment = db.prepare('INSERT INTO comments (checkin_id, user_id, body, created_at) VALUES (?, ?, ?, ?)');
+    COMMENTS.forEach(([author, owner, iata, body], i) => {
+      const cid = checkinIds[`${owner}:${iata}`];
+      const commentId = Number(insComment.run(cid, ids[author], body, stamp('2026-10-20', i)).lastInsertRowid);
+      notify(db, { userId: ids[owner], type: 'comment', actorId: ids[author], checkinId: cid, commentId });
+    });
 
     const insWish = db.prepare('INSERT OR IGNORE INTO wishlist (user_id, iata, added_at) VALUES (?, ?, ?)');
     for (const [user, list] of Object.entries(WISHLIST)) {
       list.forEach((iata, i) => insWish.run(ids[user], iata, stamp('2026-10-01', i)));
     }
+
+    // Märkesnivåer (med notiser). Oliver har redan läst sina märkesnotiser.
+    for (const u of USERS) syncBadges(db, ids[u.username], { notify: true });
+    db.prepare("UPDATE notifications SET read = 1 WHERE user_id = ? AND type = 'badge'").run(ids.oliver);
   });
-  return { users: USERS.length, checkins: CHECKINS.length };
+  return { users: USERS.length, checkins: CHECKINS.length + STREAK.length };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

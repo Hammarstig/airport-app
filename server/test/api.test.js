@@ -45,13 +45,13 @@ async function register(username, extra = {}) {
 const PNG = Buffer.concat([
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]),
   Buffer.from('IHDR'),
-  Buffer.from([0, 0, 0x02, 0x80, 0, 0, 0x01, 0xe0, 8, 2, 0, 0, 0]), // 640x480
-  Buffer.alloc(32),
+  Buffer.from([0, 0, 0x02, 0x80, 0, 0, 0x01, 0xe0, 8, 2, 0, 0, 0]), Buffer.alloc(4), // 640x480 + CRC
+  Buffer.from([0, 0, 0, 0]), Buffer.from('IEND'), Buffer.alloc(4),
 ]);
 const JPEG = Buffer.concat([
   Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]), Buffer.alloc(14),
-  Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08, 0x03, 0x20, 0x04, 0xb0]), // 1200x800
-  Buffer.alloc(20),
+  Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08, 0x03, 0x20, 0x04, 0xb0]), Buffer.alloc(10), // SOF0 1200x800
+  Buffer.from([0xff, 0xda, 0x00, 0x08]), Buffer.alloc(6), Buffer.from([0x12, 0x34, 0xff, 0xd9]), // SOS + data + EOI
 ]);
 
 before(async () => {
@@ -112,7 +112,7 @@ describe('auth', () => {
       body: { username: 'Kalle_1', password: 'hemligt123', displayName: 'Kalle', homeIata: 'got' },
     });
     assert.equal(reg.status, 201);
-    assert.deepEqual(reg.body.user, { username: 'kalle_1', displayName: 'Kalle', homeIata: 'GOT' });
+    assert.deepEqual(reg.body.user, { username: 'kalle_1', displayName: 'Kalle', homeIata: 'GOT', level: 1 });
     assert.ok(reg.body.token);
 
     const dup = await api('POST', '/api/auth/register', { body: { username: 'kalle_1', password: 'hemligt123' } });
@@ -129,7 +129,7 @@ describe('auth', () => {
     assert.equal((await api('GET', '/api/me', { token: 'skräp' })).status, 401);
 
     const p = await api('PATCH', '/api/me', { token: login.body.token, body: { displayName: 'Karl', homeIata: 'ARN' } });
-    assert.deepEqual(p.body, { username: 'kalle_1', displayName: 'Karl', homeIata: 'ARN' });
+    assert.deepEqual(p.body, { username: 'kalle_1', displayName: 'Karl', homeIata: 'ARN', level: 1 });
     const p2 = await api('PATCH', '/api/me', { token: login.body.token, body: { homeIata: 'XXX' } });
     assert.equal(p2.status, 400);
   });
@@ -220,7 +220,7 @@ describe('check-ins', () => {
     assert.equal(c.flightNumber, 'SK151');
     assert.equal(c.lounge.name, 'Testlounge');
     assert.deepEqual(c.photos, []);
-    assert.ok(c.newBadges.some((b) => b.id === 'first-checkin'));
+    assert.ok(c.newBadges.some((b) => b.id === 'checkins' && b.tier === 'bronze'));
 
     // Loungerecension skapades med check-in-kommentaren
     const lo = await api('GET', `/api/lounges/${c.lounge.id}`);
@@ -588,18 +588,24 @@ describe('med demodata', () => {
   test('märken', async () => {
     const r = await api('GET', '/api/users/oliver/badges');
     const by = Object.fromEntries(r.body.map((b) => [b.id, b]));
-    assert.equal(r.body.length, 14);
-    for (const id of ['first-checkin', 'airports-10', 'countries-5', 'nordic', 'home-turf']) {
-      assert.ok(by[id].earnedAt, `${id} borde vara upplåst`);
-    }
-    assert.equal(by['first-checkin'].earnedAt, '2026-01-12');
-    assert.equal(by['airports-25'].earnedAt, null);
-    assert.deepEqual(by['airports-25'].progress, { current: 10, target: 25 });
-    assert.ok(by.nordic.name && by.nordic.description && by.nordic.icon);
+    assert.equal(r.body.length, 18);
+    assert.equal(by.checkins.tier, 'bronze');
+    assert.equal(by.airports.tier, 'bronze');
+    assert.equal(by.countries.tier, 'bronze');
+    assert.equal(by.nordic.tier, 'platinum');
+    assert.equal(by['home-turf'].tier, 'bronze');
+    assert.equal(by.checkins.tiers.length, 4);
+    assert.ok(by.checkins.earnedAt);
+    assert.deepEqual(by.airports.progress, { current: 10, target: 25 });
+    assert.equal(by['regions-se'].tier, 'bronze');
+    assert.ok(by.nordic.name && by.nordic.description && by.nordic.category);
+    assert.equal(by.nordic.icon, undefined);
 
-    // newBadges: en till flygplats (MEL) låser inte upp något nytt märke
+    // MEL är tredje kontinenten (Världsresenär silver) och tionde begynnelsebokstaven (IATA-alfabetet silver)
     const c = await api('POST', '/api/checkins', { token: oliver, body: { iata: 'MEL', visitedOn: '2026-10-25', kind: 'arrival' } });
-    assert.deepEqual(c.body.newBadges, []);
+    assert.deepEqual(c.body.newBadges.map((b) => [b.id, b.tier]), [['continents', 'silver'], ['alphabet', 'silver']]);
+    assert.equal(c.body.milestones.isNewContinent, true);
+    assert.ok(c.body.newBadges[0].rarity > 0);
   });
 
   test('kartor och täckningsgrad', async () => {
