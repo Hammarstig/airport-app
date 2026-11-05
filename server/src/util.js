@@ -138,24 +138,69 @@ export function airportFrom(row, p = '') {
 }
 
 export const USER_COLS = (t, p) =>
-  `${t}.username AS ${p}username, ${t}.display_name AS ${p}display_name, ${t}.home_iata AS ${p}home_iata`;
+  `${t}.username AS ${p}username, ${t}.display_name AS ${p}display_name, ${t}.home_iata AS ${p}home_iata,
+   IFNULL((SELECT us.level FROM user_stats us WHERE us.user_id = ${t}.id), 1) AS ${p}level`;
 
 export function userFrom(row, p = '') {
   return {
     username: row[p + 'username'],
     displayName: row[p + 'display_name'],
     homeIata: row[p + 'home_iata'] ?? null,
+    level: row[p + 'level'] ?? 1,
   };
 }
+
+/** UserSummary för en users-rad (SELECT *) plus nivå. */
+export function userSummary(db, userRow) {
+  const s = db.prepare('SELECT level FROM user_stats WHERE user_id = ?').get(userRow.id);
+  return { ...userFrom(userRow), level: s?.level ?? 1 };
+}
+
+// ---- Nivåer och XP ----
+const LEVEL_TITLES = [
+  [1, 'Passagerare'], [3, 'Resenär'], [5, 'Pendlare'], [8, 'Globetrotter'], [12, 'Världsvan'],
+  [16, 'Flygplatsveteran'], [20, 'Legend'],
+];
+export const levelThreshold = (L) => 25 * L * (L - 1);
+export function levelInfo(xp) {
+  const x = Math.max(0, xp || 0);
+  let level = Math.floor((1 + Math.sqrt(1 + (4 * x) / 25)) / 2);
+  while (levelThreshold(level + 1) <= x) level++;
+  while (level > 1 && levelThreshold(level) > x) level--;
+  const title = LEVEL_TITLES.filter(([min]) => level >= min).pop()[1];
+  return { level, title, xp: x, levelXp: levelThreshold(level), nextLevelXp: levelThreshold(level + 1) };
+}
+
+// ---- Delade SQL-hjälpare ----
+export const escapeLike = (s) => s.replace(/[\\%_]/g, (c) => '\\' + c);
+export const code2 = (v) => (typeof v === 'string' && /^[A-Za-z]{2}$/.test(v.trim()) ? v.trim().toUpperCase() : null);
+
+export const LOUNGE_SELECT = `
+  SELECT lo.id, lo.iata, lo.name, lo.terminal, lo.review_count,
+         CASE WHEN lo.review_count > 0 THEN lo.rating_sum / lo.review_count END AS avg_rating
+  FROM lounges lo`;
+
+export function loungeFrom(row) {
+  return {
+    id: row.id,
+    iata: row.iata,
+    name: row.name,
+    terminal: row.terminal ?? null,
+    avgRating: round2(row.avg_rating),
+    reviewCount: row.review_count,
+  };
+}
+
 
 /** SELECT-del för Checkin. Första parametern är tittarens user-id (eller -1) för likedByMe. */
 export const CHECKIN_SELECT = `
   SELECT c.id, c.visited_on, c.kind, c.rating, c.r_security, c.r_cleanliness, c.r_food, c.r_wifi,
          c.r_transfer, c.r_lounges, c.comment, c.created_at, c.user_id,
-         c.travel_class, c.flight_number, al.iata AS al_iata, al.name AS al_name,
+         c.travel_class, c.flight_number, c.edited_at, al.iata AS al_iata, al.name AS al_name,
          lo.id AS lo_id, lo.name AS lo_name, lo.terminal AS lo_terminal,
          ${USER_COLS('u', 'u_')}, ${AIRPORT_COLS('a', 'a_')},
          (SELECT COUNT(*) FROM likes l WHERE l.checkin_id = c.id) AS like_count,
+         (SELECT COUNT(*) FROM comments m WHERE m.checkin_id = c.id) AS comment_count,
          EXISTS (SELECT 1 FROM likes l WHERE l.checkin_id = c.id AND l.user_id = ?) AS liked_by_me
   FROM checkins c
   JOIN users u ON u.id = c.user_id
@@ -175,7 +220,9 @@ export function checkinFrom(row) {
     comment: row.comment ?? null,
     likes: row.like_count,
     likedByMe: !!row.liked_by_me,
+    commentCount: row.comment_count ?? 0,
     createdAt: row.created_at,
+    editedAt: row.edited_at ?? null,
     airline: row.al_iata ? { iata: row.al_iata, name: row.al_name } : null,
     travelClass: row.travel_class ?? null,
     lounge: row.lo_id ? { id: row.lo_id, name: row.lo_name, terminal: row.lo_terminal ?? null } : null,
