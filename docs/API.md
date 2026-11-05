@@ -335,3 +335,17 @@ POST /api/checkins svarar som tidigare plus:
 - Rate limit per användare (inloggad) eller IP på skrivande anrop: totalt 300 per 15 min; check-ins 60/h, foton 20/h, kommentarer 60/h, följningar 100/h. Bakom proxy måste `TRUST_PROXY` sättas.
 - Foton: EXIF/XMP/GPS tas bort server-side (JPEG APP1/APP13-segment, PNG eXIf/tEXt/iTXt/zTXt, WEBP EXIF/XMP) innan lagring.
 - `JWT_SECRET` krävs (minst 32 tecken) när `NODE_ENV=production`; annars startar inte servern.
+
+## Förtydliganden v2 (backend)
+- `GET /api/search`: standardordning är nyast först (`sort=recent`); `sort=relevance` sorterar på bm25. `offset` begränsas till 1000. Flygplatsfiltret avgörs i FTS-indexet.
+- Topplistor för vecka/månad/år räknas globalt och cachas upp till 30 s (`RANKING_CACHE_MS`); `period=all` läses direkt ur förberäknad statistik och är alltid aktuell. Vid lika värde sorteras på användarens registreringsordning.
+- `GET /api/rankings/lounges` får `score` (Bayesianskt, C = 3) och sorteras på det.
+- `GET /api/airports/nearby`: `radiusKm` default 500, max 2000; `limit` max 50.
+- `GET /api/me/recent-airports`: hemmaflygplatsen visas även om den inte besökts (`visits: 0`).
+- `PATCH /api/checkins/:id` kan inte ändra `iata` (400). `loungeId: null` tar bort kopplingen till loungen.
+- `DELETE /api/me` kräver `{ password }` i body (400 om det saknas).
+- Notiser för märken skapas när en ny högsta nivå nås (en per märke och händelse). Gilla- och följnotiser skapas högst en gång per användare och check-in respektive följning.
+- `newBadges` kan även uppstå vid kommentar, foto och loungerecension; de ges då som notis (svaren för de anropen innehåller inte `newBadges`).
+- Felsvar 500 innehåller `requestId`; alla svar har headern `X-Request-Id` (skickad `X-Request-Id` återanvänds om den är 1-64 tecken `[A-Za-z0-9_.-]`).
+- Statistik (`airport_stats`, `user_stats`, `user_airports`, ...) uppdateras av triggers i samma transaktion som ändringen. `npm run bench -w server` seedar 300 000 check-ins och mäter budgeten (autocomplete < 20 ms, recensionssök < 50 ms).
+- Databasen versioneras med `PRAGMA user_version` (numrerade migreringar i `server/src/db.js`), äldre databaser uppgraderas vid start.
