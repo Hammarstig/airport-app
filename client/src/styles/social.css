@@ -1,0 +1,164 @@
+/* Gatelog - socialt: notiser, kommentarer, följa */
+
+/* ---------- Oläst-prick ----------
+   Läggs i en .icon-btn (eller annan relativ förälder). Tom = prick, med text = räknare. */
+.notif-dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  min-width: 10px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--bad);
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+}
+.notif-dot:not(:empty) {
+  top: 5px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  color: #fff;
+  font-size: .68rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-theme="dark"] .notif-dot:not(:empty) { color: #2A0905; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .notif-dot:not(:empty) { color: #2A0905; } }
+.notif-dot--pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--bad);
+  animation: ping 1.6s var(--ease) 2;
+}
+@keyframes ping { to { transform: scale(2.4); opacity: 0; } }
+
+/* Notislista */
+.notif-item { display: flex; align-items: flex-start; gap: var(--sp-3); }
+.notif-item--unread { background: color-mix(in srgb, var(--signal-soft) 70%, var(--surface)); box-shadow: inset 3px 0 0 var(--signal); }
+.notif-item__text { flex: 1; min-width: 0; font-size: var(--fs-sm); line-height: 1.4; }
+.notif-item__time { display: block; margin-top: 2px; font-size: var(--fs-xs); color: var(--muted); }
+
+/* ---------- Kommentarer ---------- */
+.comment-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.checkin .comment-thread {
+  flex-basis: 100%;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.comment {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+}
+.comment__avatar .avatar, .comment > .avatar { --avatar-size: 30px; }
+.comment__body { min-width: 0; }
+.comment__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.comment__meta strong, .comment__meta a { color: var(--ink); font-size: var(--fs-sm); font-weight: 700; }
+.comment__text { margin-top: 1px; font-size: var(--fs-sm); line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; }
+.comment__text a { color: var(--info); }
+.comment__actions { display: flex; gap: var(--sp-3); margin-top: 2px; font-size: var(--fs-xs); }
+.comment__actions button {
+  position: relative;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: inherit;
+}
+.comment__actions button:hover { color: var(--ink); }
+.comment__actions button::after { content: ""; position: absolute; inset: -12px -6px; }
+.comment--reply { margin-left: 40px; }
+.comment--mine .comment__meta strong { color: var(--signal-text); }
+.comment-thread__more {
+  align-self: flex-start;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--info);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+}
+.comment-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+.comment-form .input, .comment-form .textarea {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 22px;
+  padding: 10px 16px;
+  resize: none;
+}
+.comment-form .textarea { min-height: 44px; max-height: 140px; }
+.comment-form .icon-btn {
+  flex: none;
+  border-radius: 50%;
+  background: var(--signal);
+  color: var(--signal-ink);
+}
+.comment-form .icon-btn:hover { background: color-mix(in srgb, var(--signal) 88%, #fff); }
+.comment-form .icon-btn:disabled { background: var(--surface-3); color: var(--muted); }
+
+/* ---------- Följ ---------- */
+.follow-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  min-width: 92px;
+  padding: 0 16px;
+  border: 2px solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.follow-btn::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 48px; transform: translateY(-50%); }
+.follow-btn:hover { background: var(--ink-2); border-color: var(--ink-2); }
+.follow-btn svg { width: 16px; height: 16px; }
+.follow-btn--active, .follow-btn[aria-pressed="true"] {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.follow-btn--active:hover, .follow-btn[aria-pressed="true"]:hover {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.follow-btn--sm { min-height: 32px; min-width: 72px; padding: 0 12px; font-size: var(--fs-xs); }
+
+/* Användarrad (följare, sök, förslag) */
+.user-row { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.user-row__main { flex: 1; min-width: 0; }
+.user-row__name { font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-row__meta { font-size: var(--fs-xs); color: var(--muted); }

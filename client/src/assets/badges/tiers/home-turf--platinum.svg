@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+<defs>
+<linearGradient id="m" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".55" stop-color="#B9C6DC"/><stop offset="1" stop-color="#5D6E92"/></linearGradient>
+<linearGradient id="m2" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#5D6E92"/></linearGradient>
+<radialGradient id="e" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></radialGradient>
+<linearGradient id="ir" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#BFE3FF"/><stop offset=".35" stop-color="#E9DDFF"/><stop offset=".7" stop-color="#FFE9C4"/><stop offset="1" stop-color="#9FB4D8"/></linearGradient>
+</defs>
+<path d="M60.00,3.00 L65.99,6.84 L72.68,4.43 L77.67,9.50 L84.73,8.64 L88.46,14.70 L95.54,15.44 L97.83,22.17 L104.56,24.46 L105.30,31.54 L111.36,35.27 L110.50,42.33 L115.57,47.32 L113.16,54.01 L117.00,60.00 L113.16,65.99 L115.57,72.68 L110.50,77.67 L111.36,84.73 L105.30,88.46 L104.56,95.54 L97.83,97.83 L95.54,104.56 L88.46,105.30 L84.73,111.36 L77.67,110.50 L72.68,115.57 L65.99,113.16 L60.00,117.00 L54.01,113.16 L47.32,115.57 L42.33,110.50 L35.27,111.36 L31.54,105.30 L24.46,104.56 L22.17,97.83 L15.44,95.54 L14.70,88.46 L8.64,84.73 L9.50,77.67 L4.43,72.68 L6.84,65.99 L3.00,60.00 L6.84,54.01 L4.43,47.32 L9.50,42.33 L8.64,35.27 L14.70,31.54 L15.44,24.46 L22.17,22.17 L24.46,15.44 L31.54,14.70 L35.27,8.64 L42.33,9.50 L47.32,4.43 L54.01,6.84Z" fill="url(#ir)" stroke="#5D6E92" stroke-width=".6"/>
+<circle cx="60" cy="60" r="48" fill="url(#m2)"/>
+<circle cx="60" cy="60" r="45" fill="#B3264E"/>
+<circle cx="60" cy="60" r="40" fill="none" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="1" stroke-dasharray="2 3.2"/>
+<g transform="translate(31.2 31.2) scale(2.4)" fill="none" stroke="#FFF6DC" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.8l8.5 6.7M5.5 9v10.5a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V9"/></g>
+<circle cx="49.5" cy="101.5" r="2" fill="#FFFFFF"/><circle cx="56.5" cy="101.5" r="2" fill="#FFFFFF"/><circle cx="63.5" cy="101.5" r="2" fill="#FFFFFF"/><circle cx="70.5" cy="101.5" r="2" fill="#FFFFFF"/>
+<circle cx="60" cy="60" r="45" fill="url(#e)"/>
+<path d="M60 4.5c.5 3.6 1.9 5 5.5 5.5-3.6.5-5 1.9-5.5 5.5-.5-3.6-1.9-5-5.5-5.5 3.6-.5 5-1.9 5.5-5.5Z" fill="#FFFFFF" stroke="#5D6E92" stroke-width=".8"/>
+</svg>
