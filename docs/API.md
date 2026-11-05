@@ -158,3 +158,20 @@ Sök (`/api/search`) får filter `airline=SK`, `travelClass=business`. Flygplats
 - `DELETE /api/photos/:id` (ägare) -> 204
 - `GET /uploads/<fil>` serveras statiskt med `X-Content-Type-Options: nosniff`.
 - Flygplatssidan får `photos: Photo[]` (senaste 12) för ett galleri.
+
+---
+# v1.3 - Kartor och täckningsgrad
+
+`server/data/airports.json` har nu även `region` (ISO 3166-2, t.ex. "SE-N") och `regionName` ("Hallands län"). AirportSummary får `region` och `regionName`.
+
+Täckningsgrad räknas mot flygplatser med reguljärtrafik (`scheduled=true`, 4 008 st) som standard; `scope=all` räknar mot alla 8 799.
+
+| GET | /api/users/:username/map?scope=scheduled\|all | `{ totals: {visited, total, pct}, continents: [{code, name, visited, total, pct}], countries: [{code, name, continent, visited, total, pct}] }` - pct med en decimal, länder med total=0 utelämnas |
+| GET | /api/users/:username/map/:country?scope= | `{ country: {code, name, visited, total, pct}, regions: [{code, name, visited, total, pct}], airports: [{iata, name, city, lat, lon, type, scheduled, visited, visits}] }` |
+
+Svaren ska vara snabba (< 50 ms med demodata): en aggregerad SQL-fråga per anrop, index på checkins(user_id, iata) och airports(country, region). Sätt `Cache-Control: private, max-age=30`.
+
+# Prestanda- och strukturkrav (gäller hela appen)
+- Android först: PWA installerbar i Chrome på Android (manifest med maskable-ikoner 192/512 PNG, service worker som cachar app-skal och statiska filer, offline-sida). Kamera via `<input type="file" accept="image/*" capture="environment">`. iPhone (Safari/PWA) i nästa steg, men bryt inget där.
+- Upplevd snabbhet: skeleton-laddning, optimistisk UI för gilla/önskelista, debounce 150 ms på autocomplete med avbrytning (AbortController), kodsplittning per route (React.lazy), kartbiblioteket laddas bara på kartsidan. Mål: initial JS < 200 kB gzip, LCP < 2,5 s på "Moto G Power"-emulering med 4G-throttling, inga layoutskutt.
+- API: gzip-komprimering, ETag/Cache-Control för flygplatsdata, inga N+1-frågor.
