@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { signToken, requireAuth } from '../auth.js';
-import { h, bad, HttpError, cleanText, normIata, userFrom } from '../util.js';
+import { h, bad, HttpError, cleanText, normIata, userSummary } from '../util.js';
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 // Används vid misslyckad inloggning mot okänt konto så att svarstiden blir likartad.
@@ -39,7 +39,7 @@ export default function authRoutes({ db, secret }) {
       throw e;
     }
     const user = byId.get(Number(info.lastInsertRowid));
-    res.status(201).json({ token: signToken(secret, user), user: userFrom(user) });
+    res.status(201).json({ token: signToken(secret, user), user: userSummary(db, user) });
   }));
 
   r.post('/auth/login', h(async (req, res) => {
@@ -50,11 +50,11 @@ export default function authRoutes({ db, secret }) {
     const user = byUsername.get(username);
     const ok = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH);
     if (!user || !ok) throw new HttpError(401, 'Fel användarnamn eller lösenord');
-    res.json({ token: signToken(secret, user), user: userFrom(user) });
+    res.json({ token: signToken(secret, user), user: userSummary(db, user) });
   }));
 
   r.get('/me', requireAuth, h((req, res) => {
-    res.json(userFrom(byId.get(req.user.id)));
+    res.json(userSummary(db, byId.get(req.user.id)));
   }));
 
   r.patch('/me', requireAuth, h((req, res) => {
@@ -67,7 +67,7 @@ export default function authRoutes({ db, secret }) {
     }
     if (b.homeIata !== undefined) home = homeIata(b.homeIata);
     db.prepare('UPDATE users SET display_name = ?, home_iata = ? WHERE id = ?').run(displayName, home, req.user.id);
-    res.json(userFrom(byId.get(req.user.id)));
+    res.json(userSummary(db, byId.get(req.user.id)));
   }));
 
   return r;

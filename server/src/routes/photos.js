@@ -7,6 +7,8 @@ import { mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { requireAuth } from '../auth.js';
 import { h, bad, notFound, HttpError, photoFrom } from '../util.js';
+import { transaction } from '../db.js';
+import { awardBadges } from '../badges.js';
 
 export const MAX_PHOTOS_PER_CHECKIN = 4;
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
@@ -61,6 +63,75 @@ export function imageInfo(buf) {
   return null;
 }
 
+const JPEG_DROP = new Set([0xe1, 0xed, 0xfe]); // APP1 (EXIF/XMP), APP13 (IPTC), COM
+const PNG_DROP = new Set(['eXIf', 'tEXt', 'iTXt', 'zTXt', 'tIME']);
+const WEBP_DROP = new Set(['EXIF', 'XMP ']);
+
+/**
+ * Tar bort metadata (EXIF inkl. GPS, XMP, IPTC, kommentarer) utan att avkoda bilden.
+ * Kastar om strukturen är trasig.
+ */
+export function stripMetadata(buf, ext) {
+  if (ext === 'jpg') {
+    const out = [buf.subarray(0, 2)];
+    let i = 2;
+    while (i < buf.length) {
+      if (buf[i] !== 0xff) { // skräpbytes mellan segment hoppas över (tas inte med)
+        const next = buf.indexOf(0xff, i);
+        if (next < 0) break;
+        i = next;
+        continue;
+      }
+      while (buf[i + 1] === 0xff) i++; // utfyllnad
+      const marker = buf[i + 1];
+      if (marker === 0xd9) { out.push(buf.subarray(i)); break; }
+      if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { out.push(buf.subarray(i, i + 2)); i += 2; continue; }
+      if (i + 4 > buf.length) throw new Error('trasig JPEG');
+      const len = buf.readUInt16BE(i + 2);
+      if (len < 2 || i + 2 + len > buf.length) throw new Error('trasig JPEG');
+      if (marker === 0xda) { out.push(buf.subarray(i)); break; } // bilddata till slutet
+      if (!JPEG_DROP.has(marker)) out.push(buf.subarray(i, i + 2 + len));
+      i += 2 + len;
+    }
+    return Buffer.concat(out);
+  }
+  if (ext === 'png') {
+    const out = [buf.subarray(0, 8)];
+    let i = 8;
+    while (i + 12 <= buf.length) {
+      const len = buf.readUInt32BE(i);
+      const end = i + 12 + len;
+      if (end > buf.length) throw new Error('trasig PNG');
+      const type = buf.toString('latin1', i + 4, i + 8);
+      if (!PNG_DROP.has(type)) out.push(buf.subarray(i, end));
+      i = end;
+      if (type === 'IEND') break;
+    }
+    return Buffer.concat(out);
+  }
+  if (ext === 'webp') {
+    const chunks = [];
+    let i = 12;
+    while (i + 8 <= buf.length) {
+      const type = buf.toString('latin1', i, i + 4);
+      const size = buf.readUInt32LE(i + 4);
+      const end = i + 8 + size + (size % 2);
+      if (i + 8 + size > buf.length) throw new Error('trasig WEBP');
+      if (!WEBP_DROP.has(type)) {
+        const c = Buffer.from(buf.subarray(i, Math.min(end, buf.length)));
+        if (type === 'VP8X' && size >= 1) c[8] &= ~(0x08 | 0x04); // rensa EXIF- och XMP-flaggor
+        chunks.push(c);
+      }
+      i = end;
+    }
+    const body = Buffer.concat(chunks);
+    const head = Buffer.from(buf.subarray(0, 12));
+    head.writeUInt32LE(body.length + 4, 4);
+    return Buffer.concat([head, body]);
+  }
+  return buf;
+}
+
 export function photoStore(uploadDir) {
   mkdirSync(uploadDir, { recursive: true });
   return {
@@ -96,7 +167,7 @@ export function uploadsStatic(uploadDir) {
   };
 }
 
-export default function photoRoutes({ db, photos }) {
+export default function photoRoutes({ db, photos, limiters }) {
   const r = Router();
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -110,7 +181,7 @@ export default function photoRoutes({ db, photos }) {
     next(err);
   });
 
-  r.post('/checkins/:id/photos', requireAuth, (req, _res, next) => {
+  r.post('/checkins/:id/photos', requireAuth, limiters.photo, (req, _res, next) => {
     // Kontrollera ägarskap innan filen tas emot.
     const id = Number(req.params.id);
     const c = Number.isInteger(id) && id > 0 ? db.prepare('SELECT user_id FROM checkins WHERE id = ?').get(id) : null;
@@ -126,9 +197,25 @@ export default function photoRoutes({ db, photos }) {
     if (!info) throw bad('Endast JPEG, PNG eller WEBP tillåts');
     const { n } = db.prepare('SELECT COUNT(*) AS n FROM photos WHERE checkin_id = ?').get(req.checkinId);
     if (n >= MAX_PHOTOS_PER_CHECKIN) throw new HttpError(409, `Max ${MAX_PHOTOS_PER_CHECKIN} foton per check-in`);
-    const filename = photos.save(req.file.buffer, info.ext);
-    const ins = db.prepare(`INSERT INTO photos (checkin_id, user_id, filename, width, height, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)`).run(req.checkinId, req.user.id, filename, info.width, info.height, new Date().toISOString());
+    let clean;
+    try {
+      clean = stripMetadata(req.file.buffer, info.ext);
+    } catch {
+      throw bad('Bilden kunde inte läsas');
+    }
+    const filename = photos.save(clean, info.ext);
+    let ins;
+    try {
+      ins = transaction(db, () => {
+        const x = db.prepare(`INSERT INTO photos (checkin_id, user_id, filename, width, height, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)`).run(req.checkinId, req.user.id, filename, info.width, info.height, new Date().toISOString());
+        awardBadges(db, req.user.id);
+        return x;
+      });
+    } catch (e) {
+      photos.removeFiles([filename]);
+      throw e;
+    }
     const row = db.prepare('SELECT * FROM photos WHERE id = ?').get(Number(ins.lastInsertRowid));
     res.status(201).json(photoFrom(row));
   }));

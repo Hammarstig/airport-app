@@ -1,12 +1,17 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
+import { loadConfig, ConfigError } from './config.js';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const port = Number(process.env.PORT) || 8787;
-const staticDir = process.env.STATIC_DIR || resolve(here, '../../client/dist');
-
-const app = createApp({ dbPath: process.env.DB_PATH, staticDir });
-app.listen(port, () => {
-  console.log(`[gatelog] API lyssnar på http://localhost:${port}`);
+const cfg = loadConfig();
+let app;
+try {
+  app = createApp({ staticDir: cfg.staticDir });
+} catch (err) {
+  if (err instanceof ConfigError) {
+    console.error(`[gatelog] Startar inte: ${err.message}`);
+    process.exit(1);
+  }
+  throw err;
+}
+app.listen(cfg.port, () => {
+  console.log(`[gatelog] API lyssnar på http://localhost:${cfg.port}`);
 });

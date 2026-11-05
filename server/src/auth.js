@@ -1,19 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { HttpError } from './util.js';
 
-const DEV_SECRET = 'gatelog-dev-secret-change-me';
-let warned = false;
-
-export function getSecret(explicit) {
-  if (explicit) return explicit;
-  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-  if (!warned && process.env.NODE_ENV !== 'test') {
-    console.warn('[gatelog] VARNING: JWT_SECRET saknas i miljön - använder osäker dev-nyckel. Sätt JWT_SECRET i produktion.');
-  }
-  warned = true;
-  return DEV_SECRET;
-}
-
 export function signToken(secret, user) {
   return jwt.sign({ sub: String(user.id), username: user.username }, secret, { expiresIn: '30d', algorithm: 'HS256' });
 }
@@ -43,8 +30,11 @@ export function requireAuth(req, _res, next) {
   next();
 }
 
-/** Enkel in-memory rate limit (fast fönster per IP). */
-export function rateLimit({ windowMs, max }) {
+/**
+ * Enkel in-memory rate limit med fast fönster. Nyckel: inloggad användare, annars IP
+ * (bakom proxy måste TRUST_PROXY sättas så att req.ip blir klientens adress).
+ */
+export function rateLimit({ windowMs, max, name = 'default' }) {
   const hits = new Map();
   let lastSweep = Date.now();
   return (req, res, next) => {
@@ -53,7 +43,7 @@ export function rateLimit({ windowMs, max }) {
       for (const [k, v] of hits) if (v.resetAt <= now) hits.delete(k);
       lastSweep = now;
     }
-    const key = req.ip || req.socket.remoteAddress || 'unknown';
+    const key = req.user ? `u:${req.user.id}` : `ip:${req.ip || req.socket.remoteAddress || 'unknown'}`;
     let e = hits.get(key);
     if (!e || e.resetAt <= now) {
       e = { count: 0, resetAt: now + windowMs };
@@ -64,7 +54,9 @@ export function rateLimit({ windowMs, max }) {
     res.set('RateLimit-Remaining', String(Math.max(0, max - e.count)));
     if (e.count > max) {
       res.set('Retry-After', String(Math.ceil((e.resetAt - now) / 1000)));
-      return res.status(429).json({ error: 'För många försök, vänta en stund och försök igen' });
+      return res.status(429).json({ error: name === 'auth'
+        ? 'För många försök, vänta en stund och försök igen'
+        : 'För många ändringar på kort tid, vänta en stund och försök igen' });
     }
     next();
   };
