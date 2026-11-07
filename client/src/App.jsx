@@ -2,11 +2,15 @@ import { Suspense, lazy, useEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { Layout, RequireAuth } from './components/Layout.jsx';
 import { PageSkeleton } from './components/Skeleton.jsx';
+import { RouteErrorBoundary } from './components/RouteErrorBoundary.jsx';
 import FeedPage from './pages/Feed/FeedPage.jsx';
 
 // Startsidan (flödet) laddas direkt, övriga sidor delas upp per route.
-const CheckinPage = lazy(() => import('./pages/Checkin/CheckinPage.jsx'));
-const DonePage = lazy(() => import('./pages/Checkin/DonePage.jsx'));
+const loadCheckin = () => import('./pages/Checkin/CheckinPage.jsx');
+const loadDone = () => import('./pages/Checkin/DonePage.jsx');
+const loadOfflineList = () => import('./data/airports-offline.json');
+const CheckinPage = lazy(loadCheckin);
+const DonePage = lazy(loadDone);
 const SettingsPage = lazy(() => import('./pages/Settings/SettingsPage.jsx'));
 const NotificationsPage = lazy(() => import('./pages/Notifications/NotificationsPage.jsx'));
 const FollowPage = lazy(() => import('./pages/Profile/FollowPage.jsx'));
@@ -33,16 +37,45 @@ function ScrollToTop() {
   return null;
 }
 
-const s = (el) => <Suspense fallback={<PageSkeleton />}>{el}</Suspense>;
+/**
+ * Förladda koden för check-in-flödet när webbläsaren är ledig efter första renderingen, så att
+ * check-in och sammanfattningen fungerar offline även innan service workern har cachat (BUG-11).
+ */
+function usePreloadCritical() {
+  useEffect(() => {
+    const run = () =>
+      Promise.all([loadCheckin(), loadDone(), loadOfflineList()]).catch((e) =>
+        console.warn('Förladdning misslyckades:', e.message)
+      );
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(run, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(run, 1500);
+    return () => clearTimeout(t);
+  }, []);
+}
+
+function Page({ children }) {
+  const { pathname } = useLocation();
+  return (
+    <RouteErrorBoundary resetKey={pathname}>
+      <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
+    </RouteErrorBoundary>
+  );
+}
+
+const s = (el) => <Page>{el}</Page>;
 const auth = (el) => s(<RequireAuth>{el}</RequireAuth>);
 
 export function App() {
+  usePreloadCritical();
   return (
     <>
       <ScrollToTop />
       <Routes>
         <Route element={<Layout />}>
-          <Route index element={<FeedPage />} />
+          <Route index element={s(<FeedPage />)} />
           <Route path="checkin" element={auth(<CheckinPage />)} />
           <Route path="checkin/done" element={auth(<DonePage />)} />
           <Route path="checkin/:id/edit" element={auth(<CheckinPage />)} />

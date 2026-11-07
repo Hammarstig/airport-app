@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api.js';
+import { localAirport } from '../../lib/localAirports.js';
+import { isNetworkError } from '../../lib/offlineQueue.js';
 import { todayIso } from '../../lib/format.js';
 
 export const MAX_COMMENT = 1000;
@@ -50,6 +52,8 @@ export function useCheckinForm(editId, preset) {
   const [lounges, setLounges] = useState([]);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(!!editId);
+  const validPreset = !editId && /^[A-Z]{3}$/.test(preset.iata || '');
+  const [presetPending, setPresetPending] = useState(validPreset);
   const set = (patch) => setF((cur) => ({ ...cur, ...(typeof patch === 'function' ? patch(cur) : patch) }));
 
   useEffect(() => {
@@ -72,7 +76,14 @@ export function useCheckinForm(editId, preset) {
     api
       .airport(preset.iata)
       .then((a) => live && set({ airport: a }))
-      .catch((e) => live && setLoadError(e));
+      .catch(async (e) => {
+        // Utan nät: använd lokalt sparad flygplats eller den kompakta offlinelistan (BUG-10).
+        const local = isNetworkError(e) ? await localAirport(preset.iata) : null;
+        if (!live) return;
+        if (local) set({ airport: local });
+        else setLoadError(e);
+      })
+      .finally(() => live && setPresetPending(false));
     return () => {
       live = false;
     };
@@ -89,7 +100,7 @@ export function useCheckinForm(editId, preset) {
       .airport(iata)
       .then((a) => live && setLounges(a.lounges || []))
       .catch((e) => {
-        console.warn('Lounger kunde inte hämtas:', e.message);
+        if (!isNetworkError(e)) console.warn('Lounger kunde inte hämtas:', e.message);
         if (live) setLounges([]);
       });
     return () => {
@@ -110,6 +121,7 @@ export function useCheckinForm(editId, preset) {
     },
     lounges,
     loading,
+    presetPending,
     loadError
   };
 }

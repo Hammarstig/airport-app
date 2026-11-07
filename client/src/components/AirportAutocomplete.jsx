@@ -1,4 +1,6 @@
 import { api } from '../lib/api.js';
+import { searchLocal } from '../lib/localAirports.js';
+import { isNetworkError } from '../lib/offlineQueue.js';
 import { MATCHED_ON_LABEL, countryName } from '../lib/format.js';
 import { Combobox } from './Combobox.jsx';
 
@@ -27,7 +29,10 @@ export function AirportAutocomplete({ label = 'Flygplats', placeholder = AIRPORT
     <Combobox
       label={label}
       placeholder={placeholder}
-      fetcher={(q, signal) => api.searchAirports(q, 8, signal)}
+      fetcher={(q, signal) =>
+        // Utan nät söks i den lokala listan över flygplatser med reguljärtrafik.
+        api.searchAirports(q, 8, signal).catch((e) => (isNetworkError(e) ? searchLocal(q, 8) : Promise.reject(e)))
+      }
       itemKey={(a) => a.iata}
       itemText={(a) => `${a.iata} - ${a.name}`}
       renderItem={(a) => <AirportOption airport={a} />}

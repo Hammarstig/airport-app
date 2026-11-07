@@ -36,7 +36,7 @@ export default [
     languageOptions: { globals: { ...globals.serviceworker, __PRECACHE__: 'readonly' } }
   },
   {
-    files: ['client/pwa/plugin.js', 'client/vite.config.js', 'client/vitest.config.js', 'eslint.config.mjs'],
+    files: ['client/scripts/**', 'client/pwa/plugin.js', 'client/vite.config.js', 'client/vitest.config.js', 'eslint.config.mjs'],
     languageOptions: { globals: { ...globals.node } }
   },
   {

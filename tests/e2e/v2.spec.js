@@ -343,7 +343,6 @@ test.describe('offlinekö', () => {
   test.describe('utan service worker (första besöket, innan SW har cachat)', () => {
     test.use({ serviceWorkers: 'block' });
     test('offline check-in kraschar inte appen', async ({ page, request, context }) => {
-      test.fixme(true, 'BUG-11: DonePage laddas lat; offline misslyckas importen och appen blir vit (ingen felgräns)');
       await loginNewUser(page, request);
       await page.goto('/checkin?iata=GOT');
       await expect(page.locator('.selected-airport .iata-tag')).toHaveText('GOT');
@@ -355,7 +354,6 @@ test.describe('offlinekö', () => {
   });
 
   test('kall start offline: flygplats kan väljas från "Senaste" och köas', async ({ page, request, context }) => {
-    test.fixme(true, 'BUG-10: efter omstart offline går ingen flygplats att välja (Senaste/sök/?iata= kräver nät, ingen lokal cache)');
     const u = await apiRegister(request, { homeIata: 'GOT' });
     await apiCheckin(request, u.token, { iata: 'CPH' });
     await useToken(page, u.token);
@@ -433,7 +431,6 @@ test.describe('konto', () => {
   });
 
   test('fel lösenord vid radering ger felmeddelande och behåller inloggningen', async ({ page, request }) => {
-    test.fixme(true, 'BUG-09: DELETE /api/me svarar 401 vid fel lösenord och klientens globala 401-hantering loggar ut användaren');
     const u = await apiRegister(request);
     await useToken(page, u.token);
     await page.goto('/settings');

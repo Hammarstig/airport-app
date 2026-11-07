@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api.js';
+import { loadRecent } from '../../lib/localAirports.js';
+import { isNetworkError } from '../../lib/offlineQueue.js';
 import { IconClock, IconNearby } from '../../assets/icons.jsx';
 
 const fmtKm = (km) => (km < 10 ? `${km.toFixed(1).replace('.', ',')} km` : `${Math.round(km)} km`);
@@ -64,7 +66,7 @@ function useNearby() {
 }
 
 function useRecent() {
-  const [items, setItems] = useState(() => api.peek.recentAirports(6) || null);
+  const [items, setItems] = useState(() => api.peek.recentAirports(6) || (navigator.onLine ? null : loadRecent()));
   const [error, setError] = useState(null);
   useEffect(() => {
     let live = true;
@@ -73,6 +75,9 @@ function useRecent() {
       .then((rows) => live && setItems(rows || []))
       .catch((e) => {
         if (!live) return;
+        // Utan nät: senaste flygplatser som sparats lokalt vid förra hämtningen (BUG-10).
+        const local = isNetworkError(e) ? loadRecent() : null;
+        if (local) return setItems((cur) => cur || local);
         setError(e.message);
         setItems((cur) => cur || []);
       });

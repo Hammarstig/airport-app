@@ -1,4 +1,5 @@
 import { cacheClear, cacheGet, cacheInvalidate, cacheSet } from './cache.js';
+import { forgetRecent, rememberAirports, rememberRecent } from './localAirports.js';
 
 const TOKEN_KEY = 'gatelog.token';
 
@@ -27,6 +28,7 @@ export function setToken(token) {
     /* lagring blockerad - sessionen gäller bara denna sidvisning */
   }
   cacheClear();
+  if (!token) forgetRecent();
 }
 
 let unauthorizedHandler = null;
@@ -51,7 +53,7 @@ function qs(params = {}) {
  * Gör ett API-anrop. invalidate: lista med sökvägsprefix (utan /api) vars cachade GET-svar
  * ska slängas efter ett lyckat skrivande anrop. Utan lista töms inget.
  */
-export async function request(path, { method = 'GET', body, params, signal, invalidate } = {}) {
+export async function request(path, { method = 'GET', body, params, signal, invalidate, logoutOn401 = true } = {}) {
   const url = `/api${path}${qs(params)}`;
   const headers = { Accept: 'application/json' };
   const token = getToken();
@@ -86,11 +88,17 @@ export async function request(path, { method = 'GET', body, params, signal, inva
   if (!res.ok) {
     const err = new Error((data && data.error) || `Något gick fel (${res.status})`);
     err.status = res.status;
-    if (res.status === 401 && token && !path.startsWith('/auth/') && unauthorizedHandler) unauthorizedHandler();
+    if (res.status === 401 && logoutOn401 && token && !path.startsWith('/auth/') && unauthorizedHandler)
+      unauthorizedHandler();
     throw err;
   }
-  if (method === 'GET') cacheSet(url, data);
-  else if (invalidate) cacheInvalidate(invalidate.map((p) => `/api${p}`));
+  if (method === 'GET') {
+    cacheSet(url, data);
+    // Spara flygplatser lokalt så att check-in fungerar även efter omstart utan nät.
+    if (path === '/me/recent-airports') rememberRecent(data);
+    else if (/^\/airports\/[A-Z]{3}$/.test(path)) rememberAirports([data]);
+    else if (path === '/airports/nearby') rememberAirports(data);
+  } else if (invalidate) cacheInvalidate(invalidate.map((p) => `/api${p}`));
   return data;
 }
 
@@ -159,7 +167,9 @@ Object.assign(api, {
   register: (body) => request('/auth/register', { method: 'POST', body }),
   login: (body) => request('/auth/login', { method: 'POST', body }),
   updateMe: (body) => write('PATCH', '/me', body, [...ME, '/leaderboard', '/feed']),
-  deleteMe: (password) => write('DELETE', '/me', { password }),
+  // 401 betyder här fel lösenord, inte utgången session (BUG-09).
+  deleteMe: (password) =>
+    request('/me', { method: 'DELETE', body: { password }, invalidate: CONTENT, logoutOn401: false }),
   follow: (u) => write('POST', `/users/${enc(u)}/follow`, undefined, ['/users', '/feed', '/rankings', '/leaderboard']),
   unfollow: (u) =>
     write('DELETE', `/users/${enc(u)}/follow`, undefined, ['/users', '/feed', '/rankings', '/leaderboard']),

@@ -107,7 +107,13 @@ export default function CheckinPage() {
       </header>
 
       <form onSubmit={submit} noValidate className="stack stack--lg">
-        {!f.airport ? (
+        {!f.airport && form.presetPending ? (
+          // Förvald flygplats (?iata=) laddas: platshållare i samma höjd så att formuläret inte hoppar.
+          <div className="selected-airport skeleton" aria-busy="true">
+            <span className="iata-tag iata-tag--lg">{preset.iata}</span>
+            <span className="visually-hidden">Laddar flygplats</span>
+          </div>
+        ) : !f.airport ? (
           <div className="stack">
             <QuickPick onPick={(a) => set({ airport: a })} />
             <AirportAutocomplete
