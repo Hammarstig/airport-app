@@ -9,8 +9,8 @@
 <circle cx="60" cy="60" r="48" fill="url(#m2)"/>
 <circle cx="60" cy="60" r="45" fill="#0E6E8C"/>
 <circle cx="60" cy="60" r="40" fill="none" stroke="#F4F7FA" stroke-opacity=".55" stroke-width="1" stroke-dasharray="2 3.2"/>
-<g transform="translate(31.2 31.2) scale(2.4)" fill="none" stroke="#FFF6DC" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4M12 7.5l1.6 2.9 2.9 1.6-2.9 1.6L12 16.5l-1.6-2.9L7.5 12l2.9-1.6Z"/></g>
-<circle cx="56.5" cy="101.5" r="2" fill="#F4F7FA"/><circle cx="63.5" cy="101.5" r="2" fill="#F4F7FA"/>
+<g transform="translate(31.2 31.2) scale(2.4)" fill="none" stroke="#FFF6DC" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6.5h17v11h-17zM9 6.5v11M3.5 12h17"/></g>
+
 <circle cx="60" cy="60" r="45" fill="url(#e)"/>
 
 </svg>

@@ -10,7 +10,7 @@
 <circle cx="60" cy="60" r="45" fill="#3D5A80"/>
 <circle cx="60" cy="60" r="40" fill="none" stroke="#F4F7FA" stroke-opacity=".55" stroke-width="1" stroke-dasharray="2 3.2"/>
 <g transform="translate(31.2 31.2) scale(2.4)" fill="none" stroke="#FFF6DC" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 4.5l4 4L9 19H5v-4L15.5 4.5ZM13 7l4 4"/></g>
-<circle cx="56.5" cy="101.5" r="2" fill="#F4F7FA"/><circle cx="63.5" cy="101.5" r="2" fill="#F4F7FA"/>
+
 <circle cx="60" cy="60" r="45" fill="url(#e)"/>
 
 </svg>

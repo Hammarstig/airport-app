@@ -199,11 +199,11 @@
           <div class="checkin-done__panel">
             <div class="level-bar level-bar--compact" style="--value:72"><div class="level-bar__level"><span>12</span></div><div class="level-bar__track"></div><div class="level-bar__meta"><span>2 880 / 4 000 XP</span><span>Nivå 13 snart</span></div></div>
             <div class="row row--between"><span class="streak streak--active"><i data-i="Flame" data-s="20"></i><span class="streak__count">8</span><span class="streak__unit">månader i rad</span></span><span class="text-sm muted">Nytt personligt rekord</span></div>
-            <p class="checkin-done__next">Nästa märke: <strong>50 flygplatser</strong> - 7 kvar</p>
+            <p class="checkin-done__next">Nästa nivå: <strong>Flygplatssamlare guld (50)</strong> - 7 kvar</p>
           </div>
           <div class="checkin-done__badges">
-            <div class="checkin-done__badge"><img src="../client/src/assets/badges/tiers/countries-15--silver.svg" alt="">15 länder</div>
-            <div class="checkin-done__badge"><img src="../client/src/assets/badges/tiers/transfer-king--gold.svg" alt="">Transferkung</div>
+            <div class="checkin-done__badge"><img src="../client/src/assets/badges/tiers/countries--silver.svg" alt="">Gränslös, silver</div>
+            <div class="checkin-done__badge"><img src="../client/src/assets/badges/tiers/transfer-king--gold.svg" alt="">Transferkung, guld</div>
           </div>
           <div class="checkin-done__actions"><button class="btn"><i data-i="Share" data-s="18"></i> Dela</button><button class="btn btn--primary">Klar</button></div>
         </div>
@@ -212,7 +212,7 @@
 
     <section class="section" id="badges">
       <h2 class="section__title">Märken och nivåer</h2>
-      <p class="sg-note">Brons, silver, guld och platina. Varje märke finns i alla fyra nivåer under <code>assets/badges/tiers/</code>.</p>
+      <p class="sg-note">18 märken i fyra nivåer (brons, silver, guld, platina). Nivåbilden visar målet för nivån; grundbilden <code>badges/&lt;id&gt;.svg</code> används för låsta märken.</p>
       <div class="badge-grid" id="tiers"></div>
       <div class="badge-grid mt-4" id="badgegrid"></div>
     </section>
@@ -233,7 +233,7 @@
           <div class="share-card__title">Nytt märke</div>
           <div class="share-card__hero" style="font-size:24cqw">15</div>
           <div class="share-card__label">länder besökta</div>
-          <div style="margin-top:8cqw"><img src="../client/src/assets/badges/tiers/countries-15--silver.svg" alt="" style="width:34cqw"></div>
+          <div style="margin-top:8cqw"><img src="../client/src/assets/badges/tiers/countries--silver.svg" alt="" style="width:34cqw"></div>
         </div><div class="share-card__footer"><span>Maja S</span><span class="share-card__barcode"></span></div></div>
       </div>
     </section>
@@ -292,7 +292,7 @@
         <span class="streak streak--active"><i data-i="Flame" data-s="20"></i><span class="streak__count">7</span><span class="streak__unit">månader i rad</span></span>
       </div></div>
       <div class="card"><div class="card__header">Nära att låsa upp</div><div class="card__body stack stack--sm">
-        <div class="user-row"><img src="../client/src/assets/badges/tiers/airports-50--gold.svg" alt="" width="44" height="44"><div class="user-row__main"><div class="user-row__name">50 flygplatser</div><div class="badge-card__progress" style="--progress:.86"></div></div></div>
+        <div class="user-row"><img src="../client/src/assets/badges/tiers/airports--gold.svg" alt="" width="44" height="44"><div class="user-row__main"><div class="user-row__name">Flygplatssamlare, guld</div><div class="badge-card__progress" style="--progress:.86"></div></div></div>
         <div class="user-row"><img src="../client/src/assets/badges/tiers/lounge-expert--silver.svg" alt="" width="44" height="44"><div class="user-row__main"><div class="user-row__name">Loungeexpert</div><div class="badge-card__progress" style="--progress:.4"></div></div></div>
       </div></div>
       <div class="card"><div class="card__header">Notiser</div>
@@ -320,15 +320,17 @@
   document.getElementById('iconlist').innerHTML = Object.keys(ICONS).map(n => `<div>${svg(n, 24)}Icon${n}</div>`).join('');
   const B = '../client/src/assets/badges/';
   document.getElementById('tiers').innerHTML = ['bronze', 'silver', 'gold', 'platinum'].map((t, i) =>
-    `<div class="badge-card badge-card--${t}"><div class="badge-card__icon"><img src="${B}tiers/transfer-king--${t}.svg" alt=""></div><div class="badge-card__name">Transferkung</div><span class="tier-chip tier--${t}">Nivå ${[1, 4, 7, 10][i]}</span></div>`).join('');
+    `<div class="badge-card badge-card--${t}"><div class="badge-card__icon"><img src="${B}tiers/transfer-king--${t}.svg" alt=""></div><div class="badge-card__name">Transferkung</div><span class="tier-chip tier--${t}">${['Brons', 'Silver', 'Guld', 'Platina'][i]}</span></div>`).join('');
   const badges = [
-    ['first-checkin','Första check-in',1,1,'gold'],['airports-10','10 flygplatser',10,10,'bronze'],['airports-25','25 flygplatser',25,25,'silver'],['airports-50','50 flygplatser',43,50,'gold'],
-    ['airports-100','100 flygplatser',43,100,'platinum'],['countries-5','5 länder',5,5,'bronze'],['countries-15','15 länder',15,15,'silver'],['countries-30','30 länder',17,30,'gold'],
-    ['all-continents','Alla kontinenter',4,6,'platinum'],['nordic','Nordisk resenär',5,5,'silver'],['transfer-king','Transferkung',10,10,'gold'],['lounge-expert','Loungeexpert',2,5,'gold'],
-    ['home-turf','Hemmaplan',5,5,'bronze'],['reviewer','Recensent',20,20,'silver']];
-  document.getElementById('badgegrid').innerHTML = badges.map(([id, name, c, t, tier]) => {
-    const locked = c < t;
-    return `<div class="badge-card badge-card--${tier}${locked ? ' badge-card--locked' : ''}"><div class="badge-card__icon"><img src="${B}${id}.svg" alt=""></div><div class="badge-card__name">${name}</div>${locked ? `<div class="badge-card__desc">${c} av ${t}</div><div class="badge-card__progress" style="--progress:${c / t}"></div>` : '<div class="badge-card__date">Upplåst 2 nov</div>'}</div>`;
+    ['checkins','Incheckad','gold',43,100],['airports','Flygplatssamlare','silver',43,50],['countries','Gränslös','silver',17,30],['continents','Världsresenär','gold',4,6],
+    ['nordic','Nordisk resenär','platinum',5,5],['hubs','Hubbjägare','bronze',9,15],['alphabet','IATA-alfabetet','silver',14,18],['regions-se','Länsresenär','gold',9,12],
+    ['airlines','Bolagsbytare','silver',12,20],['front-cabin','Främre kabinen','bronze',3,5],['transfer-king','Transferkung','gold',31,50],['home-turf','Hemmaplan','silver',22,30],
+    ['streak','Vanefluga','bronze',3,4],['reviewer','Recensent','silver',38,50],['lounge-expert','Loungeexpert',null,0,1],['photographer','Fotograf','bronze',6,10],
+    ['popular','Populär','bronze',12,25],['conversationalist','Samtalare',null,2,5]];
+  document.getElementById('badgegrid').innerHTML = badges.map(([id, name, tier, c, t]) => {
+    const TL = { bronze: 'Brons', silver: 'Silver', gold: 'Guld', platinum: 'Platina' };
+    const img = tier ? `${B}tiers/${id}--${tier}.svg` : `${B}${id}.svg`;
+    return `<div class="badge-card${tier ? ' badge-card--' + tier : ' badge-card--locked'}"><div class="badge-card__icon"><img src="${img}" alt=""></div><div class="badge-card__name">${name}</div>${tier ? `<span class="tier-chip tier--${tier}">${TL[tier]}</span>` : ''}${c < t ? `<div class="badge-card__desc">${c} av ${t} till nästa nivå</div><div class="badge-card__progress" style="--progress:${c / t}"></div>` : '<div class="badge-card__date">Högsta nivån</div>'}</div>`;
   }).join('');
   const sw = ['--bg','--surface','--surface-3','--ink','--muted','--line-strong','--signal','--signal-text','--signal-soft','--sky','--info','--good','--bad','--violet','--board','--board-text','--map-none','--map-1','--map-2','--map-3','--map-4','--map-5','--map-6','--tier-bronze','--tier-silver','--tier-gold','--tier-platinum'];
   document.getElementById('swatches').innerHTML = sw.map(v => `<div class="sg-swatch"><div style="background:var(${v})"></div><p>${v}</p></div>`).join('');
