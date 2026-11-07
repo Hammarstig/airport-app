@@ -1,377 +1,388 @@
 # Gatelog - oberoende granskning
 
-Datum: 2026-11-05. Granskad commit: `2aa5d71` (plus byggd klient). Granskaren har inte deltagit i bygget.
-Skala: 9 = i klass med de bästa apparna i kategorin (Untappd, Letterboxd, Swarm, Flighty), 7 = bra och fungerande, 5 = fungerar men med tydliga luckor, 3 = saknas i stort sett.
-
-## Metod
-- Läst `docs/*.md` och hela `server/` och `client/src/` (ca 8 300 rader klient, 2 700 rader server inkl. tester).
-- `npm install`, `npm run build`, server på port 8790 med temporär databas, `seed:demo` (4 användare, 32 check-ins). Serverns 27 tester passerar.
-- Playwright: Pixel 7 (ljust, mörkt, utloggad) och 1280 px desktop, 16 sidor per variant, plus registrering, tomma tillstånd, check-in-flöde, tangentbord, axe-core 4.10 (WCAG 2.2 AA) och offline.
-- Prestanda: CPU 4x + "Slow 4G" (150 ms RTT, 1,6 Mbit/s) via CDP. Lasttest av API:t med 5 000 användare och 300 000 check-ins.
-- Skärmdumpar ligger i `/tmp/claude-0/review/` (filnamn anges nedan; de är inte incheckade).
-- Konkurrenter: Untappd (check-in, toasts, märken med nivåer, vänflöde), Vivino (etikettskanning, betygsfördelning), Letterboxd (dagbok, listor, följa, årsöversikt), Swarm (närliggande platser, streaks, stickers, veckotopplista bland vänner), Flighty (Passport: livstidsstatistik, rutter på karta, årsöversikt, import), App in the Air (automatisk import från e-post, resestatistik, achievements).
+Runda 2: 2026-11-07, granskad commit `826c6d5` (byggd från ren export av HEAD, utan bygg-agentens ocommittade ändringar). Runda 1: 2026-11-05, commit `2aa5d71`.
+Granskaren har inte deltagit i bygget. Skala: 9 = i klass med de bästa apparna i kategorin (Untappd, Letterboxd, Swarm, Flighty), 7 = bra och fungerande, 5 = fungerar men med tydliga luckor, 3 = saknas i stort sett.
 
 ## Poäng
 
-| Område | Betyg |
-|---|---|
-| A. Visuell design och grafik | 6 |
-| B. UX och användarvänlighet | 6 |
-| C. Responsivitet och upplevd snabbhet | 7 |
-| D. Frontend-kodkvalitet | 7 |
-| E. Backend-kodkvalitet | 7 |
-| F. Säkerhet | 7 |
-| G. Projektstruktur och ordning | 6 |
-| H. Tillgänglighet | 7 |
-| I. Funktionsomfång jämfört med konkurrenterna | 5 |
-| J. Gamification-känsla | 5 |
-| K. Topplistor | 4 |
-| L. Socialt samspel | 2 |
-| M. Enkelhet att navigera | 6 |
-| **Sammanfattning: Grafik (A) 6 - Responsivitet (C) 7 - Enkelhet att navigera (M) 6 - Gamification (J) 5 - Topplista (K) 4 - Socialt samspel (L) 2** | |
+| Område | Runda 1 | Runda 2 |
+|---|---|---|
+| A. Visuell design och grafik | 6 | 7 |
+| B. UX och användarvänlighet | 6 | 8 |
+| C. Responsivitet och upplevd snabbhet | 7 | 8 |
+| D. Frontend-kodkvalitet | 7 | 8 |
+| E. Backend-kodkvalitet | 7 | 8 |
+| F. Säkerhet | 7 | 7 |
+| G. Projektstruktur och ordning | 6 | 8 |
+| H. Tillgänglighet | 7 | 8 |
+| I. Funktionsomfång jämfört med konkurrenterna | 5 | 7 |
+| J. Gamification-känsla | 5 | 7 |
+| K. Topplistor | 4 | 7 |
+| L. Socialt samspel | 2 | 6 |
+| M. Enkelhet att navigera | 6 | 8 |
+| **Sammanfattning: Grafik (A) 6 -> 7 - Responsivitet (C) 7 -> 8 - Enkelhet att navigera (M) 6 -> 8 - Gamification (J) 5 -> 7 - Topplista (K) 4 -> 7 - Socialt samspel (L) 2 -> 6** | | |
 
-Kort dom: en välbyggd, snabb och genomtänkt grund med stark visuell idé (split-flap, boardingkort) och ovanligt ren backend. Men den är en "logg" snarare än en social app: socialt lager, topplistor och gamification ligger flera steg efter Untappd och Swarm, och tre buggar syns direkt för användaren (typsnitten blockeras, ingen utloggning på mobil, statistik staplas i en kolumn).
+Kort dom: ett tydligt lyft. Alla fyra kritiska fel från runda 1 är rättade. Check-in tar nu 3 tryck och avslutas med en sammanfattningsskärm som håller Untappd-klass (`flow-done-full.png`). Backend klarar 300 000 check-ins med p95 under 27 ms. Det finns nu ett socialt lager, nivåer och topplistor per period. Inget område når 9 ännu. Det som återstår är framför allt djup och finish:
+- integritet för en app som loggar var folk reser,
+- Web Push och moderering i det sociala lagret,
+- import av resehistorik, rutter på kartan och en årsöversikt,
+- finputs av siffror, kartor och notiser.
 
-## Kritiska fel (rätta först)
-1. **Typsnitten laddas aldrig.** `client/src/styles/index.css:2` importerar Google Fonts, men CSP i `server/src/app.js:31-32` (`style-src 'self'`, `font-src 'self' data:`) blockerar det. Konsolfel på varje sida. Big Shoulders Display, Atkinson Hyperlegible och IBM Plex Mono ersätts av systemtypsnitt, så designkontraktets karaktär försvinner. Ägare: Grafik (självhosta woff2 under `client/public/fonts/` med `@font-face` och `font-display: swap`, subset latin) + Backend (ingen CSP-ändring behövs då).
-2. **Ingen utloggning på mobil.** Logga ut-knappen finns bara i `.topbar__nav` (`client/src/components/Layout.jsx:65`), som är `display:none` under 768 px (`client/src/styles/layout.css:49`). Ägare: Bygg.
-3. **Statistik staplas i en kolumn på telefon.** `.grid--2/.grid--3` blir tvåkolumn först vid bredare skärm (`layout.css:184-194`), så flygplatssidan (`AirportPage.jsx:84`) och kartsidan (`MapPage.jsx:45`) visar tre siffror under varandra över en hel skärmhöjd (`vp-m-light-airport.png`, `vp-m-light-map.png`). Ägare: Grafik (ny `.stat-row` som alltid är 3 kolumner) + Bygg.
-4. **Inloggning tappas vid tillfälligt fel.** `client/src/lib/auth.jsx:19-24` raderar token vid *alla* fel från `/api/me`, även nätverksfel och 5xx. En 502 från en proxy eller ett nätavbrott vid start loggar ut användaren. Endast 401 ska rensa token. Ägare: Bygg.
+## Metod (runda 2)
+- Läst `docs/API.md` (v2), `docs/DESIGN.md`, `docs/TEST-REPORT.md` (runda 2), README och all ändrad kod sedan `b8734e0` (267 filer, +17 100 rader).
+- `npm install`, lint (0 fel, 1 varning), Prettier (rent), `npm test`: server 57/57 och klient 16/16 passerar. Test-agentens rapport: 297 tester, 0 fel, 6 fixme för BUG-09/10/11.
+- Ren export av HEAD byggd separat, server på port 8790 med temporär databas och `seed:demo` (4 användare, 36 check-ins, följningar).
+- Playwright med Pixel 7 (ljust och mörkt) och 1280 px desktop: 16 sidor, snabb check-in med mockad position (Landvetter), sammanfattningsskärm, tangentbordsordning och axe-core 4.10 (WCAG 2.2 AA) på 12 sidor i båda teman.
+- Prestanda: CPU 4x och Slow 4G (150 ms RTT, 1,6 Mbit/s) via CDP, service worker blockerad (kall start). Samma metod som i runda 1, så siffrorna är jämförbara.
+- `npm run bench -w server`: 5 000 användare och 300 000 check-ins.
+- Skärmdumpar i `/tmp/claude-0/review2/` (inte incheckade).
+- Kända fel som bygg-agenten rättar parallellt: BUG-09, BUG-10 och BUG-11. De ingår i bedömningen men styr den inte. BUG-07 (kartsteg) verkar rättat i HEAD: `atlas.js:38-46` följer nu DESIGN.md.
+
+## Mätningar
+
+| Sida (kall start, 4x CPU, Slow 4G) | Runda 1 LCP | Runda 2 FCP | Runda 2 LCP | CLS | JS | Typsnitt |
+|---|---|---|---|---|---|---|
+| `/` flöde | 1,30 s | 1,35 s | 1,35 s | 0 | 72 kB | 65 kB |
+| `/airport/GOT` | 2,12 s | 1,27 s | 1,91 s | 0 | 80 kB | 65 kB |
+| `/u/oliver` | 1,48 s | 1,24 s | 1,90 s | 0 | 91 kB | 65 kB |
+| `/u/oliver/map` | 1,74 s | 1,22 s | 1,93 s | 0 | 145 kB | 49 kB |
+| `/search` | 1,60 s | 1,22 s | 1,48 s | 0 | 80 kB | 74 kB |
+| `/leaderboard` | 1,30 s | 1,26 s | 1,50 s | 0,001 | 77 kB | 49 kB |
+
+I runda 1 laddades inga typsnitt alls, eftersom CSP blockerade dem. Runda 2 bär alltså 50-75 kB typsnitt och klarar ändå LCP under 2 s på alla sidor.
+
+| Interaktion (throttlat, tid till synlig ändring) | Runda 1 | Runda 2 |
+|---|---|---|
+| Gilla | 297 ms | 281 ms |
+| Flikbyte i flödet | 250 ms | 399 ms |
+| Autocomplete, 3 tangenter inkl. debounce och RTT | 550 ms | 677 ms |
+| SPA-navigering flöde -> flygplats | 622 ms | 832 ms |
+| Tryck till klar check-in | 5 + 3 tangenter + scroll | **3** (Checka in, GOT 0,8 km, "Checka in på GOT") |
+
+| API med 300 000 check-ins | Runda 1 | Runda 2 (medel / p95) |
+|---|---|---|
+| Autocomplete | 134-142 ms | 10 / 21 ms |
+| Recensionssök | 612 ms | 10 / 21 ms |
+| Topplistor | 263 ms | 11 / 23 ms |
+| Flygplats och profil | 7-30 ms | 12 / 26 ms |
+
+**Varning om bygg-agentens pågående ändringar.** I arbetskatalogen (inte committat) förladdas `airports-offline` (74 kB br, 246 kB okomprimerat), `Badges`, `CheckinPage` och `DonePage` på varje sida. Med det bygget mätte jag LCP 3,19 s på `/airport/GOT` och 3,05 s på kartan, alltså över målet 2,5 s. Förladdningen konkurrerar om bandbredden på 4G. Den ska starta först efter `load`, och bara i installerad PWA eller på check-in-sidan.
 
 ---
 
-## A. Visuell design och grafik - 6
-**Motivering.** Konceptet är starkt och genomfört: split-flap-brickor för IATA, boardingkort med perforering, signalgul landningsbanemarkering, märkena som emaljnålar (`flow-after-checkin.png` är snyggt). Ljust tema är rent och har tydlig palett. Men det som faktiskt renderas saknar sina typsnitt (kritiskt fel 1), hierarkin på mobil är svag och flera ytor ser ut som utkast.
+## A. Visuell design och grafik - 7 (runda 1: 6)
+**Bättre.** Typsnitten laddas och Big Shoulders Display ger rubrikerna flygplatsskyltkaraktär. Statistikraden är tre eller fyra kolumner (`vp-m-light-airport.png`, `vp-m-light-profile.png`), och flödeskortet är kompakt med 2,5 kort per skärm. Desktop har sidopanel med nivå, streak och genvägar (`vp-d-light-feed.png`). Sammanfattningsskärmen med passtämpel är appens bästa vy (`flow-done-full.png`). Märkena har fyra nivåramar, mörka split-flap-brickor har kontur i mörkt tema, och kartans lägsta steg syns nu.
 
 **Brister**
-- Flödeskortet är för högt: ett kort per skärm på Pixel 7 (`vp-m-light-feed.png`). Delbetyg som chips, separat resedetaljblock och en egen sidfot med bara ett hjärta. Untappd och Swarm visar 2-3 check-ins per skärm.
-- Stat-siffror staplade och betygsstjärnor centrerade fristående under dem (`vp-m-light-airport.png`). På profilen svävar "Snittbetyg givet" centrerat utan koppling (`ProfilePage.jsx:105`, `vp-m-light-profile.png`).
-- Kartan: lägsta stegen är svagast (ljust `--map-1` #FCEFA6 på ljusgrått, mörkt `--map-1` #3B3F7A på marinblått). Nästan alla användares länder hamnar i steg 1-2, så kartan ser tom ut (`vp-m-light-map.png`, `vp-m-dark-map.png`). Världskartan zoomar inte in till besökta områden; Sverige är några pixlar stort.
-- Mörkt tema: split-flap-brickorna (`--board-tile`) smälter in i `--surface` så att IATA-taggen på korten saknar kontur (`vp-m-dark-feed.png`).
-- Rank-brickorna (1, 2, 3) har split-flap-linjen tvärs genom siffran, det ser ut som överstrykning (`vp-m-light-leaderboard.png`).
-- Länkar i listor (topplistan, profilens flygplatser, sökresultat) är understrukna i blått eller svart, vilket ger ett "webbformulär"-intryck i en app (`vp-m-light-search.png`).
-- Desktop: en 1 100 px bred enkolumn med mycket tomrum, ingen sidopanel (`vp-d-light-feed.png`).
-- `theme-color` är fast ljust (`client/index.html:7`, manifest) även i mörkt tema, så Android-statusfältet blir ljust ovanför en mörk app.
-- Märkesikoner: API:t skickar emoji (`server/src/badges.js:8-21`) medan klienten har SVG-nålar. Två ikonsystem för samma sak.
+- **Snedstreckad nolla.** Atkinson Hyperlegible ritar 0 med snedstreck, så "4,0", "2026" och "0,8 km" ser ut som "4,Ø" och "2Ø26" i all brödtext (`vp-m-light-feed.png`). För en nordisk publik krockar det med bokstaven Ø (jfr "Læsø Airport" i samma lista, `flow-quick.png`).
+- **Världskartan zoomar inte in** på besökta länder (`WorldMap.jsx:27` `fitSize` mot hela världen). Norden är några millimeter stort och Doha syns inte (`vp-m-light-map.png`). Det finns inga rutter eller flygplatsprickar på världskartan. Flighty visar flyglinjer.
+- **Notislistan är en monoton textlista** med samma ikon på varje rad, utan avatarer och utan gruppering. Tio "Du nådde brons i märket ..." i rad (`vp-m-light-notifications.png`).
+- **Märkeskorten är mycket stora.** Två per rad, cirka 450 px höga, så 18 märken blir nio skärmar (`vp-m-light-profile-badges.png`).
+- **Understrukna länkar finns kvar i UI** ("3 följare", "2 följer", "@oliver", "GOT", "SAS Lounge", kommentarsräknaren i flödet).
+- **"0 veckor i rad"** visas som en stor grå rad på profilen och i sidopanelen (`components/Level.jsx:39-51`), med nollan i ett annat typsnitt än texten.
+- **"Visa flygplatser nära mig" är oformaterad text** utan knappkänsla (`vp-m-light-checkin.png`).
+- **Resedetaljerna visas två gånger** på check-in-sidan: som rad i kortet och som `TravelDetailList` under (`vp-m-light-checkin-detail.png`).
+- **Sammanfattningsskärmens knappar** blandar en stor grå "Klar", två textlänkar och två knappar i ojämnt rutnät.
 
 **Åtgärder för 9+**
-1. Självhosta typsnitten (kritiskt fel 1). Ägare: Grafik.
-2. `.stat-row`: 3 kolumner även på 360 px, siffra + etikett, stjärnor inline i snittbetygets cell. Ägare: Grafik; Bygg använder den på flygplats-, profil-, kart- och landssidan.
-3. Kompakt flödeskort: rubrikrad (avatar, namn, flygplats, IATA), en rad med typ + betyg + högst 3 viktigaste delbetyg ("+2"), kommentar, foto som stor bild, och en åtgärdsrad (skål/kommentar/dela) utan egen sidfot. Resedetaljer som en enda rad "SK1421 · SAS · Business". Mål: minst 2 kort per skärm på Pixel 7. Ägare: Grafik + Bygg.
-4. Kartpalett: gör steg 1 tydligt (t.ex. ljust #F6C744 / mörkt #4C7FD0) och lägg en kontur på besökta länder; auto-zooma (fitBounds) till besökta länder; visa flygplatsprickar på världskartan. Ägare: Grafik (tokens) + Bygg (zoom).
-5. Mörkt tema: ge `--board-tile` en 1 px ljusare kant eller skugga. Rank-brickor utan gångjärnslinje. Ägare: Grafik.
-6. Listlänkar utan understrykning (hela raden är klickbar, understrykning vid fokus/hover). Ägare: Grafik.
-7. `<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#08111E">`. Ägare: Bygg.
-8. Ta bort `icon` (emoji) ur märkes-API:t eller byt till asset-id. Ägare: Backend.
-9. Desktop: tvåkolumnslayout för flöde (flöde + sidopanel med egen statistik/märkesprogress/topplista). Ägare: Grafik + Bygg.
+1. Använd en nolla utan snedstreck i brödtext. Prova `font-feature-settings` om Atkinson har en alternativ glyf. Annars använd Big Shoulders eller systemsiffror för siffror i löptext (en `.num`-klass). Ägare: Grafik.
+2. Världskartan: zooma till besökta länder (bbox med marginal) med knapp för "hela världen". Lägg till prickar för besökta flygplatser. Ägare: Bygg + Grafik.
+3. Notiser: avatar eller märkesbild per rad, gruppering ("Du nådde 9 nya märkesnivåer") och olästa i fetstil med punkt. Ägare: Grafik + Bygg (Backend: grupperingsnyckel).
+4. Kompakt märkesvy: 3 kolumner på mobil med bild och namn, detaljer i bottenark. Ägare: Grafik + Bygg.
+5. Ta bort understrykning på länkar i UI-komponenter. Behåll den bara i löptext. Ägare: Grafik.
+6. Dölj streaken vid 0 eller formulera den positivt ("Checka in den här veckan för att starta en streak"). Ägare: Bygg + Grafik.
+7. Gör "Nära dig" till en riktig knapp, ta bort dubbla resedetaljer och ge sammanfattningsskärmen en tydlig knappordning: primär Dela, sekundär Anslutning, Klar som textknapp. Ägare: Grafik + Bygg.
 
-## B. UX och användarvänlighet - 6
-**Motivering.** Autocomplete är riktigt bra (IATA, stad, land, diakritik, "matchade på"-etikett, `flow-autocomplete.png`). Registrering leder direkt till check-in, tomma tillstånd har handlingsknapp (`flow-empty-profile.png`), felmeddelanden är på svenska och fältvalidering fokuserar första felet. Men check-in-flödet har för mycket friktion jämfört med Swarm och Untappd, och centrala saker saknas.
-
-**Check-in-friktion (mätt).** Från flödet: tryck "Checka in" (1), tryck i fältet (2, autofokus öppnar inte tangentbordet pålitligt på Android), skriv "got" (3 tangenter), välj förslag (3), välj stjärnor (4), **scrolla cirka 870 px** (knappen ligger på y = 1 708 px i en 839 px hög vy), tryck "Checka in" (5). Totalt 5 tryck + 3 tangenter + 1-2 scrollningar. Swarm: 2 tryck (närliggande plats, checka in). Untappd: 3-4 tryck.
+## B. UX och användarvänlighet - 8 (runda 1: 6)
+**Bättre.** Snabb check-in tar 3 tryck med position och 2 tryck från "Senaste". Det är i nivå med Swarm. "Nära dig" visar avstånd i km. Skicka-knappen är klistrig ovanför menyn (y = 711 px av 839). Sammanfattningen visar XP, nivå, streak, världsandel och milstolpar. "Lägg till anslutning" förifyller datum och transfer. Check-ins kan redigeras, utloggning finns i Inställningar, och export och radering finns.
 
 **Brister**
-- Ingen "nära mig"-lista (Geolocation tillåts redan i `Permissions-Policy` men används inte) och inga "senaste/hemma"-flygplatser som snabbval.
-- Skicka-knappen ligger efter kommentar, foton och hela resedetaljsektionen (`CheckinPage.jsx:214`). Ingen klistrig knapp.
-- Ingen redigering av check-in (bara radering, `CheckinCard.jsx:54`). Loungerecensioner kan varken ändras eller raderas (`server/src/routes/lounges.js`).
-- Efter check-in landar man på flygplatssidan; ingen kvittovy ("Din 11:e flygplats, 9:e land, 0,3 % av världen") som Untappd och Swarm visar.
-- Ingen flygningsmodell: en resa GOT-CPH-SIN kräver tre separata check-ins utan koppling; flightnummer fylls inte i automatiskt från bolag.
-- Ingen utloggning på mobil (kritiskt fel 2).
-- Placeholdertexten klipps ("...land eller IA", `vp-m-light-search.png`; desktop "...land" i toppfältet).
-- "Typ av besök" med fyra val där "Transfer" och "Mellanlandning" är svåra att skilja för en vanlig resenär; ingen förklaring.
-- Halvstjärnor via "tryck på vänster halva" kräver förklaringstext; Untappd använder reglage.
+- **BUG-10 och BUG-11:** offlinekön, som är huvudfallet ombord, fungerar inte vid kall start, och första besöket kan ge vit sida. BUG-09: fel lösenord vid kontoradering loggar ut.
+- **Inget betyg efteråt.** Snabb check-in utan betyg ger ingen uppmaning att betygsätta på sammanfattningsskärmen. Appens kärnvärde (betyg och recensioner) tappas för de snabbaste användarna.
+- **Notisflod.** Första check-in för en ny användare, eller seed, ger 10+ märkesnotiser samtidigt och en röd "10" i toppfältet.
+- **Tom placering i topplistan.** Veckolistan visar bara de som har värden. Om jag saknar check-ins denna vecka finns ingen rad "Du: inte med ännu - checka in för att klättra" (`vp-m-light-leaderboard.png`).
+- **Flygplatser kan inte bytas vid redigering.** Det är medvetet enligt API:t, men felvalda flygplatser kräver radering. Det finns ingen förklaring i UI:t.
 
 **Åtgärder för 9+**
-1. Snabb check-in: överst en rad "Nära dig" (geolocation + `GET /api/airports/nearby?lat&lon`) och "Senaste" (användarens 5 senaste + hemmaflygplats). Ett tryck väljer flygplats. Ägare: Backend (endpoint, enkel bbox + haversine) + Bygg.
-2. Klistrig skicka-knapp ovanför bottennavigeringen; flytta foto och resedetaljer in i en hopfälld "Mer"-sektion. Mål: 3 tryck till klar check-in. Ägare: Bygg + Grafik.
-3. `PATCH /api/checkins/:id` och redigera-vy; `PATCH/DELETE /api/lounge-reviews/:id`. Ägare: Backend + Bygg.
-4. Kvittovy efter check-in med räknare, nya märken, framsteg mot nästa märke och "Dela". Ägare: Bygg + Grafik; Backend lägger `milestones` i POST-svaret.
-5. Resa/flygning som begrepp: "Lägg till anslutning" efter check-in som förifyller nästa flygplats och datum. Ägare: Backend + Bygg.
-6. Kortare placeholder ("Stad, flygplats eller IATA") och hjälptext för besökstyper. Ägare: Bygg.
+1. Rätta BUG-09, BUG-10 och BUG-11. Ägare: Bygg (BUG-09 alternativt Backend: 403 i stället för 401).
+2. Sammanfattningsskärmen: om betyg saknas, visa fem stjärnor direkt ("Hur var GOT?") som sparar med PATCH. Ägare: Bygg.
+3. Slå ihop märkesnotiser som skapas i samma händelse till en notis. Ägare: Backend.
+4. Topplistan: visa alltid en egen rad med uppmaning när `me` är null. Ägare: Bygg.
+5. Vid redigering: förklara "Fel flygplats? Radera och checka in igen" med en knapp som gör båda. Ägare: Bygg.
 
-## C. Responsivitet och upplevd snabbhet - 7
-**Mätningar (Pixel 7, CPU 4x, Slow 4G, kall cache):**
-
-| Sida | FCP | LCP | CLS | JS över nätet |
-|---|---|---|---|---|
-| `/` flöde | 1,30 s | 1,30 s | 0 | 67 kB |
-| `/airport/GOT` | 1,28 s | 2,12 s | 0 | 75 kB |
-| `/u/oliver` | 0,98 s | 1,48 s | 0 | 78 kB |
-| `/u/oliver/map` | 1,12 s | 1,74 s | 0 | 102 kB |
-| `/u/oliver/map/SE` | 0,98 s | 1,52 s | 0 | 102 kB |
-| `/search` | 1,29 s | 1,60 s | 0 | 72 kB |
-| `/leaderboard` | 1,09 s | 1,30 s | 0 | 70 kB |
-
-Interaktion (INP-proxy, tid från händelse till synlig ändring, throttlat): gilla 297 ms, flikbyte 250 ms, autocomplete 550 ms från första tangent (inkl. 3 tangenter à 60 ms + 150 ms debounce + 150 ms RTT), SPA-navigering flöde till flygplats 622 ms.
-API med demodata: 1-8 ms. **API med 300 000 check-ins:** autocomplete 134-142 ms per anrop, `/api/search` 612 ms, `/api/countries` 399 ms, `/api/leaderboard` 263 ms, `/api/rankings/airports` 159 ms.
-
-**Motivering.** Klienten är föredömligt lätt (initial JS 67 kB gzip, mål < 200 kB), kodsplittad per route, noll layoutskutt och stale-while-revalidate-cache. Siffrorna gäller dock *utan* typsnitt (de blockeras); med tre Google-familjer tillkommer 2-3 anrop mot extern domän. Svagheterna ligger i skalning och offline.
+## C. Responsivitet och upplevd snabbhet - 8 (runda 1: 7)
+**Bättre.**
+- Backend skalar nu: förberäknade tabeller via triggers, p95 under 27 ms vid 300 000 check-ins (runda 1: upp till 612 ms).
+- LCP 1,35-1,93 s inklusive typsnitt, CLS 0 och initial JS 72 kB.
+- Service worker med app-skal offline och förcachade route-chunks.
+- Offlinekö i IndexedDB.
 
 **Brister**
-- Servern är synkron (`node:sqlite`) och flera frågor aggregerar hela `checkins` per anrop: flygplatssök (`server/src/routes/airports.js:96-97`, subquery `GROUP BY iata` över alla check-ins för varje tangenttryck), `/countries` (`explore.js`), leaderboard (`users.js:280-285`), sök. Vid 300 000 rader blockerar ett sök event-loopen ~0,6 s för alla användare.
-- `computeBadges` körs två gånger per check-in och läser användarens alla check-ins (`checkins.js:439, 463`).
-- Offline: navigering offline ger bara `offline.html` (`client/pwa/sw.js`), app-skalet och senaste data används inte trots att `index.html` cachas. Route-chunks förcachas inte. Check-in offline (kö) saknas, trots att flygplatser är exakt där man saknar täckning.
-- Gilla tar ~300 ms till visuell ändring under throttling, trots optimistisk uppdatering; målet för "INP bra" är < 200 ms.
-- Landskartan i högre upplösning är 233 kB gzip (`countries-50m`) och laddas för landsvyer.
-- Desktop: fungerar men utnyttjar inte bredden (se A).
+- **Interaktionerna har blivit långsammare under throttling.** Flikbyte 399 ms (250), SPA-navigering 832 ms (622), gilla 281 ms. Målet för INP "bra" är under 200 ms. Varje vy hämtar och renderar mer (nivå, streak, räknare). Flikbyte väntar på nätet i stället för att visa cachad lista direkt.
+- **Typsnitten förladdas inte.** Rubriktypsnittet blir LCP-element på flygplatssidan (test-agenten mätte +100-300 ms).
+- **Förladdningen i bygg-agentens pågående ändring** pressar LCP till 3,2 s (se Mätningar).
+- **Notiser pollas var 60:e sekund** (`hooks/useUnread.js`). Det finns ingen push, så nyheter syns sent och varje öppen flik kostar anrop.
+- **BUG-10:** offline vid kall start kan inte välja flygplats.
 
 **Åtgärder för 9+**
-1. Materialiserad statistiktabell `airport_stats(iata, checkins, rating_sum, rating_count, ...)` som uppdateras i samma transaktion som check-in/radering; använd i sök, rankning, länder. Ägare: Backend.
-2. Leaderboard från `user_stats`-tabell (unika flygplatser/länder per användare) uppdaterad vid check-in. Ägare: Backend.
-3. Märken inkrementellt: beräkna bara de mått check-in:en påverkar, eller cacha per användare. Ägare: Backend.
-4. Lasttest i CI (100 000+ check-ins) med budget: autocomplete < 20 ms, sök < 100 ms. Ägare: Backend.
-5. Service worker: offline-navigering ska ge app-skalet; förcacha alla route-chunks; cacha senaste API-svar för flöde, profil och flygplatssidor (stale-while-revalidate i SW). Ägare: Bygg.
-6. Offline-kö för check-in (IndexedDB + Background Sync eller omförsök vid `online`). Ägare: Bygg.
-7. Gilla: uppdatera i samma frame (undvik återrendering av hela listan; `React.memo` på `CheckinCard`, `startTransition` för nätverksdelen). Mål < 100 ms under 4x. Ägare: Bygg.
-8. Landsvy: förenkla 50m-geometrin per land eller ladda ett enskilt lands GeoJSON. Ägare: Bygg + Grafik.
+1. Flikbyte och navigering: rendera cachat innehåll synkront (stale-while-revalidate gäller redan GET, se till att flikarna läser `peek` först). Använd `startTransition` för nätverksdelen och `React.memo` på `CheckinCard`. Mål: under 200 ms för gilla, flik och navigering vid 4x CPU. Ägare: Bygg.
+2. `<link rel="preload" as="font" crossorigin>` för Big Shoulders 800 och Atkinson 400. Ägare: Grafik.
+3. Starta förladdningen av offlinedata först efter `load` och bara i `display-mode: standalone` eller på check-in-sidan. Lägg till ett perf-test som fäller bygget om LCP överstiger 2,5 s. Ägare: Bygg.
+4. Web Push (se L) i stället för polling, eller polla bara när appen är i förgrunden och backa av. Ägare: Backend + Bygg.
+5. Rätta BUG-10 (senaste och hemmaflygplats i IndexedDB). Ägare: Bygg.
 
-## D. Frontend-kodkvalitet - 7
-**Motivering.** Tydlig mappstruktur per sida, små filer (största JSX 222 rader), återanvändbara hooks (`useAsync` med generationsräknare mot race conditions, `usePaged`, `useDebounced`), ett gemensamt `api`-lager med `peek`-cache, tillgänglig `Combobox`. Det som drar ned är brist på verktyg och några mönster som döljer fel.
+## D. Frontend-kodkvalitet - 8 (runda 1: 7)
+**Bättre.**
+- ESLint (React, hooks, jsx-a11y) och Prettier i CI. Lint ger 0 fel och en oanvänd disable-direktiv (`server/src/app.js:152`).
+- Varje `eslint-disable` har en motivering.
+- Inline-stilar har minskat från 142 till 44.
+- Vitest och Testing Library (16 tester).
+- Check-in-logiken är utbruten i `useCheckinForm.js`.
+- Riktad cache-invalidering (`invalidate` i `api.js`) och 401-hantering med `logoutOn401`.
+- Snippets renderas via `snippetParts` utan `innerHTML`.
 
 **Brister**
-- 142 inline-`style={{...}}` i JSX (t.ex. `AirportAutocomplete.jsx:12-15`, `CheckinPage.jsx:159,164,166`), vilket kringgår designsystemet.
-- `eslint-disable`-kommentarer (`CheckinPage.jsx:50,65`, `Combobox.jsx:141`, hooks) men ingen ESLint-konfiguration eller lint-script finns. Effekter med medvetet ofullständiga beroenden är svåra att verifiera.
-- Tysta fel: `.catch(() => {})` i `EditProfile.jsx:20`, `SearchPage.jsx:57`, `ReviewsTab.jsx:34`.
-- `auth.jsx:19-24` loggar ut vid alla fel (kritiskt fel 4).
-- `request()` tömmer hela cachen vid varje POST/DELETE (`api.js:70`), även vid gilla, så nästa vy laddar om allt.
-- `dangerouslySetInnerHTML` för sökutdrag (`ReviewsTab.jsx:104`) litar helt på serverns escaping; ett kontrakt mellan två agenter är en skör säkerhetsgräns.
-- Inga klienttester (enhet/komponent). Ingen TypeScript eller JSDoc-typer för API-objekten.
-- Profilens flik "Karta" är en flik som navigerar bort (`ProfilePage.jsx:39`), vilket bryter tab-mönstret.
+- **Felgräns saknas i HEAD.** Det finns ingen error boundary runt lazy-routes (BUG-11). `RouteErrorBoundary.jsx` är under arbete men inte incheckad.
+- **Klienttesterna är få.** 16 tester för cirka 8 400 rader. Offlinekön (`lib/idb.js`, köhantering) och `useCheckinForm` saknar enhetstester trots att det är där felen finns.
+- **Inga typer.** Ingen TypeScript och ingen JSDoc-typning av API-objekten. API:t har vuxit till v2 med många nya fält.
+- **Kvarvarande inline-stilar och stora filer.** 44 inline-stilar. `icons.jsx` är 360 rader, och `Badges`-chunken är 224 kB okomprimerad eftersom alla 72 märkes-SVG:er bundlas ihop.
 
 **Åtgärder för 9+**
-1. ESLint (`eslint-plugin-react-hooks`, `jsx-a11y`) + Prettier, `npm run lint` i rot, inga disable-kommentarer utan motivering. Ägare: Bygg.
-2. Flytta inline-stilar till klasser (Grafik lägger till utilities som `.text-sm`, `.flex-1`, `.min-w-0`). Ägare: Bygg + Grafik.
-3. Rendera sökutdrag utan `innerHTML`: låt API:t returnera `snippet` som segment `[{text, mark}]`, eller dela strängen på `<mark>` i klienten och rendera React-noder. Ägare: Backend + Bygg.
-4. Riktad cache-invalidering (gilla uppdaterar bara posten; check-in invaliderar flöde, profil, flygplats). Ägare: Bygg.
-5. Logga/visa fel i stället för tomma `catch`. Ägare: Bygg.
-6. Vitest + Testing Library för `Combobox`, `StarsInput`, `submitCheckin`, `useAsync`. JSDoc-typer för `Checkin`, `Airport`. Ägare: Bygg.
+1. Checka in `RouteErrorBoundary` och förladda `DonePage` från check-in-sidan (BUG-11). Ägare: Bygg.
+2. Tester för offlinekön (enqueue, flush, avvisad post, dubbletter), `useCheckinForm` och `QuickPick`. Mål: minst 60 klienttester och täckning av `lib/`. Ägare: Bygg.
+3. JSDoc-typedefs eller `checkJs` för `Checkin`, `Badge`, `Level`, `Notification` och `Ranking`. Ägare: Bygg.
+4. Ladda märkes-SVG som separata filer via URL (`new URL(..., import.meta.url)`) i stället för en 224 kB-chunk. Ta bort sista inline-stilarna. Ägare: Bygg + Grafik.
 
-## E. Backend-kodkvalitet - 7
-**Motivering.** Ren och läsbar: alla frågor parametriserade, whitelistning där SQL interpoleras (sortering, kategori), transaktioner vid check-in, FTS5 med säker frågebyggare (`search.js:83-93`), konsekvent felmodell (`HttpError`, `h()`-wrapper), magic-bytes-kontroll, 27 integrationstester mot `:memory:`, `createApp()` gör det testbart. Svagheten är skalbarhet, migreringar och några luckor i API:t.
+## E. Backend-kodkvalitet - 8 (runda 1: 7)
+**Bättre.**
+- Versionerade migreringar (`PRAGMA user_version`).
+- Statistiktabeller via triggers i samma transaktion.
+- `config.js` som enda läsare av env.
+- Strukturerad JSON-loggning med `X-Request-Id`.
+- `requestId` i 500-svar.
+- Bayesianskt snitt, paginerade loungerecensioner och CRUD för check-ins och recensioner.
+- 57 enhetstester, 56 API-kanttester och ett benchmark med budget.
 
 **Brister**
-- Aggregat över hela tabeller per anrop (se C). `LOUNGE_SELECT` (`airports.js:9-13`) gör två korrelerade subqueries per lounge.
-- Migreringar är ad hoc (`ensureColumns` i `db.js:191-230`) utan versionsnummer; ändrade CHECK-villkor eller index på befintliga kolumner går inte att migrera.
-- Ingen `PATCH` för check-in, ingen radering/ändring av loungerecension, ingen kontoradering.
-- Duplicering: `escapeLike` finns i både `airports.js:26` och `explore.js:11`; `code2` och `countryName` importeras kors och tvärs mellan route-filer; `LOUNGE_SELECT` bor i `airports.js` men används av `lounges.js`.
-- Ingen strukturerad loggning eller request-id; 500-fel loggas bara med `console.error`.
-- `GET /lounges/:id` returnerar alla recensioner utan paginering.
-- Badges räknar `earnedAt` från `visitedOn`, så bakdaterade check-ins ger märken "i dåtid" och `newBadges` kan bli förvirrande.
-- Ingen validering av env (t.ex. `JWT_SECRET` i produktion, se F).
+- **`server/src/db.js` är 603 rader** med schema, migreringar, triggers och seed i samma fil.
+- **Rate limit och topplistecache ligger i processminnet.** Det fungerar för en instans, men horisontell skalning eller omstart nollställer dem.
+- **Tysta reservvärden.** Okända `metric`/`period`/`category` ger tyst standardvärde (200) i stället för 400 (TEST-REPORT, observation).
+- **Synkron SQLite.** Event-loopen blockeras fortfarande av varje fråga. Med p95 under 27 ms är det acceptabelt nu, men export (`/me/export`) och kontoradering av stora konton körs synkront i en request.
+- **Inga märkesnotiser grupperas.** Varje nivå blir en egen rad (se B).
 
 **Åtgärder för 9+**
-1. Statistiktabeller enligt C.1-C.3 och index för leaderboard. Ägare: Backend.
-2. Versionerade migreringar (`schema_version`-tabell + numrerade SQL-filer). Ägare: Backend.
-3. Komplettera CRUD: `PATCH /checkins/:id`, `PATCH/DELETE /lounge-reviews/:id`, `DELETE /me`. Ägare: Backend.
-4. Bryt ut `server/src/sql/` eller `repos/` (airports, checkins, lounges) så att routes bara validerar och svarar; ta bort dubbletter. Ägare: Backend.
-5. Strukturerad loggning (pino eller JSON-rader) med request-id och svarstid. Ägare: Backend.
-6. Paginering av loungerecensioner. Ägare: Backend.
-7. Validera konfiguration vid start (`config.js`) och vägra starta i produktion utan `JWT_SECRET`. Ägare: Backend.
+1. Dela `db.js` i `schema.sql`, `migrations/NNN-*.js` och `seed.js`. Ägare: Backend.
+2. Validera enum-parametrar strikt (400 med lista på giltiga värden). Ägare: Backend.
+3. Gruppera notiser per händelse (`group_key`) och dokumentera det i API.md. Ägare: Backend.
+4. Abstraktion för rate limit och cache (gränssnitt med minnes- och SQLite-implementation) så att flera instanser kan dela tillstånd. Ägare: Backend.
+5. Strömma export och kör radering i batchar för stora konton. Testa med 10 000 check-ins för en användare. Ägare: Backend.
 
-## F. Säkerhet - 7
-**Motivering.** Bättre än genomsnittet för en MVP: bcrypt med tidsutjämning mot okänt konto (`routes/auth.js:298,341`), JWT med låst algoritm (`auth.js:164`), användaren slås upp vid varje anrop, strikt CSP utan `unsafe-inline` för script, `nosniff`, `frame-ancestors 'none'`, uppladdning med magic bytes, slumpade filnamn, egen sandbox-CSP på `/uploads`, ägarkontroll på radering/foton (ingen IDOR hittad), kontrolltecken rensas, FTS-injektion förhindrad, JSON-gräns 50 kB.
+## F. Säkerhet - 7 (runda 1: 7)
+**Bättre.**
+- Servern vägrar starta utan `JWT_SECRET` (minst 32 tecken) i produktion (`config.js`).
+- Rate limit per användare eller IP på alla skrivande anrop med separata kvoter.
+- EXIF, XMP och GPS rensas server-side.
+- `snippetParts` ersätter `innerHTML`.
+- Dataexport och kontoradering med lösenord, attribution, `npm audit` i CI.
+- Strikt CSP, nu med `camera=(self)`.
+
+Betyget står still, eftersom de största riskerna för just den här apptypen kvarstår.
 
 **Brister**
-- Fallback till hårdkodad nyckel `gatelog-dev-secret-change-me` även när `NODE_ENV=production` (`server/src/auth.js:4-14`); bara en varning. Den som känner till repot kan förfalska token för valfri användare.
-- JWT i `localStorage` med 30 dagars livstid och ingen återkallelse; utloggning är bara klientsida. En XSS (eller en komprometterad beroendekedja) ger 30 dagars åtkomst.
-- Rate limit endast på `/api/auth`, in-memory och per IP. Check-ins, gilla, loungeskapande och fotouppladdning (5 MB per anrop) är obegränsade, vilket öppnar för spam och diskfyllnad. Utan `TRUST_PROXY` blir `req.ip` proxyns adress, så alla användare delar samma kvot bakom en reverse proxy.
-- Foton sparas som de laddas upp. Klienten skalar om (vilket tar bort EXIF), men ett direkt API-anrop kan spara bilder med GPS-koordinater som sedan serveras publikt.
-- Alla profiler, kartor och check-in-historik är publika utan val. För en app som loggar var och när någon reser är det en integritetsrisk (förföljelse, inbrottsrisk när man är bortrest) och GDPR-fråga. Ingen kontoradering eller dataexport.
-- `dangerouslySetInnerHTML` för sökutdrag (se D).
-- Lösenordspolicy: bara minst 8 tecken, ingen kontroll mot läckta lösenord.
-- Användarnamnsuppräkning via 409 vid registrering (acceptabelt, men bör vara medvetet).
+- **Ingen integritet för resemönster.** Alla profiler, kartor, check-ins med datum, vänners besök på hemmaflygplatsen (`home_visit`-notiser) och flöden är publika. Det finns ingen privat profil, ingen fördröjning ("visa check-ins först efter 24 h") och inget val för vem som får följa. En app som visar var och när någon är bortrest behöver detta innan lansering. Det är också en GDPR-fråga om dataminimering och inbyggt dataskydd.
+- **Ingen blockering eller rapportering** av användare och kommentarer, nu när kommentarer och följningar finns.
+- **Kvarvarande tokenrisk.** JWT ligger kvar i `localStorage` med 30 dagars livstid (`server/src/auth.js:5`, `client/src/lib/api.js:12-26`). Det finns ingen server-side återkallelse, så utloggning, kontoradering eller stöld av token kan inte ogiltigförklara andra sessioner. Lösenordsbyte saknas helt.
+- **Rate limit i minnet** (se E). Bakom proxy krävs `TRUST_PROXY`, vilket är dokumenterat.
+- **Lösenordspolicyn** är fortfarande bara minst 8 tecken, utan kontroll mot läckta lösenord.
 
 **Åtgärder för 9+**
-1. Vägra starta utan `JWT_SECRET` när `NODE_ENV=production`. Ägare: Backend.
-2. Kortlivad access-token (15 min) + refresh-token i `HttpOnly; Secure; SameSite=Strict`-cookie med rotation och server-side återkallelse; utloggning ogiltigförklarar. Ägare: Backend + Bygg.
-3. Generell rate limit per användare och IP på skrivande endpoints (t.ex. 60 check-ins/h, 20 foton/h) och daglig lagringskvot per användare; dokumentera `TRUST_PROXY`. Ägare: Backend.
-4. Ta bort metadata server-side (avkoda och koda om, eller strippa APP1/EXIF-segment) innan lagring. Ägare: Backend.
-5. Integritetsinställningar: privat profil, "dölj senaste 24 h/7 dagar", följare-endast; `DELETE /me` och `GET /me/export`. Ägare: Backend + Bygg.
-6. Säker rendering av snippets (D.3). Ägare: Backend + Bygg.
-7. `npm audit` i CI (installationen rapporterar sårbarheter i dev-beroenden). Ägare: Bygg.
+1. Integritetsinställningar: privat profil (följning kräver godkännande), "dölj check-ins de senaste 24 h / 7 dagarna", "visa inte min hemmaflygplats" och opt-in för `home_visit`-notiser. Standard: fördröjning för publikt flöde. Ägare: Backend + Bygg.
+2. Blockera och rapportera användare, kommentarer och check-ins, med enkel modereringskö. Ägare: Backend + Bygg.
+3. Sessionsmodell: kort access-token plus refresh-token i `HttpOnly; Secure; SameSite=Strict`-cookie, sessionstabell med återkallelse, "logga ut överallt", lösenordsbyte som ogiltigförklarar sessioner. Ägare: Backend + Bygg.
+4. Kontroll av lösenord mot läckta lösenord (k-anonymitet via HIBP-API eller lokal lista med vanliga lösenord). Ägare: Backend.
 
-## G. Projektstruktur och ordning - 6
-**Motivering.** Tydliga workspaces (`server/`, `client/`), bra kontraktsdokument i `docs/` med ägarskap per agent, en lockfil i roten, vettiga npm-scripts, byggfiler och databaser gitignorerade.
+## G. Projektstruktur och ordning - 8 (runda 1: 6)
+**Bättre.** README med snabbstart, kommandon, miljövariabler, struktur och licenstabell. `.env.example`, ESLint, Prettier och `.editorconfig`. CI-workflow med lint, test, bygge, audit och Playwright. Stilguiden ligger i `docs/`, och attribution finns i `server/data/ATTRIBUTION.md` och på `/about`.
 
 **Brister**
-- Ingen `README.md` i roten (hur man startar, seedar, testar, vilka miljövariabler som finns).
-- Ingen `.env.example`; miljövariablerna (`JWT_SECRET`, `DB_PATH`, `UPLOAD_DIR`, `PORT`, `STATIC_DIR`, `TRUST_PROXY`, `CORS_ORIGIN`, `AUTH_RATE_*`) är utspridda i koden och delvis i `docs/API.md`.
-- Ingen lint/format-konfiguration, ingen CI (GitHub Actions) som kör test, bygg och e2e.
-- `docs/API.md` är en versionslogg (v1, v1.1, v1.2, v1.3, "förtydliganden") snarare än en aktuell referens; man måste läsa allt för att veta vad som gäller.
-- `client/src/styles/styleguide.html` ligger bland källfilerna men byggs inte och refereras inte.
-- Datakällor kräver attribution: OpenFlights-data är ODbL; ingen attribution i appen eller i en `NOTICE`/README.
-- Ingen LICENSE.
-- Arbetskatalogen har ocommittade ändringar i `package.json`/`package-lock.json` (från test-agenten) när granskningen gjordes.
+- **`docs/API.md` är fortfarande en versionslogg.** Rubriken säger "(v1)", sedan följer v1.1, v1.2, v1.3, v2 och två omgångar "förtydliganden". Den som ska använda API:t måste läsa 350 rader och själv räkna ut vad som gäller (t.ex. att märkenas `icon` utgått och att `/leaderboard` ersatts).
+- **Ingen LICENSE** för själva projektet.
+- **Ingen `CHANGELOG.md`.** Historiken ligger i API.md och commitmeddelanden.
+- **`db.js` med 603 rader** (se E).
 
 **Åtgärder för 9+**
-1. `README.md` med snabbstart, scripts, miljövariabler, arkitekturbild och länkar till docs. Ägare: Bygg.
-2. `.env.example` + `server/src/config.js` som enda läsare av `process.env`. Ägare: Backend.
-3. CI-workflow: `npm ci`, lint, `npm test`, `npm run build`, `npm run test:e2e`, `npm audit --omit=dev`. Ägare: Bygg.
-4. Skriv om `docs/API.md` till en konsoliderad referens (eller OpenAPI-fil) och flytta historiken till `CHANGELOG.md`. Ägare: Backend.
-5. `NOTICE`/"Om"-sida med attribution (OurAirports, OpenFlights ODbL, Natural Earth/world-atlas). Ägare: Bygg.
-6. Flytta `styleguide.html` till `docs/` eller `client/styleguide/`. Ägare: Grafik.
+1. Konsolidera API.md till en aktuell referens per resurs (eller `openapi.yaml`) och flytta versionshistoriken till `CHANGELOG.md`. Ägare: Backend.
+2. Lägg till LICENSE (eller "All rights reserved" uttryckligen). Ägare: Bygg.
+3. Strukturera `server/src/db/` (se E.1). Ägare: Backend.
 
-## H. Tillgänglighet - 7
-**Motivering.** Ambitiöst grundarbete: `lang="sv"`, skip-link, landmärken, synlig fokus, korrekt ARIA-combobox med `aria-activedescendant`, `aria-pressed` på gilla/önskelista, tabs med `role="tablist"`, felmeddelanden kopplade med `aria-describedby`, `prefers-reduced-motion`, en tabellvy som alternativ till kartan, 48 px träffytor via `::after`. axe hittar inga fel på `/u/oliver`, `/search`, `/explore`.
+## H. Tillgänglighet - 8 (runda 1: 7)
+**Bättre.**
+- axe hittar inga allvarliga fel på 9 av 12 sidor i ljust tema. Avatarkontrasten, transfer-chippet och kartlegenden är rättade.
+- Stjärnorna är radioknappar i en `fieldset`, så nästlade interaktiva element är borta.
+- Logisk fokusordning: skip-link, logo, notiser, inställningar, flikar, kort.
+- Flikraderna får plats, och notisknappen har `aria-label`.
 
 **Brister (axe-core 4.10, WCAG 2.2 AA)**
-- `color-contrast` (allvarligt): vit text på avatarer med vissa `--hue` (flöde 11 noder, topplistan, flygplatssidan), `.kind-chip--transfer` i ljust tema, kartlegendens steg 1-3 (ljust) och 1-6 (mörkt).
-- `nested-interactive` (allvarligt): `.stars-input` på `/checkin` har interaktiva element i en interaktiv behållare.
-- Flikraderna klipps utan synlig scroll-indikator ("Önsk..." på profilen, "Användare" i sök, "Bäst betyg..." i topplistan), vilket döljer flikar för seende användare och vid 200 % zoom.
-- Kartan har inte tangentbordsnavigering mellan länder i SVG:n (tabellen kompenserar delvis).
-- Toast-meddelanden försvinner automatiskt; kontrollera att tiden räcker (WCAG 2.2.1) och att de inte är enda bekräftelsen.
+- `target-size` (2.5.8): IATA-taggen i flödeskortet är en länk under 24 px (`.checkin__head > .iata-tag`), i båda teman.
+- `color-contrast`: `.streak__unit` i ljust tema (`styles/gamification.css:237`, `opacity: .9` på färgad bakgrund) och `.btn--ghost` på Inställningar i mörkt tema.
+- Skärmläsare: notislistan har ingen tydlig skillnad mellan läst och oläst utöver visuell stil. Kontrollera att räknaren i klockan läses upp ("10 olästa notiser").
 
 **Åtgärder för 9+**
-1. Avatarer: beräkna text-/bakgrundsfärg så att kontrasten blir minst 4,5:1 (mörkare bakgrund via fast låg lightness, t.ex. `hsl(var(--hue) 45% 32%)`). Ägare: Grafik.
-2. `.kind-chip--transfer` och kartlegendens färger: justera mot 3:1 för grafiska objekt och 4,5:1 för text. Ägare: Grafik.
-3. `StarsInput`: en `radiogroup` med `radio`-knappar (halva steg som egna radioval eller ett `input type=range` med tangentbord), ingen nästling. Ägare: Bygg.
-4. Flikrader: fade-kant + scroll-snap eller "Mer"-meny; aktiv flik scrollas in i vy. Ägare: Grafik + Bygg.
-5. Lägg in axe i e2e-sviten så att regressioner fångas. Ägare: Bygg (i samarbete med test-agenten).
+1. Ge IATA-taggen i kortet en träffyta på minst 24x24 px (eller ta bort den som separat länk, eftersom flygplatsnamnet redan är länk). Ägare: Grafik.
+2. Kontrast: ta bort `opacity` på `.streak__unit` och justera `.btn--ghost` i mörkt tema. Ägare: Grafik.
+3. Notiser: `aria-label` med "oläst" per rad och räknaren i klockans etikett. Lägg till axe-kontroll i e2e för båda teman. Ägare: Bygg.
 
-## I. Funktionsomfång jämfört med konkurrenterna - 5
-**Motivering.** Kärnan finns och är djupare än i många nischappar: check-in med totalbetyg och sex delbetyg, typ av besök, flygbolag, klass, flightnummer, lounge med betyg, upp till 4 foton från kameran, flygplats-, lounge-, lands- och kategoritopplistor, fulltextsök i recensioner med filter, önskelista, 14 märken, täckningskartor per land och region. Det som definierar kategoriledarna saknas däremot.
+## I. Funktionsomfång jämfört med konkurrenterna - 7 (runda 1: 5)
 
-| Funktion | Untappd | Swarm | Letterboxd | Flighty / App in the Air | Gatelog |
+| Funktion | Untappd | Swarm | Letterboxd | Flighty / App in the Air | Gatelog runda 2 |
 |---|---|---|---|---|---|
-| Snabb check-in (nära mig/skanna) | Ja (sök, streckkod) | Ja, geolokalisering | - | Automatisk från bokning | Nej |
-| Följa vänner, vänflöde | Ja | Ja | Ja | Dela flyg | Nej |
-| Kommentarer på inlägg | Ja | Ja | Ja | - | Nej |
-| Notiser | Ja | Ja | Ja | Ja | Nej |
-| Märken med nivåer/säsong | Ja | Stickers | - | Achievements | 14 fasta |
-| Streaks | - | Ja | - | - | Nej |
-| Topplistor med tidsperiod/vänner | Ja | Veckovis bland vänner | - | - | Nej, bara globalt totalt |
-| Årsöversikt / statistikkort att dela | Ja | Ja | Ja | Ja | Nej |
+| Snabb check-in (nära mig) | Sök, streckkod | Ja | - | Automatisk från bokning | **Ja, 3 tryck** |
+| Följa, vänflöde | Ja | Ja | Ja | Dela flyg | **Ja** |
+| Kommentarer | Ja | Ja | Ja | - | **Ja** |
+| Notiser | Push | Push | Push | Push | In-app (polling), ingen push |
+| Märken med nivåer | Ja, hundratals | Stickers | - | Achievements | **18 x 4 nivåer** |
+| Streaks | - | Ja | - | - | **Veckostreak** |
+| Topplista per period och bland vänner | Ja | Veckovis bland vänner | - | - | **Ja** |
+| Redigera inlägg | Ja | Ja | Ja | Ja | **Ja** |
+| Årsöversikt / delbart statistikkort | Ja | Ja | Ja | Ja | API finns (`/card`, `card.svg`), **inget UI** |
 | Import av historik | - | - | CSV | E-post, kalender, CSV | Nej |
-| Rutter/flyglinjer på karta | - | Karta | - | Ja | Nej, bara länder |
-| Listor (egna samlingar) | Ja | Listor | Ja | - | Endast önskelista |
-| Redigera inlägg | Ja | Ja | Ja | Ja | Nej |
-
-**Åtgärder för 9+** (detaljer under B, J, K, L)
-1. Socialt lager: följa, vänflöde, kommentarer, notiser (L). Ägare: Backend + Bygg.
-2. Import: CSV från Flighty/App in the Air/OpenFlights, samt "lägg till tidigare resor" i bulk. Ägare: Backend + Bygg.
-3. Flygningar som entitet (från-till, bolag, flightnummer) och rutter på kartan, "Passport"-statistik (km, timmar i luften, mest besökta, längsta flygning). Ägare: Backend + Bygg + Grafik.
-4. Årsöversikt och delbara statistikkort (bild via canvas, Web Share API). Ägare: Bygg + Grafik.
-5. Egna listor ("Bästa transferflygplatser", "Lounger med dusch"). Ägare: Backend + Bygg.
-6. Engelsk översättning (i18n) för internationell publik. Ägare: Bygg.
-
-## J. Gamification-känsla - 5
-**Motivering.** Grunden är bra gjord: märkena är snyggt illustrerade emaljnålar med brons/silver/guld, upplåsning visas direkt efter check-in med strålar och studs (`flow-after-checkin.png`), låsta märken har förloppsmätare, och täckningskartan i procent är i sig en stark motor ("0,2 % av världens flygplatser"). Men systemet är grunt: 14 märken tar slut snabbt för en frekvent resenär, och det finns ingen löpande belöning mellan märkena.
-
-**Jämförelse.** Untappd har tusentals märken med nivåer (Level 1-100), säsongs- och evenemangsmärken, och visar "nivåkort" vid nästan varje check-in. Swarm har stickers som samlas, streaks (dagar/veckor i rad), mayorships bland vänner och en veckotopplista som nollställs. Flighty och App in the Air ger livstidsstatistik som känns som belöning.
-
-**Brister**
-- Inga nivåer på märken (t.ex. "Transferkung nivå 1-10"), inga säsongs- eller tidsbegränsade märken, inga sällsynthetsmått ("3 % av resenärerna har detta").
-- Inga streaks, ingen XP/nivå för användaren, ingen "nästa mål"-ruta efter check-in.
-- Ingen belöning när man inte låser upp ett märke; check-in slutar bara med en toast.
-- Märken kan inte delas, och man ser inte vänners märken i flödet.
-- Märkesdefinitionerna är hårdkodade i `server/src/badges.js:7-22`, så nya märken kräver deploy.
-- `earnedAt` = besöksdatum gör att bakdaterade check-ins kan ge märken som ser gamla ut.
-- Inga märken kopplade till appens unika data: lounger per allians, flygbolag (t.ex. "Star Alliance-samlare"), regioner ("Alla län i Sverige"), kontinentscoverage, "nattflyg", "flygplatskod-alfabetet A-Z".
+| Rutter/flyglinjer på karta | - | Karta | - | Ja | Nej |
+| Egna listor | Ja | Listor | Ja | - | Endast önskelista |
+| Engelska | Ja | Ja | Ja | Ja | Nej |
 
 **Åtgärder för 9+**
-1. Märken med nivåer (1-10) där tröskeln stiger; nivåkort vid varje check-in som flyttar en mätare. Ägare: Backend (definitioner + progress) + Grafik (nivåramar) + Bygg.
-2. Användarnivå/XP baserad på unika flygplatser, länder, recensioner och foton, synlig på profil och i flöde. Ägare: Backend + Bygg + Grafik.
-3. Streaks som passar resor: "månader i rad med minst en ny flygplats", "år i rad". Ägare: Backend + Bygg.
-4. Minst 40 märken vid lansering inkl. region (alla län/delstater), allians, flygbolag, IATA-alfabet, säsong och "första i appen att checka in på X". Märkesdefinitioner i datatabell. Ägare: Backend + Grafik.
-5. Sällsynthet ("12 % har detta") och "Nära att låsa upp" på profilen. Ägare: Backend + Bygg.
-6. Delbart märkeskort (PNG via canvas + Web Share). Ägare: Bygg + Grafik.
-7. Kvittovy efter check-in med framsteg (B.4). Ägare: Bygg.
+1. Årsöversikt i appen ("Ditt 2026") byggd på `/card`, med delning av `card.svg` som bild. Ägare: Bygg + Grafik.
+2. Import: CSV från Flighty, App in the Air, OpenFlights och myFlightradar24, plus "lägg till tidigare resor" i bulk. Ägare: Backend + Bygg.
+3. Flygningar som par (från-till via "Lägg till anslutning") och rutter på kartan, med "Passport"-statistik (km, längsta flygning). Ägare: Backend + Bygg + Grafik.
+4. Web Push (se L). Ägare: Backend + Bygg.
+5. Egna listor och i18n (engelska). Ägare: Backend + Bygg.
 
-## K. Topplistor - 4
-**Motivering.** Det finns tre resenärsmått (flygplatser, länder, check-ins), bäst betygsatta flygplatser med kategori-, lands-, kontinent- och storleksfilter, och lounge-topplista. Korrekt `RANK()` vid lika värden. Men topplistorna motiverar inte att klättra.
+## J. Gamification-känsla - 7 (runda 1: 5)
+**Bättre.**
+- XP med nivåer och titlar ("Nivå 7 - Pendlare").
+- Veckostreak.
+- 18 märken i fyra nivåer (brons till platina) med nya, appspecifika märken: IATA-alfabetet, svenska län, hubbar, främre kabinen, flygbolag.
+- Sällsynthet i procent.
+- Sammanfattningsskärm med "+10 XP", nivåmätare, streak och milstolpar.
+- Märkesnotiser och nivå i UserSummary, så att nivån syns i topplistan.
 
-**Brister**
-- Endast global, all-time. Inga tidsperioder (vecka, månad, år) och ingen vänlista. Swarm visar veckotopplista bland vänner, det är det som får folk att återkomma.
-- Ingen "din placering" om man ligger utanför topp 50 (`users.js:277-287` returnerar bara toppen). Inga pilar för förändring sedan förra perioden.
-- Inga filter per land/hemmaflygplats ("bäst i Sverige", "flest GOT-besök").
-- Bäst betygsatta flygplatser använder rått medelvärde med `minRatings=1` (`users.js:290-291`): en flygplats med ett enda 5,0-betyg toppar listan före en med hundra 4,8. Behöver Bayesianskt medelvärde eller högre standardtröskel.
-- På mobil nås topplistan bara via Utforska > Resenärer (`Layout.jsx:17`, `desktopOnly`).
-- Visuellt: blå understrukna namn och rankbrickor med linje genom siffran (`vp-m-light-leaderboard.png`); ingen pallplats-presentation för topp 3.
-- Mått saknas: "% av världen", "kontinenter", "lounger recenserade", "km flugna".
-
-**Åtgärder för 9+**
-1. `GET /api/leaderboard?period=week|month|year|all&scope=global|friends|country:SE&metric=...` med `me: {rank, value}` även utanför listan och `delta` mot förra perioden. Ägare: Backend.
-2. Flikar Vänner / Sverige / Världen och periodväljare; egen rad markerad och fastnålad i botten. Ägare: Bygg + Grafik.
-3. Bayesianskt medelvärde (t.ex. `(C*m + sum) / (C + n)`) för flygplats- och loungerankning, visa antal betyg tydligt. Ägare: Backend.
-4. Pall för topp 3, förändringspilar, inga understrukna namn. Ägare: Grafik.
-5. Fler mått: % av världen, kontinenter, recensioner, foton. Ägare: Backend.
-6. Gör topplistan nåbar med ett tryck på mobil (se M). Ägare: Bygg.
-
-## L. Socialt samspel - 2
-**Motivering.** Det enda sociala är gilla på check-ins och ett globalt flöde av alla användare. Det finns ingen relation mellan användare: inga vänner/följare, inga kommentarer, inga notiser (man får aldrig veta att någon gillat ens check-in), ingen delning, ingen "skål"-känsla. Untappd, Letterboxd och Swarm är i grunden sociala nätverk; utan detta lager blir Gatelog en personlig logg med publik data.
+Detta är i nivå med Swarm och nära Untappd i struktur.
 
 **Brister**
-- Ingen följ-modell (inga tabeller eller endpoints).
-- Flödet "Alla" blir oanvändbart så fort det finns fler än en handfull användare; "Mina" visar bara egna.
-- Inga kommentarer på check-ins eller recensioner, inga @-omnämnanden, ingen "jag var också här".
-- Inga notiser (in-app eller Web Push, som Android-PWA stöder fullt ut).
-- Ingen delning (Web Share API, delbar URL med Open Graph-bild).
-- Ingen "vänner som besökt den här flygplatsen" på flygplatssidan, ingen "ni var på samma flygplats samma dag".
-- Ingen moderering/rapportering av olämpligt innehåll, vilket krävs innan socialt lager släpps.
+- **För lätta brons- och silvertrösklar.** Demoanvändaren med 10 flygplatser och 14 check-ins har 15 av 18 märken upplåsta, varav Nordisk resenär i platina (`vp-m-light-profile-badges.png`). Efter några veckor finns inget nytt att låsa upp, bara högre nivåer av samma märken. Untappd har hundratals märken och nya varje månad.
+- **Inga säsongs- eller tidsbegränsade märken** och inga utmaningar ("Checka in på 3 nya flygplatser i november").
+- **Märken kan inte delas** som bild. Märkesupplåsningen på sammanfattningsskärmen är en lista, inte ett ögonblick som i runda 1:s strålande modal.
+- **Streaken är veckobaserad**, vilket passar resor. Men "0 veckor i rad" exponeras för de flesta användare (de flesta flyger inte varje vecka), och det finns ingen streak-frys eller månadsstreak som alternativ.
+- **Ingen visuell belöning för nivåhöjning** utöver text.
 
 **Åtgärder för 9+**
-1. Följ-modell: `follows(follower_id, followee_id)`, `POST/DELETE /api/users/:u/follow`, följare/följer-listor, valfritt godkännande vid privat profil. Ägare: Backend + Bygg.
-2. Flöde med flikar Vänner (standard) / Alla / Mina; `GET /api/feed?scope=friends`. Ägare: Backend + Bygg.
-3. Kommentarer på check-ins (`comments`-tabell, FTS-indexerade), gilla/"skål" med valbar reaktion. Ägare: Backend + Bygg + Grafik.
-4. Notiser: tabell + `GET /api/notifications`, badge på profilikonen, Web Push via service worker för gilla, kommentar, ny följare, vän checkade in på din hemmaflygplats. Ägare: Backend + Bygg.
-5. Delning: Web Share API för check-in, märken och kartstatistik; server-renderad OG-bild per check-in. Ägare: Bygg + Grafik + Backend.
-6. "Vänner som varit här" och "träffade X på CPH samma dag" på flygplatssidan. Ägare: Backend + Bygg.
-7. Rapportera/blockera användare och innehåll. Ägare: Backend + Bygg.
+1. Höj trösklarna (t.ex. nordic 3/4/5 utan platina vid 5 länder, continents 3/4/5/6) och lägg märkesdefinitioner i en datatabell. Släpp minst 10 nya märken per kvartal, inklusive säsong ("Julresenär"), evenemang och flygplatsspecifika märken ("Changi-pilgrim"). Ägare: Backend + Grafik.
+2. Månadsutmaningar med egen progress på profilen och i sammanfattningen. Ägare: Backend + Bygg + Grafik.
+3. Helskärmsögonblick vid nytt märke eller ny nivå (som runda 1:s modal) med "Dela" som genererar bild. Ägare: Bygg + Grafik.
+4. Streak: visa bara när den är större än 0. Lägg till "månader i rad" som sekundär streak och en frys per kvartal. Ägare: Backend + Bygg.
 
-## M. Enkelhet att navigera - 6
-**Motivering.** Bottennavigering med fem tydliga mål och en framhävd "Checka in" i mitten följer Android-konventioner; aktiv flik markeras; djuplänkar fungerar (`/airport/GOT`, `/u/oliver/map/SE`); scroll till toppen vid sidbyte; tillbaka-knappen fungerar som väntat. Men informationsarkitekturen har överlapp och dolda vägar.
+## K. Topplistor - 7 (runda 1: 4)
+**Bättre.**
+- Sex mått: flygplatser, länder, kontinenter, check-ins, recensioner och XP.
+- Perioderna vecka, månad, år och alltid. Vecka är standard, som Swarm.
+- Scope Världen, Vänner och Land.
+- Egen placering via `me` och `around`, och förändring mot förra perioden.
+- Bayesianskt snitt för flygplats- och loungerankning.
+- Topplistor finns i mobilmenyn.
 
 **Brister**
-- Sök och Utforska överlappar (båda listar flygplatser, lounger, topplistor), och på desktop finns två sökfält (toppfältet och söksidan).
-- Utforska har kartnål-ikon (`IconMapPin`) men innehåller inte kartan; kartan nås bara via en flik på profilen som i själva verket navigerar bort (`ProfilePage.jsx:39,119`) och som ligger utanför synfältet i den klippta flikraden.
-- Topplistor saknas i mobilmenyn (`desktopOnly`), utloggning saknas helt på mobil.
-- Flikrader klipps utan indikation (profil, sök, topplista), så användare missar Önskelista, Karta och Användare.
-- Inga brödsmulor eller tillbaka-knapp i sidhuvudet på djupa sidor (lounge, land, toppkategori); i installerad PWA utan webbläsarens UI är det enda vägen tillbaka Androids systemgest.
-- Inget sätt att nå sina egna inställningar (tema, integritet, konto) eftersom ingen inställningssida finns.
+- **Ingen egen rad när jag saknar värde.** Veckolistan visar bara de som har check-ins. Då försvinner motivationen att klättra (`vp-m-light-leaderboard.png`, där bara en person syns).
+- **Ingen pall för topp 3.** Rankbrickorna ser likadana ut som i runda 1 och förändringen visas som ett ensamt "-".
+- **Ingen notis när en vän går om mig** ("Anna gick om dig på veckans topplista"). Det är Swarms starkaste återkomstmotor.
+- **Inga flygplatsspecifika listor** för användare ("Flest besök på GOT", Swarms mayorship-motsvarighet). Hemmaplan-märket finns, men ingen tävling om den.
+- **Två flikrader och två segmentväljare staplas** (mått, period, scope) och tar halva skärmen innan första raden.
 
 **Åtgärder för 9+**
-1. Renodla menyn: Flöde, Utforska (sök + kategorier + topplistor i ett), Checka in, Karta (egen flik, egen ikon), Profil. Toppfältets sök blir genväg till Utforska. Ägare: Bygg + Grafik.
-2. Inställningssida från profilen (kugghjul): konto, integritet, tema ljust/mörkt/system, logga ut. Ägare: Bygg.
-3. Sidhuvud med tillbaka-pil på alla undersidor i standalone-läge (`display-mode: standalone`). Ägare: Bygg + Grafik.
-4. Flikrader med scrollindikator och aktiv flik i vy; byt profilens "Karta"-flik mot en riktig flik eller en tydlig knapp. Ägare: Grafik + Bygg.
-5. Manifest-genvägar (`shortcuts`) för "Checka in" och "Min karta" så att långt tryck på ikonen på Android går direkt dit. Ägare: Bygg.
+1. Visa alltid min rad ("Du - 0 flygplatser denna vecka - checka in för att komma med"). Ägare: Bygg.
+2. Pall för topp 3 och förändringspilar med färg (upp grön, ner röd, ny "NY"). Ägare: Grafik.
+3. Notis `overtaken` för vänlistan per vecka (högst en per vecka och vän). Ägare: Backend + Bygg.
+4. "Flygplatsens stammisar": topplista per flygplats på flygplatssidan med "Borgmästare"-titel. Ägare: Backend + Bygg + Grafik.
+5. Kompaktare filter: mått som rullgardin, period och scope på en rad. Ägare: Grafik + Bygg.
+
+## L. Socialt samspel - 6 (runda 1: 2)
+**Bättre.**
+- Följa och avfölja med följarlistor och "Följer dig"-märkning.
+- Vänflöde som standard.
+- Kommentarer med redigering och borttagning, där ägaren av check-in:en kan ta bort andras kommentarer.
+- Notiser för följning, kommentar, gilla, märke och vän på hemmaflygplatsen.
+- Delning via Web Share.
+- "Vänner som varit här" på flygplatssidan (`friendsVisited`).
+
+Grunden för ett socialt nätverk finns nu.
+
+**Brister**
+- **Ingen push.** Notiser syns bara när appen är öppen (polling var 60:e sekund). Utan push uteblir återkomsten som Untappd och Swarm bygger på.
+- **Ingen blockering, rapportering eller moderering** (se F).
+- **Inget sätt att hitta vänner.** Inga förslag ("personer som besökt samma flygplatser"), ingen inbjudningslänk och ingen kontaktimport. Sök på användarnamn finns, men flödet är tomt för nya användare.
+- **Inga @-omnämnanden och ingen "jag var också här".** Inget "ni var på CPH samma dag".
+- **Kommentarer bara på check-ins**, inte på loungerecensioner.
+- **Delningen saknar förhandsvisning.** Delade länkar ger ingen Open Graph-bild, eftersom SPA:n saknar meta per route, trots att `card.svg` finns.
+- **Notiserna saknar avatarer och gruppering** (se A och B).
+
+**Åtgärder för 9+**
+1. Web Push via service worker (VAPID, `push_subscriptions`-tabell, inställningar per notistyp). Ägare: Backend + Bygg.
+2. Blockera och rapportera (F.2). Ägare: Backend + Bygg.
+3. Vänförslag (gemensamma flygplatser, vänners vänner), inbjudningslänk med `?ref=` och tomt vänflöde som visar förslag. Ägare: Backend + Bygg + Grafik.
+4. @-omnämnanden i kommentarer med notis, och "samma flygplats samma dag"-notis (opt-in). Ägare: Backend + Bygg.
+5. Server-renderade OG-taggar för `/c/:id`, `/u/:username` och `/airport/:iata` (enkel HTML-mall i Express som pekar på `card.svg` eller en check-in-bild). Ägare: Backend + Grafik.
+
+## M. Enkelhet att navigera - 8 (runda 1: 6)
+**Bättre.**
+- Bottenmenyn är renodlad: Flöde, Sök, en central Checka in-knapp (FAB), Topplistor och Profil.
+- Notiser och inställningar ligger i toppfältet på alla sidor.
+- Tillbaka-pil på undersidor.
+- Kartan är en synlig profilflik, och flikraderna får plats.
+- Desktop har sidopanel med genvägar till "Min karta" och "Topplista vänner".
+
+**Brister**
+- **Tillbaka-pilen visas på rotflikar** (Profil, Utforska) där den inte hör hemma (`components/Layout.jsx:35-44` avgör bara på historikindex).
+- **Sök, Utforska och Topplistor överlappar fortfarande.** Utforska ligger under Sök men har ett eget avsnitt "Topplistor" som dubblerar menyfliken (`vp-m-light-explore.png`). På desktop finns sökfält, "Sök" och "Utforska" samtidigt i toppfältet.
+- **Kartan, appens tydligaste "Untappd-för-flygplatser"-yta, kräver Profil -> Karta -> "Stor karta".**
+- **Manifestet saknar `shortcuts`.** Långt tryck på ikonen ger inte "Checka in" eller "Min karta". `screenshots` saknas också, så Chrome visar inte det rikare installationsfönstret.
+
+**Åtgärder för 9+**
+1. Visa tillbaka-pilen bara på rutter som inte är rotflikar. Ägare: Bygg.
+2. Slå ihop Sök och Utforska till en vy (sökfält överst, kategorier under). Ta bort Topplistor-avsnittet där, och ta bort den dubbla sökvägen på desktop. Ägare: Bygg + Grafik.
+3. Gör kartan till en direktlänk från profilhuvudet ("0,2 % av världen" som klickbar statistik) och från sidopanelen. Ägare: Bygg.
+4. Manifest: `shortcuts` (Checka in, Min karta, Notiser), `screenshots` (mobil och desktop) och `id`. Ägare: Bygg + Grafik.
 
 ---
 
 ## Sammanställd åtgärdslista per ägare (prioritetsordning)
 
 **Backend**
-1. Vägra starta utan `JWT_SECRET` i produktion (F.1).
-2. Statistiktabeller för flygplatser och användare; inkrementella märken; lasttest med budget (C.1-C.4).
-3. Följ-modell, vänflöde, kommentarer, notiser, rapportering (L.1-L.4, L.7).
-4. Leaderboard med period, vänner, land, egen placering och delta; Bayesianskt medelvärde (K.1, K.3, K.5).
-5. `GET /api/airports/nearby`, `PATCH /checkins/:id`, ändra/radera loungerecension, `DELETE /me`, export (B.1, B.3, F.5).
-6. Rate limit på skrivande endpoints, lagringskvot, EXIF-strippning (F.3, F.4).
-7. Märkesnivåer, XP, streaks, märkesdefinitioner som data (J.1-J.5).
-8. Versionerade migreringar, `config.js`, strukturerad loggning, repo-lager (E.2, E.4, E.5, G.2).
-9. Snippets som segment i stället för HTML; konsoliderad API-referens (D.3, G.4).
+1. Integritet: privat profil, fördröjd synlighet, opt-in för `home_visit` (F.1).
+2. Blockera och rapportera, modereringskö (F.2, L.2).
+3. Web Push och sessionsmodell med återkallelse och lösenordsbyte (L.1, F.3).
+4. Gruppera notiser och skapa notisen `overtaken` (B.3, E.3, K.3).
+5. Märkeströsklar och märkesdefinitioner som data, månadsutmaningar, flygplatsstammisar (J.1, J.2, K.4).
+6. OG-taggar per route, import av historik, flygningar som par (L.5, I.2, I.3).
+7. Strikt enum-validering, `db.js` uppdelad, delbar rate limit och cache, konsoliderad API.md och CHANGELOG (E.1, E.2, E.4, G.1).
 
 **Grafik**
-1. Självhosta typsnitten (A.1).
-2. `.stat-row`, kompakt flödeskort, pall för topplistan, listor utan understrykning (A.2, A.3, A.6, K.4).
-3. Kontrast: avatarer, transfer-chip, kartlegend; tydligt steg 1 på kartan, kontur för mörka split-flap-brickor (A.4, A.5, H.1, H.2).
-4. Märkesnivåramar, delbara märkes- och statistikkort, OG-bildmall (J.1, J.6, I.4).
-5. Flikrader med scrollindikator, tillbaka-sidhuvud, ny kartikon i menyn (H.4, M.1, M.3).
+1. Snedstreckad nolla i brödtext (A.1).
+2. Kontrast och träffyta: `.streak__unit`, `.btn--ghost` i mörkt tema, IATA-taggen i kortet (H.1, H.2).
+3. Preload av typsnitt (C.2).
+4. Kompakt märkesvy, notisrader med avatar eller märkesbild, pall för topp 3, länkar utan understrykning (A.3-A.5, K.2).
+5. Ögonblick för nytt märke eller ny nivå, årsöversikt och delbara bilder, manifest-screenshots (J.3, I.1, M.4).
 
 **Bygg**
-1. Utloggning på mobil, token rensas bara vid 401 (kritiska fel 2 och 4).
-2. Snabb check-in (nära mig, senaste), klistrig knapp, kvittovy, redigera (B.1-B.5).
-3. Socialt lager i klienten: följ, vänflöde, kommentarer, notiser, Web Push, Web Share (L).
-4. Service worker: app-skal offline, förcachade chunks, offline-kö för check-in (C.5, C.6).
-5. Ny navigering, inställningssida, manifest-genvägar, `theme-color` för mörkt tema (M.1-M.5, A.7).
-6. ESLint/Prettier, Vitest, inline-stilar bort, riktad cache-invalidering, inga tysta `catch` (D.1-D.6).
-7. README, CI, NOTICE/attribution (G.1, G.3, G.5).
-8. `StarsInput` som radiogroup, axe i e2e (H.3, H.5).
+1. BUG-09, BUG-10 och BUG-11 inklusive felgräns. Förladdning först efter `load` med en perf-gräns i CI (B.1, C.3, D.1).
+2. Interaktioner under 200 ms: cachat innehåll direkt, `startTransition` och memo (C.1).
+3. Betygsfråga på sammanfattningsskärmen, egen rad i topplistan, streak dold vid 0 (B.2, B.4, A.6).
+4. Navigering: tillbaka-pil bara på undersidor, Sök och Utforska sammanslagna, kartan direkt från profilen, manifest-shortcuts (M.1-M.4).
+5. Världskarta med zoom till besökta länder och flygplatsprickar (A.2).
+6. Fler klienttester (offlinekö, check-in-formulär), JSDoc-typer, märkes-SVG utan stor chunk (D.2-D.4).
+7. Klientdelen av integritet, blockering, Web Push, vänförslag och årsöversikt (F.1, L.1-L.4, I.1).
 
 ## Källor (konkurrentjämförelse)
 - [Untappd: All About Untappd Badges](https://lounge.untappd.com/everything-you-need-to-know-about-untappd-badges)
 - [Untappd: Hide Badge Level Cards on Check-in](https://help.untappd.com/hc/en-us/articles/360034490631-How-Can-I-Hide-Badge-Level-Cards-on-Check-in)
-- [Untappd: Best Practices](https://help.untappd.com/hc/en-us/articles/360034119811-Best-Practices-to-get-the-Most-Value-out-of-Untappd)
 - [Flighty: Passport](https://flighty.com/help/passport)
 - [9to5Mac: Flighty Year in Review](https://9to5mac.com/2023/12/12/flighty-year-in-review-features/)
 - [Engadget: Swarm 4.0 lifelog](https://www.engadget.com/2016-03-24-swarm-4-0.html)
