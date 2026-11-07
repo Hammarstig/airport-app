@@ -1,0 +1,187 @@
+/* Gatelog - check-in-flödet: snabbval, vald flygplats, hopfällbara sektioner, fast skicka-knapp,
+   rund Checka in-knapp i bottom-nav, vänner som varit här. (Flyttat från client/src/extras.css.) */
+
+/* ---------- Snabbval (närmast / senaste) ---------- */
+.quick-pick__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink-2);
+}
+.quick-pick__title svg { color: var(--signal-text); }
+.quick-pick__list { display: grid; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+@media (min-width: 640px) { .quick-pick__list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.quick-pick__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 60px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease), transform 80ms var(--ease);
+}
+.quick-pick__item::after {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border: solid var(--muted);
+  border-width: 2px 2px 0 0;
+  transform: rotate(45deg);
+}
+.quick-pick__item:hover { border-color: var(--signal); background: var(--surface-2); }
+.quick-pick__item:active { transform: scale(.99); }
+.quick-pick__item .iata-tag { font-size: 1.05rem; }
+.quick-pick__text { display: flex; flex-direction: column; min-width: 0; }
+.quick-pick__name { font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quick-pick__meta { font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Vald flygplats (boardingkortets huvud) ---------- */
+.selected-airport {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--hero-bg);
+  overflow: hidden;
+}
+.selected-airport::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, var(--signal) 0 18px, transparent 18px 28px);
+}
+.selected-airport .iata-tag--lg { font-size: 1.9rem; animation-duration: 420ms; }
+.selected-airport__text { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.3; }
+.selected-airport__text strong { font-family: var(--font-display); font-weight: 800; font-size: var(--fs-xl); line-height: 1.05; color: var(--ink); }
+.selected-airport__text .muted { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Hopfällbara sektioner (details/summary) ---------- */
+.disclosure-group {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+.disclosure { background: var(--surface); }
+.disclosure + .disclosure { border-top: 1px solid var(--line); }
+.disclosure-group > .disclosure { border-radius: 0; }
+:not(.disclosure-group) > .disclosure { border: 1px solid var(--line); border-radius: var(--r-md); }
+.disclosure__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 52px;
+  padding: 0 var(--sp-4);
+  cursor: pointer;
+  list-style: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.disclosure__summary::-webkit-details-marker { display: none; }
+.disclosure__summary:hover { background: var(--surface-2); }
+.disclosure__summary:focus-visible { outline-offset: -3px; }
+.disclosure__summary::after {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-left: var(--sp-2);
+  border: solid var(--muted);
+  border-width: 0 2px 2px 0;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform var(--dur) var(--ease);
+}
+.disclosure[open] > .disclosure__summary::after { transform: translateY(2px) rotate(-135deg); }
+.disclosure__title { font-weight: 700; color: var(--ink); }
+.disclosure__meta {
+  min-width: 0;
+  margin-left: auto;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.disclosure[open] > .disclosure__summary .disclosure__meta { visibility: hidden; }
+.disclosure__body { padding: var(--sp-1) var(--sp-4) var(--sp-4); }
+.disclosure[open] > .disclosure__body { animation: disclose 200ms var(--ease); }
+@keyframes disclose { from { opacity: 0; transform: translateY(-4px); } }
+.fieldset-plain { margin: 0; padding: 0; border: 0; min-width: 0; }
+.fieldset-plain > legend { padding: 0; }
+
+/* ---------- Fast skicka-knapp ovanför bottom-nav ---------- */
+.sticky-actions {
+  position: sticky;
+  bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+  margin: var(--sp-2) calc(var(--sp-4) * -1) 0;
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  background: linear-gradient(to top, var(--bg) 72%, color-mix(in srgb, var(--bg) 0%, transparent));
+}
+.sticky-actions .btn--primary { min-height: 52px; font-size: var(--fs-lg); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .18), var(--shadow-2); }
+@media (min-width: 768px) {
+  .sticky-actions { bottom: 0; margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+}
+
+/* ---------- Bottom-nav: rund Checka in-knapp i mitten ---------- */
+.bottom-nav__item--fab { color: var(--ink-2); }
+.bottom-nav__item--fab svg {
+  box-sizing: content-box;
+  width: 26px;
+  height: 26px;
+  padding: 11px;
+  margin-top: -22px;
+  border-radius: 50%;
+  background: var(--signal);
+  color: var(--signal-ink);
+  stroke-width: 2.25;
+  box-shadow: 0 0 0 4px var(--bg), 0 8px 18px -6px rgba(20, 38, 60, .45);
+  transition: transform 120ms var(--ease);
+}
+.bottom-nav__item--fab:active svg { transform: scale(.94); }
+.bottom-nav__item--fab.bottom-nav__item--active { color: var(--ink); }
+.bottom-nav__item--fab.bottom-nav__item--active svg { color: var(--signal-ink); box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px var(--signal), 0 8px 18px -6px rgba(20, 38, 60, .45); }
+.bottom-nav__item--fab.bottom-nav__item--active::before { display: none; }
+
+/* ---------- Flygplatssidan: vänner som varit här ---------- */
+.friends-visited {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+.avatar-stack { display: inline-flex; flex: none; }
+.avatar-stack .avatar { --avatar-size: 30px; box-shadow: 0 0 0 2px var(--surface); }
+.avatar-stack > * + * { margin-left: -8px; }
+.airport-hero .avatar-stack .avatar { box-shadow: 0 0 0 2px #EAF4FD; }
+
+/* ---------- Övrigt ---------- */
+.tabpanel { margin-top: var(--sp-4); }
+.search-hit__snippet { margin: var(--sp-2) 0 0; color: var(--ink-2); }
+.stat__rating { display: inline-flex; align-items: center; gap: 6px; }
+.stat__rating .stars { --star-size: .6em; }
+.mb-0 { margin-bottom: 0 !important; }
+.block { display: block; }

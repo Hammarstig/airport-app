@@ -100,6 +100,15 @@ Tillagt: `.stack--sm`, `.stack--lg`, `.row--between`, `.row--nowrap`, `.skip-lin
 - `.coverage-bar` - mätare, `--value` 0-100
 - `.map-toggle` - växel karta/lista, barn `<button aria-pressed>` (eller `.map-toggle__option` + `--active`)
 
+## Check-in-flödet (`flow.css`)
+- Snabbval: `.quick-pick` > `.quick-pick__title` (rubrik med ikon) + `.quick-pick__list` (ul, två kolumner från 640 px) > `li` > `.quick-pick__item` (knapp: `.iata-tag` + `.quick-pick__text` med `.quick-pick__name` och `.quick-pick__meta`; pil till höger ritas automatiskt).
+- `.selected-airport` (vald flygplats som boardingkortshuvud med landningsbanemarkering): `.iata-tag--lg` (skalas ned här) + `.selected-airport__text` (`<strong>` namn, `.muted` ort) + valfri "Byt"-knapp.
+- Hopfällbara sektioner: `.disclosure-group` (gemensam ram) > `details.disclosure` > `summary.disclosure__summary` (`.disclosure__title`, `.disclosure__meta` = sammanfattning som döljs när sektionen är öppen; chevron ritas automatiskt) + `.disclosure__body`. `.fieldset-plain` för fieldset utan ram.
+- `.sticky-actions` - skicka-knappen fastnar ovanför bottom-nav (botten på desktop) med toning mot bakgrunden.
+- `.bottom-nav__item--fab` - rund signalgul Checka in-knapp i mitten av bottom-nav (ikon 26-28 px), ring när aktiv.
+- Flygplatssidan: `.friends-visited` med `.avatar-stack` (överlappande avatarer 30 px). `.stat__rating` (siffra + stjärnor i en stat-cell).
+- Övrigt: `.tabpanel`, `.search-hit__snippet`, hjälpklasserna `.mb-0` och `.block`.
+
 ## Gamification (`gamification.css`)
 - Märkesnivåer: `.badge-card--bronze|--silver|--gold|--platinum` (ram, toppkant och ton), `.tier-chip` + `.tier--bronze|silver|gold|platinum` ("Nivå 7"). Nivån kommer direkt från API-fältet `tier` (`tierLevel` 1-4).
 - `.podium` > tre `.podium__place` (`--1`, `--2`, `--3`; visas 2-1-3, `--me` för egen plats) med `.podium__avatar` (innehåller `.avatar`), `.podium__name`, `.podium__value` (`<strong>` för siffran), `.podium__block` (pallsteget med placeringssiffran). Plats 4+ i en vanlig `.list` under.

@@ -606,11 +606,11 @@ a.iata-tag:hover { text-decoration: none; filter: brightness(1.15); }
 .list__item + .list__item { border-top: 1px solid var(--line); }
 a.list__item:hover, button.list__item:hover { background: var(--surface-2); text-decoration: none; }
 .list__item { text-decoration: none; }
-:is(.list, .result-row, .search-hit, .coverage-table, .podium, .comment, .tile) a:not(.btn) {
+:is(.list, .result-row, .search-hit, .coverage-table, .podium, .comment, .tile) a:not(.btn):not(.iata-tag) {
   color: inherit;
   text-decoration: none;
 }
-:is(.list, .result-row, .search-hit, .coverage-table, .podium, .comment, .tile) a:not(.btn):is(:hover, :focus-visible) {
+:is(.list, .result-row, .search-hit, .coverage-table, .podium, .comment, .tile) a:not(.btn):not(.iata-tag):is(:hover, :focus-visible) {
   text-decoration: underline;
   text-decoration-thickness: 1px;
 }
@@ -650,8 +650,8 @@ button.list__item { width: 100%; border: 0; background: transparent; text-align:
 .rank-delta--up::before { content: "\25B2"; font-size: .75em; }
 .rank-delta--down { color: var(--bad); }
 .rank-delta--down::before { content: "\25BC"; font-size: .75em; }
-.rank-delta--same { color: var(--muted); }
-.rank-delta--same::before { content: "\2013"; }
+.rank-delta--same { color: var(--muted); font-size: 0; }
+.rank-delta--same::before { content: "\2013"; font-size: var(--fs-xs); }
 .rank-delta--new { color: var(--signal-text); }
 
 /* Egen rad i topplistan, kan nålas fast i botten av listan */
