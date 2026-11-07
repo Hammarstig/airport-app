@@ -75,10 +75,11 @@ test.describe('konto', () => {
 
   test('utloggning på mobil (Android)', async ({ page, request }) => {
     test.skip(!isMobile(test.info()), 'gäller mobil');
-    test.fixme(true, 'BUG-02: utloggningsknappen finns bara i toppmenyn som är dold under 768 px');
     const u = await apiRegister(request);
     await useToken(page, u.token);
+    // Utloggning ligger under Inställningar (kugghjulet i toppfältet, synligt på mobil).
     await page.goto(`/u/${u.username}`);
+    await page.getByRole('link', { name: 'Inställningar' }).click();
     await page.getByRole('button', { name: 'Logga ut' }).click();
     expect(await page.evaluate(() => localStorage.getItem('gatelog.token'))).toBeNull();
   });

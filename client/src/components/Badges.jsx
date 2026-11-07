@@ -6,21 +6,13 @@ const ICONS = import.meta.glob(['../assets/badges/*.svg', '../assets/badges/tier
   import: 'default'
 });
 
-// API v2:s märkes-id -> grafikens bildnamn (bilderna ritades för v1:s id).
-const ASSET = {
-  checkins: 'first-checkin',
-  airports: 'airports-25',
-  countries: 'countries-15',
-  continents: 'all-continents'
-};
 export const TIER_LABEL = { bronze: 'Brons', silver: 'Silver', gold: 'Guld', platinum: 'Platina' };
 
 export function BadgeIcon({ badge, className }) {
-  const base = ASSET[badge.id] || badge.id;
+  // Nivåbild om den finns, annars grundbilden; saknas båda visas en generisk ikon i nivåramen (badge-card--<tier>).
   const url =
-    (badge.tier && ICONS[`../assets/badges/tiers/${base}--${badge.tier}.svg`]) ||
-    ICONS[`../assets/badges/tiers/${base}--bronze.svg`] ||
-    ICONS[`../assets/badges/${base}.svg`];
+    (badge.tier && ICONS[`../assets/badges/tiers/${badge.id}--${badge.tier}.svg`]) ||
+    ICONS[`../assets/badges/${badge.id}.svg`];
   return (
     <span className={className} aria-hidden="true">
       {url ? <img src={url} alt="" width={88} height={88} /> : <IconBadge size={88} />}

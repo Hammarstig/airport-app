@@ -49,7 +49,7 @@ test.describe('PWA', () => {
     expect(cacheNames.some((k) => k.startsWith('gatelog-shell-'))).toBe(true);
   });
 
-  test('offline visar offlinesidan och app-skalets filer finns i cachen', async ({ page, context }) => {
+  test('offline visar app-skalet från cachen och app-skalets filer finns i cachen (BUG-08)', async ({ page, context }) => {
     await page.goto('/');
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.reload();
@@ -63,22 +63,18 @@ test.describe('PWA', () => {
     expect(precached.some((p) => /^\/assets\/index-.*\.js$/.test(p))).toBe(true);
     await context.setOffline(true);
     await page.goto('/explore').catch(() => {});
-    await expect(page.getByRole('heading', { name: 'Du är offline' })).toBeVisible();
-    await expect(page).toHaveTitle(/Offline/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Utforska' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Du är offline' })).toBeVisible();
     await context.setOffline(false);
   });
 
-  test('offlinesidans "Försök igen" laddar om sidan', async ({ page, context }) => {
-    test.fixme(true, 'BUG-05: onclick="location.reload()" i offline.html blockeras av CSP (script-src \'self\')');
-    await page.goto('/');
-    await page.evaluate(() => navigator.serviceWorker.ready);
-    await page.reload();
-    await context.setOffline(true);
-    await page.goto('/explore').catch(() => {});
+  test('offlinesidans "Försök igen" laddar om sidan', async ({ page }) => {
+    // Offlinesidan visas bara om app-skalet saknas i cachen; testa knappen direkt på sidan.
+    await page.goto('/offline.html');
     await expect(page.getByRole('heading', { name: 'Du är offline' })).toBeVisible();
-    await context.setOffline(false);
+    const reloaded = page.waitForEvent('load');
     await page.getByRole('button', { name: 'Försök igen' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Utforska' })).toBeVisible();
+    await reloaded;
   });
 
   test('kamera-input finns för check-in-foto på Android', async ({ page, request }) => {

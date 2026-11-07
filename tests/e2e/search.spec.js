@@ -82,7 +82,6 @@ test.describe('flygplatssök', () => {
   });
 
   test('Enter direkt efter ny inmatning väljer inte en gammal träff', async ({ page }) => {
-    test.fixme(true, 'BUG-04: under debounce visas och kan väljas träffar för föregående sökord');
     await page.goto('/register');
     const input = page.getByRole('combobox', { name: 'Hemmaflygplats (valfritt)' });
     await input.fill('kastrup');
@@ -94,7 +93,6 @@ test.describe('flygplatssök', () => {
   });
 
   test('redigering efter val tömmer inte fältet', async ({ page }) => {
-    test.fixme(true, 'BUG-03: första tangenttrycket efter ett val nollställer hela fältet (Combobox.jsx)');
     await page.goto('/register');
     const input = page.getByRole('combobox', { name: 'Hemmaflygplats (valfritt)' });
     await input.fill('stock');

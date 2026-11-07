@@ -46,7 +46,7 @@ function WorldView({ username, scope }) {
         label="Täckning"
         items={[
           [pctText(data.totals.pct), 'av världens flygplatser'],
-          [`${data.totals.visited}/${data.totals.total}`, 'Flygplatser'],
+          [`${data.totals.visited} / ${data.totals.total}`, 'Besökta flygplatser'],
           [visitedCountries.length, 'Länder']
         ]}
       />
@@ -101,7 +101,7 @@ function CountryView({ username, code, scope }) {
         label="Täckning"
         items={[
           [pctText(c.pct), 'av landets flygplatser'],
-          [`${c.visited}/${c.total}`, 'Flygplatser']
+          [`${c.visited} / ${c.total}`, 'Besökta flygplatser']
         ]}
       />
       <CountryMap code={c.code} airports={data.airports || []} />
