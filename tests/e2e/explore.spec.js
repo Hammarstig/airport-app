@@ -26,13 +26,18 @@ test.describe('utforska och topplistor', () => {
 
   test('kategoritopplista: mat, byte till wifi och landsfilter', async ({ page }) => {
     await page.goto('/explore');
+    const foodRes = page.waitForResponse((r) => r.url().includes('/api/rankings/airports') && r.url().includes('category=food') && !r.url().includes('limit=3'));
     await page.getByRole('link', { name: 'Visa topplistan för Mat' }).click();
     await expect(page).toHaveURL(/\/top\/food$/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Bäst på mat/);
     const list = page.getByRole('list', { name: /Topplista/ });
     await expect(list.locator('.result-row').first()).toBeVisible();
-    const scores = (await list.locator('.rating-badge').allInnerTexts()).map((t) => Number(t.replace(',', '.')));
-    for (let i = 1; i < scores.length; i++) expect(scores[i]).toBeLessThanOrEqual(scores[i - 1]);
+    // v2: sorteras på viktat (Bayesianskt) snitt `score`, inte på det råa snittet som visas.
+    // Jämför med exakt det svar sidan fick (andra parallella tester kan ändra betygen under tiden).
+    const api = await (await foodRes).json();
+    for (let i = 1; i < api.length; i++) expect(api[i].score).toBeLessThanOrEqual(api[i - 1].score);
+    const shown = (await list.locator('.result-row .iata-tag').allInnerTexts()).map((t) => t.replace(/\s/g, ''));
+    expect(shown).toEqual(api.slice(0, shown.length).map((r) => r.airport.iata));
     await page.getByRole('navigation', { name: 'Kategorier' }).getByRole('link', { name: 'Wifi' }).click();
     await expect(page).toHaveURL(/\/top\/wifi/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Bäst på wifi/);
@@ -59,21 +64,22 @@ test.describe('utforska och topplistor', () => {
     await useToken(page, u.token);
     await page.goto('/lounge/1');
     await page.getByRole('button', { name: 'Recensera', exact: true }).click();
-    const slider = page.getByRole('slider', { name: /^Betyg för / });
-    await slider.focus();
-    for (let i = 0; i < 7; i++) await slider.press('ArrowRight');
+    const { setStars } = require('./helpers');
+    const groupName = (await page.locator('form[aria-label^="Recensera"] legend').innerText()).trim();
+    await setStars(page, groupName, 3.5);
     const comment = `Loungetest ${u.username}`;
     await page.getByLabel('Kommentar (valfritt)').fill(comment);
     await page.getByRole('button', { name: 'Skicka recension' }).click();
     await expect(page.getByText(comment)).toBeVisible();
   });
 
-  test('topplista resenärer visar demoanvändare', async ({ page }) => {
-    await page.goto('/leaderboard');
-    await expect(page.getByRole('tab', { name: 'Flygplatser' })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('.list__item').first()).toContainText('Oliver H');
-    await page.getByRole('tab', { name: 'Länder' }).click();
-    await expect(page.locator('.list__item').first()).toBeVisible();
+  test('topplista: flikarna Resenärer och Flygplatser', async ({ page }) => {
+    await page.goto('/leaderboard?period=all');
+    await expect(page.getByRole('tab', { name: 'Resenärer' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('list', { name: 'Topp 3' }).locator('li').first()).toContainText('Oliver H');
+    await page.getByRole('tab', { name: 'Flygplatser' }).click();
+    await expect(page).toHaveURL(/tab=airports/);
+    await expect(page.locator('.result-row').first()).toBeVisible();
   });
 
   test('topplistan är nåbar från mobilmenyn', async ({ page }) => {
@@ -87,10 +93,16 @@ test.describe('utforska och topplistor', () => {
 test.describe('märken', () => {
   test('profilens märkesflik visar upplåsta och låsta märken', async ({ page }) => {
     await page.goto('/u/oliver?tab=badges');
-    await expect(page.getByText(/\d+ av 14 märken upplåsta/)).toBeVisible();
-    await expect(page.locator('.badge-card')).toHaveCount(14);
+    const api = await (await page.request.get('/api/users/oliver/badges')).json();
+    const earned = api.filter((b) => b.tierLevel > 0).length;
+    await expect(page.getByText(new RegExp(`^${earned} av ${api.length} märken upplåsta · \\d+ nivåer totalt$`))).toBeVisible();
+    await expect(page.locator('.badge-card')).toHaveCount(api.length);
     await expect(page.locator('.badge-card--locked').first()).toBeVisible();
-    await expect(page.locator('.badge-card').filter({ hasText: 'Nordisk resenär' })).not.toHaveClass(/badge-card--locked/);
+    // Nivåer visas med nivåram och etikett (brons/silver/guld/platina).
+    const nordic = api.find((b) => b.id === 'nordic');
+    const card = page.locator('.badge-card').filter({ hasText: nordic.name });
+    await expect(card).toHaveClass(new RegExp(`badge-card--${nordic.tier}`));
+    await expect(card.locator('.tier-chip')).toBeVisible();
     // Ikonerna är riktiga bilder som laddas.
     const broken = await page.locator('.badge-card__icon').evaluateAll((imgs) =>
       imgs.filter((i) => i.tagName === 'IMG' && (!i.complete || i.naturalWidth === 0)).length
@@ -98,18 +110,21 @@ test.describe('märken', () => {
     expect(broken).toBe(0);
   });
 
-  test('"Nytt märke"-modal stängs med Escape', async ({ page, request }) => {
+  test('nytt märke visas på sammanfattningsskärmen efter första check-in', async ({ page, request }) => {
     const { apiRegister } = require('./helpers');
     const u = await apiRegister(request);
     await useToken(page, u.token);
     await page.goto('/checkin?iata=ARN');
-    await expect(page.getByRole('combobox', { name: 'Flygplats', exact: true })).toHaveValue(/^ARN - /);
-    await page.getByRole('button', { name: 'Checka in', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'Nytt märke' });
-    await expect(dialog).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
-    await expect(page).toHaveURL(/\/airport\/ARN$/);
+    await page.getByRole('button', { name: 'Checka in på ARN' }).click();
+    await expect(page).toHaveURL(/\/checkin\/done$/);
+    const badges = page.getByRole('list', { name: 'Nya märken' });
+    await expect(badges).toContainText('Nytt märke');
+    await expect(badges.locator('img').first()).toBeVisible();
+    await page.getByRole('link', { name: 'Klar' }).click();
+    await expect(page).toHaveURL(/\/$/);
+    // Märket syns sedan som upplåst i profilen.
+    await page.goto(`/u/${u.username}?tab=badges`);
+    await expect(page.locator('.badge-card:not(.badge-card--locked)').first()).toBeVisible();
   });
 });
 
@@ -181,7 +196,6 @@ test.describe('karta', () => {
   });
 
   test('landsvy SE med alla flygplatser har bara riktiga län', async ({ page }) => {
-    test.fixme(true, 'BUG-06: GVX (Gävle-Sandviken) har region "SE-U-A"/"Okänt län" i airports.json i stället för SE-X Gävleborgs län');
     await page.goto('/u/oliver/map/SE?scope=all');
     const table = page.getByRole('table', { name: /Täckning per region i Sverige/ });
     await expect(table).toBeVisible();
@@ -200,6 +214,9 @@ test.describe('karta', () => {
     await useToken(page, token);
     await page.goto('/u/anna');
     await page.getByRole('tab', { name: 'Karta' }).click();
+    await expect(page).toHaveURL(/\/u\/anna\?tab=map$/);
+    await expect(page.locator('.tile').filter({ hasText: '% av världen' })).toBeVisible();
+    await page.getByRole('link', { name: /Öppna kartan/ }).click();
     await expect(page).toHaveURL(/\/u\/anna\/map$/);
     await expect(page.locator('.map__svg').first()).toBeVisible();
   });

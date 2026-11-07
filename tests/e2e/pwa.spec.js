@@ -20,7 +20,10 @@ test.describe('PWA', () => {
     expect(['standalone', 'fullscreen', 'minimal-ui']).toContain(m.display);
     expect(m.theme_color).toMatch(/^#[0-9A-Fa-f]{6}$/);
     expect(m.background_color).toMatch(/^#[0-9A-Fa-f]{6}$/);
-    expect(await page.locator('meta[name="theme-color"]').getAttribute('content')).toBe(m.theme_color);
+    // v2: två theme-color (ljust/mörkt tema); det ljusa ska matcha manifestet.
+    const metas = await page.locator('meta[name="theme-color"]').evaluateAll((els) => els.map((e) => [e.media, e.content]));
+    expect(metas).toContainEqual(['(prefers-color-scheme: light)', m.theme_color]);
+    expect(metas.some(([media]) => media === '(prefers-color-scheme: dark)')).toBe(true);
     for (const size of [192, 512]) {
       for (const purpose of ['any', 'maskable']) {
         const icon = m.icons.find((i) => i.sizes === `${size}x${size}` && i.purpose.split(' ').includes(purpose));
@@ -95,7 +98,6 @@ const isFontCsp = (p) => /fonts\.googleapis\.com/.test(p.text);
 
 test.describe('konsolfel', () => {
   test('inga konsolfel på någon sida', async ({ page }) => {
-    test.fixme(true, 'BUG-01: CSP blockerar Google Fonts-stilmallen på varje sida');
     const problems = collectProblems(page);
     for (const p of PAGES) {
       await page.goto(p);
@@ -104,7 +106,7 @@ test.describe('konsolfel', () => {
     expect(problems).toEqual([]);
   });
 
-  test('inga konsolfel utöver känt fel BUG-01 (typsnitt)', async ({ page }) => {
+  test('inga konsolfel på sidor (utan typsnittsfilter)', async ({ page }) => {
     const problems = collectProblems(page);
     for (const p of PAGES) {
       await page.goto(p);
@@ -125,7 +127,6 @@ test.describe('konsolfel', () => {
   });
 
   test('designens typsnitt laddas (Atkinson Hyperlegible)', async ({ page }) => {
-    test.fixme(true, 'BUG-01: typsnitten blockeras av CSP och faller tillbaka på systemtypsnitt');
     await page.goto('/');
     await page.waitForLoadState('networkidle');
     expect(await page.evaluate(() => document.fonts.check('16px "Atkinson Hyperlegible"'))).toBe(true);

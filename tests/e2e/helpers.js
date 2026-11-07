@@ -110,9 +110,11 @@ async function makeJpeg(page, { w = 96, h = 64 } = {}) {
 
 /** Väljer ett alternativ i en combobox (autocomplete) via tangentbordet. */
 async function pickFromCombobox(page, label, text, optionText) {
-  const input = page.getByRole('combobox', { name: label, exact: typeof label === 'string' });
+  // Sök i <main> så att toppfältets sökfält (desktop) inte krockar.
+  const main = page.locator('main');
+  const input = main.getByRole('combobox', { name: label, exact: typeof label === 'string' });
   await input.fill(text);
-  const listbox = page.getByRole('listbox', { name: /Förslag/ });
+  const listbox = main.getByRole('listbox', { name: /Förslag/ });
   const option = optionText
     ? listbox.getByRole('option').filter({ hasText: optionText }).first()
     : listbox.getByRole('option').first();
@@ -130,7 +132,26 @@ async function clickCentered(locator) {
   await locator.click();
 }
 
+/** Väljer betyg i en stjärngrupp (fieldset + radioknappar, v2). value t.ex. 4.5 eller 4. */
+async function setStars(page, groupName, value) {
+  const label = `${value.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} av 5`;
+  const radio = page.getByRole('group', { name: groupName, exact: true }).getByRole('radio', { name: label, exact: true });
+  // Radioknapparna är visuellt dolda i halvstjärnor; välj via tangentbordet som en skärmläsaranvändare.
+  await radio.focus();
+  await page.keyboard.press('Space');
+  await expect(radio).toBeChecked();
+}
+
+/** Öppnar en hopfällbar sektion (<details>) i check-in-formuläret. */
+async function openSection(page, title) {
+  const details = page.locator('details.disclosure').filter({ has: page.locator('.disclosure__title', { hasText: title }) });
+  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  await expect(details).toHaveAttribute('open', '');
+}
+
 module.exports = {
+  setStars,
+  openSection,
   clickCentered,
   DEMO_PASSWORD,
   TOKEN_KEY,

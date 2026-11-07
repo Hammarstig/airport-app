@@ -2,12 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { clickCentered, loginNewUser, apiRegister, apiCheckin, makeJpeg, pickFromCombobox, daysAgo, useToken } = require('./helpers');
 
-async function setSlider(page, name, presses) {
-  const slider = page.getByRole('slider', { name, exact: true });
-  await slider.focus();
-  for (let i = 0; i < presses; i++) await slider.press('ArrowRight');
-  return slider;
-}
+const { setStars, openSection } = require('./helpers');
 
 test.describe('check-in', () => {
   test('fullständig check-in med flygbolag, klass, ny lounge, loungebetyg och foto', async ({ page, request }) => {
@@ -19,44 +14,39 @@ test.describe('check-in', () => {
 
     await test.step('fyll i formuläret', async () => {
       await page.goto('/checkin');
-      await pickFromCombobox(page, 'Flygplats', 'got', 'Landvetter');
-      await expect(page.getByRole('combobox', { name: 'Flygplats', exact: true })).toHaveValue(/^GOT - /);
-      await page.locator('#visitedOn').fill(visitedOn);
+      await pickFromCombobox(page, 'Sök flygplats', 'got', 'Landvetter');
+      await expect(page.locator('.selected-airport .iata-tag')).toHaveText('GOT');
       await page.getByRole('radiogroup', { name: 'Typ av besök' }).getByText('Transfer').click();
-
-      // Totalbetyg 4,5 via klick på vänster halva av femte stjärnan.
-      const stars = page.locator('[role="slider"][aria-label="Totalbetyg"] .stars-input__btn');
-      await stars.nth(4).click({ position: { x: 3, y: 12 } });
-      await expect(page.getByRole('slider', { name: 'Totalbetyg' })).toHaveAttribute('aria-valuenow', '4.5');
-
-      await page.getByRole('button', { name: 'Lägg till delbetyg' }).click();
-      await setSlider(page, 'Säkerhetskontroll', 4);
-      await setSlider(page, 'Renlighet', 5);
-      await setSlider(page, 'Mat', 3);
-      await expect(page.getByRole('slider', { name: 'Renlighet', exact: true })).toHaveAttribute('aria-valuenow', '5');
-
+      await setStars(page, 'Totalbetyg', 4.5);
       await page.getByLabel('Kommentar').fill(comment);
-      await expect(page.locator('#comment-count')).toContainText(`${comment.length} / 1000`);
 
+      await openSection(page, 'Datum');
+      await page.locator('#visitedOn').fill(visitedOn);
+
+      await openSection(page, 'Delbetyg');
+      await setStars(page, 'Säkerhetskontroll', 4);
+      await setStars(page, 'Renlighet', 5);
+      await setStars(page, 'Mat', 3);
+      await expect(page.locator('summary', { hasText: 'Delbetyg' })).toContainText('3 av 6');
+
+      await openSection(page, 'Foton');
       await page.getByLabel('Välj foton från galleriet').setInputFiles(await makeJpeg(page));
       await expect(page.getByRole('img', { name: 'Valt foto 1' })).toBeVisible();
-      await expect(page.getByText('Foton (1/4)')).toBeVisible();
 
+      await openSection(page, 'Resedetaljer');
       await pickFromCombobox(page, 'Flygbolag', 'SK', 'Scandinavian');
       await page.getByLabel('Flightnummer').fill('sk1421');
       await expect(page.getByLabel('Flightnummer')).toHaveValue('SK1421');
       await page.getByRole('radiogroup', { name: 'Reseklass' }).getByText('Business').click();
-
       await page.getByLabel('Lounge', { exact: true }).selectOption('new');
       await page.getByLabel('Loungens namn').fill(loungeName);
       await page.getByLabel('Terminal (valfritt)').fill('2');
-      await setSlider(page, 'Loungebetyg', 8); // 8 x 0,5 = 4
-      await expect(page.getByRole('slider', { name: 'Loungebetyg' })).toHaveAttribute('aria-valuenow', '4');
+      await setStars(page, 'Loungebetyg', 4);
     });
 
     const created = page.waitForResponse((r) => r.url().endsWith('/api/checkins') && r.request().method() === 'POST');
     const uploaded = page.waitForResponse((r) => /\/api\/checkins\/\d+\/photos$/.test(r.url()));
-    await page.getByRole('button', { name: 'Checka in', exact: true }).click();
+    await page.getByRole('button', { name: 'Checka in på GOT' }).click();
     const body = await (await created).json();
     expect((await uploaded).status()).toBe(201);
     expect(body).toMatchObject({
@@ -68,25 +58,30 @@ test.describe('check-in', () => {
       airline: { iata: 'SK' },
       lounge: { name: loungeName, terminal: '2' },
       ratings: { security: 4, cleanliness: 5, food: 3 },
+      levelUp: expect.any(Boolean),
+      xpGained: expect.any(Number),
     });
 
-    await test.step('märkesmodal "Nytt märke" visas och kan stängas', async () => {
-      await expect(page).toHaveURL(/\/airport\/GOT$/);
-      const dialog = page.getByRole('dialog', { name: /nytt märke|nya märken/i });
-      await expect(dialog).toBeVisible();
-      await expect(dialog.locator('.badge-unlock__name').filter({ hasText: 'Första check-in' })).toBeVisible();
-      await expect(dialog.getByRole('button', { name: 'Snyggt!' })).toBeFocused();
-      await dialog.getByRole('button', { name: 'Snyggt!' }).click();
-      await expect(dialog).toHaveCount(0);
+    await test.step('sammanfattningsskärm med XP, nivå, milstolpar och nya märken', async () => {
+      await expect(page).toHaveURL(/\/checkin\/done$/);
+      await expect(page.getByRole('heading', { level: 1, name: 'Incheckad på GOT' })).toBeVisible();
+      await expect(page.locator('.checkin-done__xp')).toHaveText(new RegExp(`^\\+${body.xpGained} XP`));
+      await expect(page.locator('.level-bar__title')).toHaveText(`Nivå ${body.levelInfo.level} - ${body.levelInfo.title}`);
+      await expect(page.getByText('Ny flygplats - din 1:a')).toBeVisible();
+      await expect(page.getByText('Nytt land - ditt 1:a')).toBeVisible();
+      await expect(page.locator('.streak__count')).toHaveText('1');
+      const badges = page.getByRole('list', { name: 'Nya märken' });
+      await expect(badges).toContainText('Nytt märke');
+      for (const b of body.newBadges) await expect(badges).toContainText(b.name);
+      await expect(page.getByRole('link', { name: 'Lägg till anslutning' })).toHaveAttribute('href', `/checkin?date=${visitedOn}&kind=transfer`);
+      await page.getByRole('link', { name: 'Visa GOT' }).click();
     });
 
     await test.step('syns på flygplatssidan med detaljer, foto och lounge', async () => {
+      await expect(page).toHaveURL(/\/airport\/GOT$/);
       const card = page.locator('article.checkin').filter({ hasText: comment });
       await expect(card).toBeVisible();
-      await expect(card.locator('.airline-tag__code')).toHaveText('SK');
-      await expect(card.locator('.detail-list__mono')).toHaveText('SK1421');
-      await expect(card.locator('.class-chip')).toHaveText(/Business/);
-      await expect(card.getByRole('link', { name: loungeName })).toBeVisible();
+      await expect(card.locator('.checkin__details')).toHaveText(`SK1421 · Scandinavian Airlines System · Business · ${loungeName}`);
       await expect(card.locator('.kind-chip')).toHaveText(/Transfer/);
       await expect(card.getByRole('img', { name: '4,5 av 5 stjärnor' })).toBeVisible();
       await expect(card.getByRole('button', { name: 'Visa foto 1 av 1' })).toBeVisible();
@@ -96,28 +91,25 @@ test.describe('check-in', () => {
       expect(img.status()).toBe(200);
       expect(img.headers()['content-type']).toMatch(/image\/jpeg/);
       await expect(page.locator('.gallery img').first()).toBeVisible();
-      await expect(page.getByText(`Du har besökt GOT 1 gång.`)).toBeVisible();
     });
 
     await test.step('lounge-sidan visar loungebetyget', async () => {
-      await page.locator('article.checkin').filter({ hasText: comment }).getByRole('link', { name: loungeName }).click();
-      await expect(page).toHaveURL(/\/lounge\/\d+$/);
+      await page.goto(`/lounge/${body.lounge.id}`);
       await expect(page.getByRole('heading', { level: 1, name: loungeName })).toBeVisible();
       await expect(page.locator('.list__item').filter({ hasText: `Testare ${u.username}` })).toBeVisible();
     });
 
     await test.step('syns i flödet (Alla och Mina)', async () => {
-      await page.goto('/');
+      await page.goto('/?tab=global');
       await expect(page.locator('article.checkin').filter({ hasText: comment })).toBeVisible();
       await page.getByRole('tab', { name: 'Mina' }).click();
       await expect(page.locator('article.checkin')).toHaveCount(1);
-      await expect(page.locator('article.checkin').filter({ hasText: comment })).toBeVisible();
     });
 
     await test.step('syns på profilen', async () => {
       await page.goto(`/u/${u.username}`);
-      await expect(page.locator('.stat').filter({ hasText: 'Flygplatser' }).locator('.stat__value')).toHaveText('1');
       await expect(page.locator('.result-row').filter({ hasText: 'Landvetter' })).toBeVisible();
+      await expect(page.locator('.level-bar__title')).toHaveText(/^Nivå \d+ - /);
       await page.getByRole('tab', { name: 'Check-ins' }).click();
       await expect(page).toHaveURL(/tab=checkins/);
       await expect(page.locator('article.checkin').filter({ hasText: comment })).toBeVisible();
@@ -129,27 +121,49 @@ test.describe('check-in', () => {
       await clickCentered(page.locator('article.checkin').filter({ hasText: comment }).getByRole('button', { name: 'Radera' }));
       expect((await del).status()).toBe(204);
       await expect(page.locator('article.checkin').filter({ hasText: comment })).toHaveCount(0);
-      await expect(page.locator('.stat').filter({ hasText: 'Check-ins' }).locator('.stat__value')).toHaveText('0');
       const gone = await page.request.get(`/api/checkins/${body.id}`);
       expect(gone.status()).toBe(404);
     });
   });
 
-  test('validering i formuläret: flygplats krävs och framtida datum stoppas', async ({ page, request }) => {
+  test('validering: knappen kräver flygplats och framtida datum stoppas', async ({ page, request }) => {
     await loginNewUser(page, request);
     await page.goto('/checkin');
+    await expect(page.getByRole('button', { name: 'Välj flygplats' })).toBeDisabled();
+    await pickFromCombobox(page, 'Sök flygplats', 'arn', 'Arlanda');
+    await openSection(page, 'Datum');
     await page.locator('#visitedOn').fill('2099-01-01');
-    await page.getByRole('button', { name: 'Checka in', exact: true }).click();
-    await expect(page.getByText('Välj en flygplats i listan.')).toBeVisible();
+    await page.getByRole('button', { name: 'Checka in på ARN' }).click();
     await expect(page.locator('#visitedOn-err')).toHaveText(/framtiden/);
     await expect(page).toHaveURL(/\/checkin$/);
   });
 
-  test('förifylld flygplats via ?iata=', async ({ page, request }) => {
+  test('stjärnor: tryck på vänster/höger halva ger halvt/helt betyg, nytt tryck rensar', async ({ page, request }) => {
+    await loginNewUser(page, request);
+    await page.goto('/checkin?iata=GOT');
+    const group = page.getByRole('group', { name: 'Totalbetyg', exact: true });
+    const star4 = group.locator('.stars-input__btn').nth(3);
+    const box = await star4.boundingBox();
+    await page.mouse.click(box.x + box.width * 0.8, box.y + box.height / 2);
+    await expect(group.getByRole('radio', { name: '4,0 av 5' })).toBeChecked();
+    await page.mouse.click(box.x + box.width * 0.2, box.y + box.height / 2);
+    await expect(group.getByRole('radio', { name: '3,5 av 5' })).toBeChecked();
+    await page.mouse.click(box.x + box.width * 0.2, box.y + box.height / 2);
+    await expect(group.getByRole('radio', { checked: true })).toHaveCount(0);
+    // Piltangenter flyttar mellan värdena (inbyggd radiogrupp).
+    await group.getByRole('radio', { name: '3,5 av 5' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(group.getByRole('radio', { name: '4,0 av 5' })).toBeChecked();
+  });
+
+  test('förifylld flygplats via ?iata= och byte av flygplats', async ({ page, request }) => {
     await loginNewUser(page, request);
     await page.goto('/checkin?iata=cph');
-    await expect(page.getByRole('combobox', { name: 'Flygplats', exact: true })).toHaveValue(/^CPH - /);
+    await expect(page.locator('.selected-airport .iata-tag')).toHaveText('CPH');
+    await openSection(page, 'Resedetaljer');
     await expect(page.getByLabel('Lounge', { exact: true }).locator('option')).toContainText(['Ingen lounge', 'Aviator Lounge']);
+    await page.locator('.selected-airport').getByRole('button', { name: 'Byt' }).click();
+    await expect(page.locator('main').getByRole('combobox', { name: 'Sök flygplats', exact: true })).toBeVisible();
   });
 
   test('gilla och ogilla en check-in (optimistiskt, sparas)', async ({ page, request }) => {

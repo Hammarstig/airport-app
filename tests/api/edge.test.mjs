@@ -336,3 +336,82 @@ describe('stora sidor och offset', () => {
     });
   }
 });
+
+describe('v2: socialt, notiser, topplistor och konto', () => {
+  test('kommentarer: längd, behörighet för redigera/ta bort', async () => {
+    const c = await api('POST', '/api/checkins', { token: tokA, body: { iata: 'OSL', visitedOn: daysFromToday(-1), kind: 'departure' } });
+    assert.equal(c.status, 201);
+    for (const body of ['', '   ', 'x'.repeat(501)]) {
+      const r = await api('POST', `/api/checkins/${c.body.id}/comments`, { token: tokB, body: { body } });
+      assert.equal(r.status, 400, `body längd ${body.length} gav ${r.status}`);
+    }
+    const ok = await api('POST', `/api/checkins/${c.body.id}/comments`, { token: tokB, body: { body: '<b>hej</b>' } });
+    assert.equal(ok.status, 201);
+    assert.equal(ok.body.body, '<b>hej</b>');
+    // Ägaren av check-in:en får ta bort men inte redigera andras kommentarer.
+    assert.equal((await api('PATCH', `/api/comments/${ok.body.id}`, { token: tokA, body: { body: 'ändrad' } })).status, 403);
+    assert.equal((await api('POST', `/api/checkins/${c.body.id}/comments`, { body: { body: 'anonym' } })).status, 401);
+    assert.equal((await api('DELETE', `/api/comments/${ok.body.id}`, { token: tokA })).status, 204);
+  });
+
+  test('följa sig själv ger 400, följning är idempotent', async () => {
+    assert.equal((await api('POST', '/api/users/edge_a/follow', { token: tokA })).status, 400);
+    const a = await api('POST', '/api/users/oliver/follow', { token: tokA });
+    const b = await api('POST', '/api/users/oliver/follow', { token: tokA });
+    assert.equal(a.status, 200);
+    assert.equal(b.body.followers, a.body.followers);
+    assert.equal((await api('POST', '/api/users/finnsinte_xyz/follow', { token: tokA })).status, 404);
+  });
+
+  test('notiser kräver inloggning, scope=friends kräver inloggning', async () => {
+    assert.equal((await api('GET', '/api/notifications')).status, 401);
+    assert.equal((await api('GET', '/api/notifications/unread-count')).status, 401);
+    assert.equal((await api('GET', '/api/feed?scope=friends')).status, 401);
+    assert.equal((await api('GET', '/api/rankings/users?scope=friends')).status, 401);
+  });
+
+  test('topplistor: ogiltiga kombinationer ger 400', async () => {
+    assert.equal((await api('GET', '/api/rankings/users?metric=xp&period=week')).status, 400);
+    assert.equal((await api('GET', '/api/rankings/users?metric=reviews&scope=country&country=SE')).status, 400);
+    // Okänt mått/period faller tillbaka på standardvärden (samma mönster som category i v1).
+    const fb = await api('GET', '/api/rankings/users?metric=bogus&period=bogus');
+    assert.equal(fb.status, 200);
+    assert.equal(fb.body.metric, 'airports');
+    const r = await api('GET', '/api/rankings/users?metric=airports&period=all&limit=100000');
+    assert.equal(r.status, 200);
+    assert.ok(r.body.items.length <= 100);
+    assert.equal(r.body.me, null);
+  });
+
+  test('nearby: ogiltig position ger 400', async () => {
+    for (const q of ['lat=91&lon=0', 'lat=abc&lon=1', 'lat=0', 'lat=0&lon=181']) {
+      assert.equal((await api('GET', `/api/airports/nearby?${q}`)).status, 400, q);
+    }
+    const ok = await api('GET', '/api/airports/nearby?lat=57.66&lon=12.28&limit=999&radiusKm=99999');
+    assert.equal(ok.status, 200);
+    assert.ok(ok.body.length <= 50);
+  });
+
+  test('PATCH check-in: iata kan inte ändras, andra kan inte ändra', async () => {
+    assert.equal((await api('PATCH', `/api/checkins/${checkinA.id}`, { token: tokA, body: { iata: 'ARN' } })).status, 400);
+    assert.equal((await api('PATCH', `/api/checkins/${checkinA.id}`, { token: tokB, body: { comment: 'x' } })).status, 403);
+    assert.equal((await api('PATCH', `/api/checkins/${checkinA.id}`, { token: tokA, body: { rating: 0.3 } })).status, 400);
+    const ok = await api('PATCH', `/api/checkins/${checkinA.id}`, { token: tokA, body: { comment: null } });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.comment, null);
+    assert.ok(ok.body.editedAt);
+  });
+
+  test('export innehåller inga lösenordshashar; DELETE /me kräver lösenord', async () => {
+    const r = await fetch(`${servers.length ? `http://127.0.0.1:${servers[0].address().port}` : ''}/api/me/export`, { headers: { Authorization: `Bearer ${tokB}` } });
+    assert.equal(r.status, 200);
+    assert.match(r.headers.get('content-disposition') || '', /attachment/);
+    const text = await r.text();
+    assert.ok(!/password|\$2[aby]\$/.test(text));
+    assert.equal((await api('DELETE', '/api/me', { token: tokB, body: {} })).status, 400);
+    const wrong = await api('DELETE', '/api/me', { token: tokB, body: { password: 'fel-losenord' } });
+    // Dokumenterat beteende (401). Se BUG-09: klienten tolkar 401 som utgången session.
+    assert.equal(wrong.status, 401);
+    assert.equal((await api('GET', '/api/me', { token: tokB })).status, 200);
+  });
+});

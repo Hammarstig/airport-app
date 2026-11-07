@@ -1,152 +1,120 @@
 # Gatelog - testrapport
 
-Datum: 2026-11-05. Testagent. Testat mot commit `2aa5d71` (backend, klient, grafik) med byggd klient och demodata. Ändringar som andra agenter hade ocommittade i arbetskatalogen under testkörningen (t.ex. typsnitt, inställningssida, offlinekö) ingår inte; kör om sviten när de är committade.
+Senast uppdaterad: 2026-11-07 (runda 2, API v2). Testagent. Testat mot commit `570c648` med byggd klient, temporär databas och demodata. Grafikagentens ocommittade ändringar av märkesbilder fanns i arbetskatalogen vid körningen.
 
 ## Sammanfattning
 
-| Svit | Kommando | Tester | Passerade | Fallerade | Markerade fixme (kända fel) | Hoppade (ej relevant för projektet) |
+| Svit | Kommando | Tester | Passerade | Fallerade | Fixme (kända fel) | Hoppade (ej relevant för projektet) |
 |---|---|---|---|---|---|---|
-| Serverns enhetstester | `npm test` | 27 | 27 | 0 | - | - |
-| API-kanttester | `npm run test:api` | 49 | 49 | 0 | - | - |
-| E2E (Playwright), android + desktop + perf | `npm run test:e2e` | 124 | 107 | 0 | 13 | 4 |
+| Serverns enhetstester | `npm test -w server` | 57 | 57 | 0 | - | - |
+| Klientens enhetstester (Vitest) | `npm test -w client` | 16 | 16 | 0 | - | - |
+| API-kanttester | `npm run test:api` | 56 | 56 | 0 | - | - |
+| E2E (Playwright), android + desktop + perf | `npm run test:e2e` | 168 | 158 | 0 | 6 | 4 |
 
-Totalt 200 tester, 183 passerar, 0 fallerar. 13 E2E-tester är `test.fixme` eftersom de träffar riktiga fel (BUG-01 till BUG-06) och ska aktiveras när felen är rättade.
+Totalt 297 tester, 287 passerar, 0 fallerar. 6 E2E-tester är `test.fixme` för tre riktiga fel (BUG-09, BUG-10, BUG-11, vardera på android och desktop).
 
-Helhetsbild: backend är robust (auktorisering, validering, FTS-sanering, rate limit och sidindelning håller i alla kantfall). Klienten fungerar i alla huvudflöden på både Android (Pixel 7) och desktop. Prestandan är god med marginal till målen. De viktigaste felen är att CSP blockerar designens typsnitt på varje sida (konsolfel) och att det inte går att logga ut på mobil.
+Helhetsbild: v2 fungerar i alla huvudflöden på Android och desktop - snabb check-in, sammanfattningsskärm, följa, kommentarer, notiser, topplistor, redigering, offlinekö, export och radering. Felen från runda 1 är rättade utom BUG-07 (designbeslut). De nya felen gäller kantfall: fel lösenord vid kontoradering loggar ut användaren, och offlinestödet håller inte vid första besöket eller kall start utan nät.
 
-## Testmiljö och körning
+## Ändringar i testerna (runda 2)
 
-- `tests/e2e/playwright.config.js` bygger klienten (`npm run build`) och startar `tests/e2e/server.mjs`, som skapar temporär `DB_PATH` och `UPLOAD_DIR`, kör `seedDemo` och startar `createApp` på port 4173 (env `E2E_PORT`). Katalogen tas bort när servern stoppas.
-- Projekt: `android` (devices['Pixel 7'], primärt), `desktop` (1280x800) och `perf` (Pixel 7, körs sist och ensamt via `dependencies`).
-- `@playwright/test` 1.63.0 (samma som förinstallerade `playwright`), webbläsare från `PLAYWRIGHT_BROWSERS_PATH`, ingen `playwright install`.
-- Foton testas med en riktig JPEG (96x64) som genereras via canvas i webbläsaren och laddas upp med `setInputFiles`.
-- `E2E_REUSE_SERVER=1` återanvänder en redan startad server vid lokal felsökning.
-- Prestandaresultat skrivs till `test-results/perf.json`.
+21 E2E-tester byggde på v1 och är uppdaterade:
+- Check-in: flygplatsen väljs i "Sök flygplats" (eller snabbval) och visas som kort (`.selected-airport`). Stjärnor är radioknappar i en `fieldset` (helpers `setStars`, `openSection` för hopfällda sektioner). Knappen heter "Checka in på XXX" och är inaktiv utan flygplats. Resedetaljer visas som en rad (`.checkin__details`).
+- Märkesmodalen är ersatt av sammanfattningsskärmen `/checkin/done`. Märkes-id och antal läses från API:t i stället för att vara hårdkodade.
+- Karta är en profilflik (`?tab=map`) med länk till den stora kartan.
+- Topplistan har flikarna Resenärer/Flygplatser.
+- Två `theme-color` (ljust/mörkt).
+- Utloggning via `/settings`.
+- Kategoritopplistor sorteras på viktat `score`; testet jämför UI-ordningen med exakt det API-svar sidan fick.
+- Rättade fel: BUG-01 (självhostade typsnitt), BUG-02 till BUG-05, BUG-06 (GVX) och BUG-08 (offline visar app-skalet). Deras tester är aktiverade och passerar.
 
-Filer:
-- `tests/e2e/auth.spec.js`, `checkin.spec.js`, `search.spec.js`, `explore.spec.js`, `pwa.spec.js`, `perf.spec.js`, `helpers.js`, `server.mjs`, `playwright.config.js`
-- `tests/api/edge.test.mjs`
+Nya tester i `tests/e2e/v2.spec.js` (21 st per projekt) och 7 nya API-kanttester (v2) i `tests/api/edge.test.mjs`.
 
 ## Resultat per område
 
 | Område | Resultat | Kommentar |
 |---|---|---|
-| Registrering | OK | Formulär med hemmaflygplats, klientvalidering, 409 för upptaget namn. |
-| Inloggning | OK | Fel lösenord visar fel, rätt lösenord ger toast och profillänk. Skyddad sida skickar till login och tillbaka. Trasig token rensas. |
-| Utloggning | Desktop OK, Android FEL | BUG-02. |
-| Check-in med alla fält | OK | Flygplats (autocomplete), datum, typ, totalbetyg 4,5 via halvstjärna, delbetyg via tangentbord, kommentar, foto, flygbolag (SK), flightnummer (gemener blir versaler), klass, ny lounge + terminal, loungebetyg. Svaret innehåller alla fält, fotot laddas upp (201) och serveras som `image/jpeg`. |
-| Nytt märke-modal | OK | "Första check-in" visas, fokus på "Snyggt!", stängs med knapp och Escape. |
-| Synlighet efter check-in | OK | Flygplatssida (kort med detaljer, fotoremsa, galleri, "Du har besökt GOT 1 gång"), loungesida (recension), flöde Alla/Mina, profil (stats, flygplatser, check-ins). |
-| Radera check-in | OK | Från profil och från flödets "Mina". Stats uppdateras, API ger 404 efteråt. |
-| Gilla/ogilla | OK | Optimistisk uppdatering, sparas över omladdning. Utloggad skickas till login. |
-| Önskelista | OK | Lägg till/ta bort på flygplatssidan, syns och försvinner i profilens flik. |
-| Flygplatssök | OK | "got" -> GOT först, "stockholm" -> ARN/BMA, "heathrow" -> LHR, "sverige"/"sweden" -> svenska flygplatser, "goteborg" -> GOT. Match-etikett (Land/Stad) i autocomplete. Enter på exakt IATA går till flygplatsen. |
-| Tangentbord i autocomplete | OK med två fel | Pilar, aria-activedescendant, Enter och Escape fungerar. BUG-03 och BUG-04. |
-| Söksidans flikar och URL-filter | OK | Flikbyte behåller q, pil höger byter flik, land/storlek/sortering i URL och överlever omladdning, "Rensa filter", recensionsfilter (iata, minRating, travelClass) läses från URL. |
-| Recensionssök | OK | Träffar markeras med `<mark>`, loungerecensioner visas. |
-| XSS i kommentar | OK | `<img src=x onerror=alert(1)>` och `<script>` visas som text i sök, flöde och flygplatssida. Ingen dialog, inga injicerade element. |
-| Utforska, land, kategoritopplistor, lounger, resenärstopplista | OK | Sorteringen i kategorilistor är fallande, landsfilter fungerar, loungerecension kan skickas från loungesidan. |
-| Märken | OK | 14 märken, låsta/upplåsta, alla ikoner laddas. |
-| Karta | OK med datafel | Världskartan ritar över 150 länder och färgar besökta. Växeln reguljär/alla ändrar total (4008/8799) och procent och synkas till URL. Landsvy SE ritar landet, prickar och regiontabell med korrekta länsnamn för reguljärtrafik. BUG-06 för scope=all. |
-| PWA | OK med ett fel | Manifest giltigt (any + maskable 192/512 PNG med rätt storlek, theme-color stämmer med meta). Service worker registreras, styr sidan och förcachar app-skalet. Offline ger offlinesidan. Kamera-input har `capture="environment"`. BUG-05. |
-| 404 | OK | Okänd route, flygplats, användare, kategori och lounge visar "Fel gate". Okänd API-väg ger JSON 404. |
-| Konsolfel | FEL | BUG-01 på varje sida. I övrigt inga konsolfel, sidfel eller misslyckade förfrågningar (16 sidor utloggad + 4 inloggad). |
-| Mobil layout | OK | Ingen horisontell sidscroll på 412 px (flikrader scrollar inom sin behållare). |
-| API: auktorisering | OK | Andras check-in/foto kan inte raderas (403), uppladdning på annans check-in 403, utan token 401, förfalskad token 401. |
-| API: validering | OK | Framtida/ogiltigt datum, rating 0.3/0/5.5/"4", delbetyg 4.5, okänd IATA (QQQ, ESGG, G0T, tom), kommentar 1001 tecken (1000 godkänns), okänt flygbolag, fel klass/flightnummer, lounge från annan flygplats, JSON > 50 kB (413), trasig JSON (400). |
-| API: foton | OK | Text och SVG med .jpg-ändelse avvisas (400), > 5 MB ger 413, femte fotot 409, uppladdade filer har nosniff + sandbox-CSP, path traversal 404. |
-| API: FTS-injektion | OK | `"`, `*`, `NEAR(`, `(((`, `col:`, `^`, `OR 1=1`, NUL-tecken och mycket långa strängar ger 200/400, aldrig 500. Tom q utan iata 400, med iata 200. Flygplatssök med SQL-liknande indata ger 200. Snippets escapas (även utan q). |
-| API: rate limit | OK | 6:e auth-anropet ger 429 med Retry-After, övriga API-vägar påverkas inte. |
-| API: stora sidor/offset | OK | limit=100000 kapas till 100, stor offset ger [], negativa/ogiltiga värden ger 200 på 10 listendpoints. |
+| Konto, inloggning, utloggning | OK | Utloggning via Inställningar fungerar på mobil och desktop. |
+| Check-in med alla fält | OK | Flygbolag, flightnummer, klass, ny lounge + loungebetyg, foto (riktig JPEG), delbetyg och datum i hopfällda sektioner. Stjärnor: klick på vänster/höger halva ger x,5/x,0, nytt klick rensar, piltangenter fungerar. |
+| Snabb check-in (3 tryck) | OK | Mockad position (Landvetter): meny -> "Nära dig" (GOT först med avstånd i km) -> "Checka in på GOT". "Senaste" visar hemmaflygplatsen först, sedan senast besökta. Nekad plats visar förklaring och sök fungerar. |
+| Sammanfattningsskärm | OK | +XP stämmer med reglerna (195 XP för ny flygplats, nytt land och ny kontinent med kommentar och betyg), nivåhöjning, nivåmätare, streak, milstolpar ("Ny kontinent - din 2:a"), världsandel, nya märken och "Lägg till anslutning" med datum och transfer. |
+| Följa och vänflöde | OK | Följ/avfölj med räknare, följarlista, flödet öppnar "Vänner" och visar bara vänner och mig, tom vänflik efter avföljning, "Följer dig"-märkning. |
+| Kommentarer | OK | Skriv, redigera ("redigerad"), räknare på kortet, ägaren kan ta bort andras kommentar, utloggad ser kommentarer men uppmanas logga in. API: 1-500 tecken, ägaren kan inte redigera andras kommentarer (403). |
+| Notiser | OK | Klockan visar antal olästa (följning, kommentar, gilla och märke), listan visar texterna, allt markeras som läst och räknaren nollställs. |
+| Topplistor | OK | Mått, period (vecka visar datumintervall), scope Världen/Vänner/Land (land-väljare med SE), egen placering markerad (`aria-current`) och i API:ts `me`/`around`. XP döljer period och Land. Utloggad ser bara Världen. API: xp/reviews med vecka eller land ger 400. |
+| Redigera check-in | OK | Kommentar, betyg och typ ändras, flygplatsen kan inte bytas, kortet märks "redigerad", `editedAt` sätts. Andra användare saknar knappen och får 403 från API:t. |
+| Offlinekö | OK med fel | Med service worker aktiv: check-in offline ger "Sparad offline", bannern visar köad post och posten skickas automatiskt när nätet kommer tillbaka. Avvisad post (400) visas i Inställningar med felet och kan tas bort. BUG-10 och BUG-11. |
+| Dataexport | OK | Nedladdning `gatelog-export.json` med user, checkins, loungeReviews, comments, wishlist, following, followers. Inga lösenord eller hashar. |
+| Radera konto | OK med fel | Rätt lösenord raderar konto, check-ins och inloggning (API 401/404 efteråt). BUG-09 vid fel lösenord. |
+| Sök, recensioner, XSS, utforska, märken, karta, 404 | OK | Som i runda 1, anpassat till v2. Märken med nivåram och nivåetikett. |
+| PWA | OK | Manifest, service worker, offline visar app-skalet, offlinesidans knapp fungerar, kamera-input. |
+| Konsolfel | OK | Inga konsolfel, sidfel eller misslyckade förfrågningar på 16 sidor utloggad och 4 inloggad. Typsnitten laddas. |
+| API-kanter | OK | Runda 1 plus v2: följa sig själv 400, notiser/vänflöde/vänlista kräver inloggning, nearby validerar position och begränsar limit/radie, PATCH kan inte ändra iata, `DELETE /me` utan lösenord 400. |
 
 ## Fellista
 
-| Id | Allvarlighet | Fel |
-|---|---|---|
-| BUG-01 | Hög | CSP blockerar Google Fonts - konsolfel på varje sida och designens typsnitt laddas aldrig |
-| BUG-02 | Hög | Det går inte att logga ut på mobil (Android) |
-| BUG-03 | Medel | Första tangenttrycket efter ett val i autocomplete tömmer hela fältet |
-| BUG-04 | Medel | Enter direkt efter ny inmatning i autocomplete väljer en träff från föregående sökord |
-| BUG-05 | Låg | "Försök igen" på offlinesidan gör ingenting (inline-handler blockeras av CSP) |
-| BUG-06 | Låg | Fel regionkod/länsnamn i flygplatsdata (GVX "Okänt län", 116 icke-ISO-koder) |
-| BUG-07 | Låg | Kartans färgsteg följer inte DESIGN.md |
-| BUG-08 | Låg | Offline-navigering visar alltid offlinesidan trots att app-skalet är cachat |
+| Id | Allvarlighet | Status | Fel |
+|---|---|---|---|
+| BUG-11 | Hög | Ny | Offline check-in innan service workern har cachat kraschar appen (vit sida) |
+| BUG-09 | Medel | Ny | Fel lösenord vid "Radera konto" loggar ut användaren |
+| BUG-10 | Medel | Ny | Efter kall start offline går ingen flygplats att välja |
+| BUG-07 | Låg | Öppen | Kartans färgsteg följer inte DESIGN.md |
+| BUG-01 | Hög | Rättad | CSP blockerade Google Fonts (typsnitten självhostas nu) |
+| BUG-02 | Hög | Rättad | Ingen utloggning på mobil (nu i Inställningar) |
+| BUG-03 | Medel | Rättad | Autocomplete tömdes vid redigering efter val |
+| BUG-04 | Medel | Rättad | Gamla förslag kunde väljas under debounce |
+| BUG-05 | Låg | Rättad | "Försök igen" på offlinesidan blockerades av CSP |
+| BUG-06 | Låg | Rättad | GVX hade "Okänt län" |
+| BUG-08 | Låg | Rättad | Offline visade alltid offlinesidan |
 
-### BUG-01 (Hög) - CSP blockerar Google Fonts
-- Steg: öppna valfri sida, t.ex. `/`, och titta i konsolen.
-- Förväntat: typsnitten Atkinson Hyperlegible, Big Shoulders Display och IBM Plex Mono laddas (DESIGN.md), inga konsolfel.
-- Faktiskt: `Loading the stylesheet 'https://fonts.googleapis.com/css2?...' violates ... style-src 'self' 'unsafe-inline'` på varje sida. Förfrågan stoppas (`requestfailed: csp`) och `document.fonts.check('16px "Atkinson Hyperlegible"')` är false. Appen faller tillbaka på systemtypsnitt, så split-flap-/skyltkaraktären går förlorad.
-- Orsak: `client/src/styles/index.css` rad 2 (`@import url("https://fonts.googleapis.com/...")`) mot CSP i `server/src/app.js` rad 31-34 (`style-src 'self' 'unsafe-inline'`, `font-src 'self' data:`).
-- Förslag: självhosta typsnitten (woff2 under `client/public` eller `src/assets`, `@font-face` med `font-display: swap`) - bäst för prestanda och integritet. Alternativt lägg till `https://fonts.googleapis.com` i `style-src` och `https://fonts.gstatic.com` i `font-src`. Obs: en render-blockerande `@import` till Google ökar troligen LCP med 200-400 ms på 4G, se prestanda.
-- Tester: `pwa.spec.js` "inga konsolfel på någon sida" och "designens typsnitt laddas" (fixme).
+### BUG-11 (Hög) - Offline check-in kraschar appen innan service workern har cachat
+- Steg: första besöket (eller en webbläsare där service workern inte hunnit installeras, t.ex. iOS-Safari utan installerad PWA). Logga in, öppna `/checkin?iata=GOT`, gå offline och tryck "Checka in på GOT".
+- Förväntat: "Sparad offline" och posten i kön.
+- Faktiskt: hela sidan blir vit. Konsolen: `TypeError: Failed to fetch dynamically imported module: /assets/DonePage-*.js`. Posten hamnar i kön (enqueue sker före navigeringen), men användaren ser en trasig app och kan inte navigera vidare.
+- Orsak: `client/src/App.jsx` laddar `DonePage` med `React.lazy` och det finns ingen felgräns (error boundary) runt routes. Samma krasch inträffar vid all klientnavigering offline till en route vars chunk inte är cachad.
+- Förslag: förladda `DonePage` när check-in-sidan öppnas (`import()` i en effekt), eller lägg in den i check-in-chunken. Lägg också en felgräns runt `<Suspense>` som visar "Sidan kunde inte laddas offline - försök igen" i stället för vit sida.
+- Test: `v2.spec.js` "offline check-in kraschar inte appen" (fixme, körs med `serviceWorkers: 'block'`). Med aktiv service worker passerar offlineflödet, eftersom SW förcachar route-chunkarna.
 
-### BUG-02 (Hög) - Ingen utloggning på mobil
-- Steg: Pixel 7, logga in, leta efter utloggning i bottom-nav, profilen eller någon annanstans.
-- Förväntat: utloggning nåbar på Android, som är primär plattform.
-- Faktiskt: enda utloggningsknappen ligger i `.topbar__nav` (`client/src/components/Layout.jsx` rad 64-68), som är `display: none` under 768 px (`client/src/styles/layout.css` rad 49). Bottom-nav och profilsidan saknar utloggning.
-- Förslag: lägg "Logga ut" på den egna profilsidan (bredvid "Redigera") eller i en profilmeny.
-- Test: `auth.spec.js` "utloggning på mobil (Android)" (fixme).
+### BUG-09 (Medel) - Fel lösenord vid kontoradering loggar ut
+- Steg: Inställningar -> "Radera konto" -> skriv fel lösenord -> "Radera mitt konto".
+- Förväntat: "Fel lösenord." och man är kvar inloggad på inställningssidan.
+- Faktiskt: toasten "Fel lösenord." visas, men användaren loggas ut och skickas till `/login`.
+- Orsak: `DELETE /api/me` svarar 401 vid fel lösenord (API v2). `client/src/lib/api.js` rad 89 anropar den globala `onUnauthorized` för alla 401 utom `/auth/*`, och `client/src/lib/auth.jsx` rad 29 loggar då ut. `DangerZone.jsx` förväntar sig att 401 betyder fel lösenord.
+- Förslag: låt servern svara 403 (eller 400) för fel lösenord på `DELETE /me` och uppdatera API.md. Alternativt undanta `DELETE /me` från den globala 401-hanteringen.
+- Test: `v2.spec.js` "fel lösenord vid radering ger felmeddelande och behåller inloggningen" (fixme). API-kanttestet dokumenterar nuvarande 401.
 
-### BUG-03 (Medel) - Autocomplete töms vid redigering efter val
-- Steg: `/register` (eller `/checkin`), skriv "stock", välj ARN med Enter, tryck End + Backspace.
-- Förväntat: fältet visar "ARN - Stockholm-Arlanda Airpor" och nya förslag kan hämtas.
-- Faktiskt: fältet blir tomt efter första tangenttrycket. Samma sak med `fill()`: inskriven text skrivs över med "".
-- Orsak: `client/src/components/Combobox.jsx` - `onChange` anropar `onSelect(null)` (rad ca 140), föräldern sätter `value=null`, `selectedText` blir "" och effekten `useEffect(() => setText(selectedText), [selectedText])` (rad ca 40) skriver över texten användaren just skrev.
-- Förslag: synka bara `text` från `value` när `value` blir ett nytt objekt (inte när det nollställs av egen inmatning), t.ex. med en ref som markerar att ändringen kommer från input.
-- Test: `search.spec.js` "redigering efter val tömmer inte fältet" (fixme).
+### BUG-10 (Medel) - Ingen flygplats kan väljas efter kall start offline
+- Steg: användare med hemmaflygplats och tidigare check-ins öppnar appen online (SW installeras). Stäng och öppna appen igen utan nät och gå till Checka in.
+- Förväntat: "Senaste" (och hemmaflygplatsen) går att välja, så att check-in:en kan köas. Det är huvudfallet för offlinekön (flygplatsläge vid ombordstigning).
+- Faktiskt: "Senaste" visar "Kunde inte nå servern. Kontrollera anslutningen.", sökningen och `?iata=` kräver API:t och "Nära dig" kräver API:t. Ingen flygplats går att välja, så offlinekön går bara att använda om appen var öppen innan nätet försvann.
+- Orsak: `QuickPick.jsx` (`useRecent`) och `useCheckinForm.js` hämtar allt från API:t; minnescachen (`lib/cache.js`) töms vid omstart och service workern cachar inte `/api/`.
+- Förslag: spara senaste/hemmaflygplats i IndexedDB (finns redan för kön, `lib/idb.js`) och läs dem offline, och låt `?iata=` falla tillbaka på den sparade posten.
+- Test: `v2.spec.js` "kall start offline: flygplats kan väljas från Senaste och köas" (fixme).
 
-### BUG-04 (Medel) - Gamla förslag kan väljas under debounce
-- Steg: skriv "kastrup" i en flygplats-autocomplete, vänta på förslag, tryck Escape, skriv "heathrow" och tryck direkt Enter.
-- Förväntat: inget val (eller LHR när svaret kommit).
-- Faktiskt: "CPH - Copenhagen Kastrup Airport" väljs. Listan öppnas direkt med förra sökningens `items` medan den nya är i debounce (150 ms) och nätverk, och Enter/ArrowDown agerar på de gamla träffarna. På långsamt 4G syns fel lista i ca 0,4-0,5 s.
-- Orsak: `client/src/components/Combobox.jsx` - `items` rensas inte när `text` ändras; `showList = open && items.length > 0` och `onKey` Enter använder `items[active]` oavsett om `searched === text.trim()`.
-- Förslag: visa/välj bara när `searched` motsvarar aktuell inmatning (eller töm `items` vid inmatning).
-- Test: `search.spec.js` "Enter direkt efter ny inmatning väljer inte en gammal träff" (fixme).
-
-### BUG-05 (Låg) - Offlinesidans "Försök igen" fungerar inte
-- Steg: besök `/`, låt service workern aktiveras, gå offline, navigera till `/explore`, gå online igen, tryck "Försök igen".
-- Förväntat: sidan laddas om.
-- Faktiskt: inget händer; konsolen visar `Executing inline event handler violates ... script-src 'self'`.
-- Orsak: `client/pwa/offline.html` rad 71 `onclick="location.reload()"` mot CSP i `server/src/app.js`.
-- Förslag: använd en länk (`<a href="">Försök igen</a>`) eller ett externt skript.
-- Test: `pwa.spec.js` "offlinesidans Försök igen laddar om sidan" (fixme).
-
-### BUG-06 (Låg) - Felaktiga regionkoder i flygplatsdata
-- Steg: `/u/oliver/map/SE?scope=all` eller `GET /api/users/oliver/map/SE?scope=all`.
-- Förväntat: endast riktiga län (ISO 3166-2, API v1.3).
-- Faktiskt: raden "Okänt län" (kod `SE-U-A`) med 1 flygplats: GVX Gävle-Sandviken, som ligger i Gävleborgs län (SE-X). Globalt har 116 flygplatser regionkoder som inte är ISO 3166-2 (t.ex. `PF-U-A`, `FO-U-A`, `GI-U-A`, `TW-X-KM`) - arv från OurAirports "U-A" (unassigned). Reguljärtrafikvyn för SE är korrekt (alla 20 län med flygplatser har rätt namn).
-- Fil: `server/data/airports.json` (GVX-posten). Förslag: rätta GVX till SE-X/"Gävleborgs län" och mappa "-U-A" till `region: null` så att klientens "Okänd region" används enligt backendens förtydligande.
-- Test: `explore.spec.js` "landsvy SE med alla flygplatser har bara riktiga län" (fixme).
-
-### BUG-07 (Låg) - Kartans färgsteg avviker från designkontraktet
-- DESIGN.md: 0 % = steg 0, 1-16 = 1, 17-33 = 2, 34-50 = 3, 51-66 = 4, 67-83 = 5, 84-100 = 6.
-- Faktiskt: `client/src/pages/Map/atlas.js` `coverageStep` använder <5, <10, <25, <50, <75, >=75 (förklaringen visar "<5 %"... "75-100 %"). Klientens skala är rimligare för låga täckningsgrader, så antingen uppdateras DESIGN.md eller koden. Inget test, beslutsfråga.
-
-### BUG-08 (Låg) - Offline öppnar aldrig det cachade app-skalet
-- Service workern sparar `/index.html` vid varje navigering men offline-grenen i `client/pwa/sw.js` (navigate-fallback) returnerar alltid `offline.html`. Appen går därför inte att starta offline alls, inte ens för att visa cachad data. Acceptabelt enligt kravet ("offline-sida"), men en förbättring vore att falla tillbaka på cachad `index.html` och visa offlinesidan bara om skalet saknas.
+### BUG-07 (Låg, öppen) - Kartans färgsteg avviker från designkontraktet
+- DESIGN.md: 1-16 % = steg 1 ... 84-100 % = steg 6. `client/src/pages/Map/atlas.js` `coverageStep` använder <5, <10, <25, <50, <75 och >=75. Antingen uppdateras DESIGN.md eller koden. Beslutsfråga, inget test.
 
 ### Observationer (ej fel)
-- Flödets "Alla"-flik och flygplatssidan visar ingen "Radera" på egna check-ins; radering går via "Mina" eller profilen. Kan vara avsiktligt.
-- "Topplistor" saknas i mobilens bottom-nav men nås via Utforska -> Resenärer.
-- I Playwright på Pixel 7 täcker den fasta bottom-nav knappar som scrollats precis in i vyn; testerna scrollar därför till mitten innan klick (`clickCentered`). För användaren finns tillräcklig bottenmarginal.
-- `countries-50m` (233 kB gzip) laddas bara för små länder i landsvyn; Sverige använder 110m-kartan.
+- `GET /api/rankings/users` och `/api/rankings/airports` faller tyst tillbaka på standardvärden vid okänt `metric`/`period`/`category` (200) i stället för 400. Konsekvent med v1 men värt att dokumentera i API.md.
+- Under hög parallell last kan andras nya betyg ändra kategoritopplistan mellan två anrop. Testet jämför därför mot sidans eget svar.
+- Notisen för första check-in ("Du nådde brons i märket Incheckad") kommer med i oläst-räknaren direkt efter första check-in.
 
 ## Prestanda
 
-Mätt med Playwright, projekt `perf`: Pixel 7, CPU-throttling 4x (`Emulation.setCPUThrottlingRate`), nätverk 9 Mbps ner / 1,5 Mbps upp / 60 ms RTT (`Network.emulateNetworkConditions`), cache avstängd och service worker blockerad (kall start). Median av 3 körningar per sida. TTI = när sidans huvudinnehåll syns och huvudtråden svarar på en uppgift (proxy, Playwright saknar Lighthouse-TTI).
+Mätt med Playwright, projekt `perf`: Pixel 7, CPU-throttling 4x, 9 Mbps ner / 1,5 Mbps upp / 60 ms RTT, cache avstängd och service worker blockerad (kall start). Median av 3 körningar. TTI = huvudinnehållet syns och huvudtråden svarar (proxy). Typsnitten är nu självhostade woff2-filer och ingår i mätningen.
 
-| Sida | LCP | FCP | Tid till interaktiv | TBT | CLS | JS överfört |
-|---|---|---|---|---|---|---|
-| `/` | 596 ms | 596 ms | 1 065 ms | 101 ms | 0 | 67 kB |
-| `/search` | 624 ms | 496 ms | 1 187 ms | 46 ms | 0 | 72 kB |
-| `/airport/GOT` | 840 ms | 500 ms | 1 169 ms | 69 ms | 0 | 75 kB |
-| `/u/oliver/map` | 760 ms | 508 ms | 1 243 ms | 145 ms | 0 | 140 kB |
+| Sida | LCP | FCP | Tid till interaktiv | TBT | CLS | JS överfört | Typsnitt | Runda 1 LCP |
+|---|---|---|---|---|---|---|---|---|
+| `/` | 616 ms | 616 ms | 1 295 ms | 121 ms | 0 | 72 kB | 4 filer, 65 kB | 596 ms |
+| `/search` | 772 ms | 584 ms | 1 150 ms | 81 ms | 0 | 80 kB | 5 filer, 74 kB | 624 ms |
+| `/airport/GOT` | 1 144 ms | 584 ms | 1 343 ms | 137 ms | 0 | 80 kB | 4 filer, 65 kB | 840 ms |
+| `/u/oliver/map` | 932 ms | 592 ms | 1 253 ms | 136 ms | 0 | 145 kB | 3 filer, 49 kB | 760 ms |
 
-- Autocomplete (tid från sista tangent till första förslag, inkl. 150 ms debounce, throttlat): median 436 ms, max 493 ms (6 sökord).
-- JS-storlek: initial JS 65,2 kB gzip (`index` + `vendor`), mål < 200 kB uppfyllt. Totalt alla chunkar 393,9 kB gzip, varav `countries-50m` 233 kB och `countries-110m` 38 kB (laddas bara på kartsidan). Servern levererar JS gzippat.
-- Alla mål uppfylls: LCP < 2,5 s med god marginal, inga layoutskutt (CLS 0), kodsplittning per route fungerar (kartbiblioteket laddas bara på kartsidan).
-- Förbehåll: mätningen är gjord utan typsnitt eftersom de blockeras (BUG-01). Rättas det med `@import` från Google Fonts tillkommer render-blockerande förfrågningar till två nya domäner; självhostade typsnitt rekommenderas.
+- Autocomplete (sista tangent till första förslag, inkl. 150 ms debounce, throttlat): median 461 ms, max 506 ms.
+- JS-storlek: initial JS 70,9 kB gzip (`index` + `vendor`), mål < 200 kB uppfyllt. Totalt 425,6 kB gzip, varav kartdata (laddas bara på kartsidan) är den största delen. Servern levererar JS gzippat.
+- Alla mål uppfylls: LCP < 2,5 s, CLS 0. Typsnitten kostar 50-75 kB och lägger till ca 100-300 ms LCP jämfört med runda 1 (då typsnitten blockerades), mest på flygplatssidan där rubriken i Big Shoulders Display är LCP-element. Möjlig förbättring: `<link rel="preload">` för rubriktypsnittet.
 
-## Aktivera fixme-tester
+## Körning
 
-När ett fel är rättat: ta bort raden `test.fixme(true, 'BUG-0x: ...')` i respektive test och kör `npm run test:e2e`. Referenser: BUG-01 `pwa.spec.js` (2 tester), BUG-02 `auth.spec.js`, BUG-03 och BUG-04 `search.spec.js`, BUG-05 `pwa.spec.js`, BUG-06 `explore.spec.js`.
+- `npm run test:e2e` bygger klienten, startar `tests/e2e/server.mjs` (temporär `DB_PATH`/`UPLOAD_DIR`, demodata, port 4173) och kör android, desktop och sist perf. `E2E_REUSE_SERVER=1 E2E_PORT=<port>` återanvänder en startad server.
+- Prestandasiffrorna skrivs till `test-results/perf.json`.
+- Aktivera fixme-tester: ta bort raden `test.fixme(true, 'BUG-xx: ...')` när felet är rättat. BUG-09, BUG-10 och BUG-11 finns i `tests/e2e/v2.spec.js`.

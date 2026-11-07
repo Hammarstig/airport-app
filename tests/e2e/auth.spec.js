@@ -61,11 +61,13 @@ test.describe('konto', () => {
     await expect(page.getByRole('heading', { name: 'Checka in' })).toBeVisible();
   });
 
-  test('utloggning (desktop: ikonknapp i toppmenyn)', async ({ page, request }) => {
-    test.skip(isMobile(test.info()), 'mobilvarianten testas separat (BUG-02)');
+  test('utloggning (desktop: via Inställningar)', async ({ page, request }) => {
+    test.skip(isMobile(test.info()), 'mobilvarianten testas separat');
     const u = await apiRegister(request);
     await useToken(page, u.token);
     await page.goto('/');
+    await page.getByRole('link', { name: 'Inställningar' }).click();
+    await expect(page).toHaveURL(/\/settings$/);
     await page.getByRole('button', { name: 'Logga ut' }).click();
     await expect(page.getByRole('navigation', { name: 'Huvudmeny', exact: true }).getByRole('link', { name: 'Logga in' })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem('gatelog.token'))).toBeNull();

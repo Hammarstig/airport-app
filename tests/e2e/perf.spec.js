@@ -80,6 +80,8 @@ async function measure(browser, devCfg, target) {
       load: nav.loadEventEnd,
       jsBytes: js.reduce((n, r) => n + (r.transferSize || 0), 0),
       jsFiles: js.map((r) => r.name.split('/').pop()),
+      fontBytes: res.filter((r) => r.name.endsWith('.woff2')).reduce((n, r) => n + (r.transferSize || 0), 0),
+      fontFiles: res.filter((r) => r.name.endsWith('.woff2')).length,
       totalBytes: res.reduce((n, r) => n + (r.transferSize || 0), 0) + (nav.transferSize || 0),
     };
   });
@@ -105,10 +107,12 @@ test.describe('prestanda (Pixel 7, 4x CPU, 4G)', () => {
         jsKbTransfer: Math.round(median(runs.map((x) => x.jsBytes)) / 1024),
         totalKbTransfer: Math.round(median(runs.map((x) => x.totalBytes)) / 1024),
         jsFiles: runs[0].jsFiles,
+        fontKbTransfer: Math.round(median(runs.map((x) => x.fontBytes)) / 1024),
+        fontFiles: runs[0].fontFiles,
         rawLcp: runs.map((x) => Math.round(x.lcp)),
       };
       results.pages[target.path] = r;
-      console.log(`[perf] ${target.path}: LCP ${r.lcpMs} ms, FCP ${r.fcpMs} ms, TTI ${r.ttiMs} ms, TBT ${r.tbtMs} ms, CLS ${r.cls}, JS ${r.jsKbTransfer} kB`);
+      console.log(`[perf] ${target.path}: LCP ${r.lcpMs} ms, FCP ${r.fcpMs} ms, TTI ${r.ttiMs} ms, TBT ${r.tbtMs} ms, CLS ${r.cls}, JS ${r.jsKbTransfer} kB, typsnitt ${r.fontFiles} filer/${r.fontKbTransfer} kB`);
       expect.soft(r.lcpMs, `LCP för ${target.path}`).toBeLessThan(2500);
       expect.soft(r.cls, `CLS för ${target.path}`).toBeLessThan(0.1);
     });
