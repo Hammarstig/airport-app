@@ -38,11 +38,68 @@
 }
 @keyframes ping { to { transform: scale(2.4); opacity: 0; } }
 
-/* Notislista */
-.notif-item { display: flex; align-items: flex-start; gap: var(--sp-3); }
-.notif-item--unread { background: color-mix(in srgb, var(--signal-soft) 70%, var(--surface)); box-shadow: inset 3px 0 0 var(--signal); }
-.notif-item__text { flex: 1; min-width: 0; font-size: var(--fs-sm); line-height: 1.4; }
-.notif-item__time { display: block; margin-top: 2px; font-size: var(--fs-xs); color: var(--muted); }
+/* Notislista: bild (avatar eller märke) med typikon, text, tid. Olästa i fetstil med punkt. */
+.notif-item { position: relative; display: flex; align-items: center; gap: var(--sp-3); padding-left: var(--sp-5); }
+.notif-item > a { color: inherit; text-decoration: none; }
+.notif-item > a:hover .notif-item__text { text-decoration: underline; text-decoration-thickness: 1px; }
+.notif-item--unread { background: color-mix(in srgb, var(--signal-soft) 60%, var(--surface)); }
+.notif-item--unread::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--signal-text);
+}
+.notif-item--unread .notif-item__text { font-weight: 700; color: var(--ink); }
+.notif-item__text { flex: 1; min-width: 0; font-size: var(--fs-sm); line-height: 1.4; color: var(--ink-2); }
+.notif-item__text b, .notif-item__text strong { color: var(--ink); }
+.notif-item__time { flex: none; align-self: flex-start; margin-top: 2px; font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+/* Bild: avatar, märkesbild eller ikon i rund bricka; typikon nere till höger */
+.notif-item__media { position: relative; flex: none; width: 44px; height: 44px; }
+.notif-item__media > .avatar { --avatar-size: 44px; }
+.notif-item__media > img { width: 44px; height: 44px; }
+.notif-item .avatar { --avatar-size: 44px; flex: none; }
+.notif-item > svg, .notif-item > a > svg:first-child, .notif-item__media > svg {
+  flex: none;
+  box-sizing: content-box;
+  width: 22px;
+  height: 22px;
+  padding: 11px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--ink-2);
+}
+.notif-item__type {
+  --t: var(--ink-2);
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--t);
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.notif-item--unread .notif-item__type { box-shadow: 0 0 0 2px color-mix(in srgb, var(--signal-soft) 60%, var(--surface)); }
+.notif-item__type svg { width: 13px; height: 13px; stroke-width: 2.4; padding: 0; background: none; color: inherit; }
+.notif-item__type--follow { --t: #1E6BB0; }
+.notif-item__type--comment { --t: #18794E; }
+.notif-item__type--like { --t: #B8322A; }
+.notif-item__type--like svg { fill: currentColor; }
+.notif-item__type--badge { --t: #8A5600; }
+.notif-item__type--home_visit { --t: #6A48B8; }
+.notif-item__type--overtaken { --t: #C2410C; }
+.notif-group__title { padding: var(--sp-3) var(--sp-4) var(--sp-1); font-size: var(--fs-xs); font-weight: 700; color: var(--muted); }
+.notif-badges { display: flex; margin-top: 4px; }
+.notif-badges img { width: 28px; height: 28px; }
+.notif-badges img + img { margin-left: -6px; }
 
 /* ---------- Kommentarer ---------- */
 .comment-thread {

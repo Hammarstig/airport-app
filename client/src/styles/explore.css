@@ -219,27 +219,64 @@ button.tile { width: 100%; text-align: left; font: inherit; }
 /* ---------- Märken ---------- */
 .badge-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: var(--sp-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
 }
+@media (min-width: 640px) { .badge-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); } }
 .badge-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-4) var(--sp-3);
+  gap: 6px;
+  padding: var(--sp-3) var(--sp-2);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   text-align: center;
   min-width: 0;
+  color: inherit;
+  font: inherit;
 }
+button.badge-card, a.badge-card { width: 100%; cursor: pointer; text-decoration: none; }
+button.badge-card:hover, a.badge-card:hover { border-color: var(--line-strong); }
 .badge-card__icon {
-  width: 88px;
-  height: 88px;
-  filter: drop-shadow(0 4px 6px rgba(15, 27, 45, .25));
+  display: block;
+  width: 64px;
+  height: 64px;
+  filter: drop-shadow(0 3px 4px rgba(15, 27, 45, .22));
 }
 .badge-card__icon img, .badge-card__icon svg { width: 100%; height: 100%; }
+@media (min-width: 640px) {
+  .badge-card { padding: var(--sp-4) var(--sp-3); gap: var(--sp-2); }
+  .badge-card__icon { width: 84px; height: 84px; }
+}
+/* Kompakt på mobil: bild, namn, nivå och mätare. Beskrivning, datum och sällsynthet visas i detaljvyn
+   (bottenark) eller från 640 px, eller alltid med .badge-grid--detailed. */
+@media (max-width: 639px) {
+  .badge-grid:not(.badge-grid--detailed) .badge-card__desc,
+  .badge-grid:not(.badge-grid--detailed) .badge-card__date { display: none; }
+  .badge-grid:not(.badge-grid--detailed) .badge-card__name {
+    font-size: var(--fs-xs);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    min-height: 2.5em;
+  }
+  .badge-grid:not(.badge-grid--detailed) .tier-chip { height: 18px; padding: 0 6px; font-size: .68rem; }
+  .badge-grid:not(.badge-grid--detailed) .badge-card__progress { height: 4px; }
+}
+/* Detaljer i bottenark (.modal) */
+.badge-detail { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); text-align: center; }
+.badge-detail__icon { width: 128px; height: 128px; filter: drop-shadow(0 8px 10px rgba(15, 27, 45, .3)); }
+.badge-detail__icon img { width: 100%; height: 100%; }
+.badge-detail__tiers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); width: 100%; margin-top: var(--sp-2); }
+.badge-detail__tier { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: var(--fs-xs); color: var(--muted); }
+.badge-detail__tier img { width: 52px; height: 52px; }
+.badge-detail__tier--locked img { filter: grayscale(1); opacity: .4; }
+.badge-detail__tier--reached { color: var(--ink); font-weight: 700; }
 .badge-card__name { font-weight: 700; color: var(--ink); line-height: 1.25; }
 .badge-card__desc { font-size: var(--fs-xs); color: var(--muted); line-height: 1.35; }
 .badge-card__date { font-size: var(--fs-xs); color: var(--signal-text); font-weight: 700; }

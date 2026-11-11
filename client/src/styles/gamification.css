@@ -226,7 +226,7 @@
   padding: 0 12px 0 8px;
   border-radius: var(--r-pill);
   background: color-mix(in srgb, #FF6A1A 12%, var(--surface));
-  color: color-mix(in srgb, #E2560C 70%, var(--ink));
+  color: color-mix(in srgb, #C2410C 62%, var(--ink));
   font-weight: 700;
   font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
@@ -234,7 +234,7 @@
 }
 .streak svg { width: 20px; height: 20px; color: #F2690F; fill: color-mix(in srgb, #FFB020 55%, transparent); transform-origin: 50% 90%; }
 .streak__count { font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; line-height: 1; }
-.streak__unit { font-size: var(--fs-xs); font-weight: 700; opacity: .9; }
+.streak__unit { font-size: var(--fs-xs); font-weight: 700; }
 .streak--active svg { animation: flicker 2.4s ease-in-out infinite; }
 .streak--cold { background: var(--surface-3); color: var(--muted); }
 .streak--cold svg { color: var(--muted); fill: none; }

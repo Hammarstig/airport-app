@@ -41,7 +41,17 @@ a {
   color: var(--info);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
 }
+/* Länkar i UI (rader, kortens åtgärder, användarrader, statistik) utan understrykning;
+   understrykning finns kvar i löptext (p, li med text) och vid hover/fokus. */
+:is(.row, .row--nowrap, .checkin__actions, .user-row, .stat, .stat-row, .tabs, .page__header) > a:not(.btn):not(.iata-tag),
+.user-row a, .checkin__meta a {
+  color: inherit;
+  text-decoration: none;
+}
+:is(.row, .row--nowrap, .checkin__actions, .user-row, .stat, .stat-row, .tabs, .page__header) > a:not(.btn):not(.iata-tag):is(:hover, :focus-visible),
+.user-row a:is(:hover, :focus-visible) { text-decoration: underline; }
 a:hover { text-decoration-thickness: 2px; }
 
 img { display: block; max-width: 100%; }
