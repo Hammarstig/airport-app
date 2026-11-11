@@ -349,3 +349,68 @@ POST /api/checkins svarar som tidigare plus:
 - Felsvar 500 innehåller `requestId`; alla svar har headern `X-Request-Id` (skickad `X-Request-Id` återanvänds om den är 1-64 tecken `[A-Za-z0-9_.-]`).
 - Statistik (`airport_stats`, `user_stats`, `user_airports`, ...) uppdateras av triggers i samma transaktion som ändringen. `npm run bench -w server` seedar 300 000 check-ins och mäter budgeten (autocomplete < 20 ms, recensionssök < 50 ms).
 - Databasen versioneras med `PRAGMA user_version` (numrerade migreringar i `server/src/db.js`), äldre databaser uppgraderas vid start.
+
+# v3 - Integritet, sessioner, blockering, Web Push (kontrakt runda 3)
+
+Gäller utöver v2. En konsoliderad referens ersätter denna fil när runda 3 är klar.
+
+## Sessioner
+- `POST /api/auth/register` och `/login` svarar `{ token, user, expiresIn: 900 }` och sätter cookien `gl_refresh` (`HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=30 dagar`, `Secure` i produktion).
+- `token` är en access-token som gäller i 15 minuter. Utgången token ger 401 `{ error, code: "token_expired" }`; återkallad session ger 401 `{ error, code: "session_revoked" }`.
+- `POST /api/auth/refresh` (cookie, ingen body) -> `{ token, user, expiresIn }` och roterar cookien. 401 och rensad cookie om den saknas, är ogiltig eller återkallad. En redan använd refresh-token återkallar hela sessionen.
+- `POST /api/auth/logout` -> 204, återkallar aktuell session (via cookie eller access-token) och rensar cookien.
+- `POST /api/auth/logout-all` (auth) -> 204, återkallar alla användarens sessioner.
+- `GET /api/me/sessions` -> `[{ id, createdAt, lastUsedAt, client, current }]` (`client` = webbläsarens klientsträng, kortad); `DELETE /api/me/sessions/:id` -> 204.
+- `POST /api/me/password` `{ currentPassword, newPassword }` -> `{ token, expiresIn }`. 403 vid fel nuvarande lösenord. Alla andra sessioner återkallas.
+- Lösenordskrav (registrering och byte): 8-200 tecken, inte lika med användarnamnet, inte ett vanligt lösenord (lokal lista), annars 400.
+- `DELETE /api/me` med fel lösenord ger **403** (inte 401).
+- `GET /api/me` får `isModerator: boolean`.
+
+## Inställningar och integritet
+`GET /api/me/settings` och `PATCH /api/me/settings` (delvis):
+```jsonc
+{ "isPrivate": false,                 // privat profil: följning kräver godkännande
+  "defaultVisibility": "public",       // "public" | "friends" | "private" för nya check-ins
+  "publishDelayHours": 0,              // 0 | 1 | 24 | 168: andra ser check-in först efter fördröjningen
+  "hideHomeAirport": false,            // homeIata visas som null för andra
+  "notifyHomeVisits": true,            // ta emot home_visit-notiser
+  "push": { "follow": true, "follow_request": true, "follow_accepted": true, "comment": true,
+            "like": true, "badge": true, "home_visit": true, "overtaken": true } }
+```
+- Check-in tar `visibility` i POST/PATCH (default `defaultVisibility`). Checkin-objektet får `visibility` och `publishAt` (ISO; `createdAt` plus fördröjning).
+- Synlighet för andra än ägaren: `public` = alla (om profilen är publik, annars godkända följare), `friends` = godkända följare, `private` = bara ägaren. Före `publishAt` ser bara ägaren check-in:en. Blockering döljer åt båda håll.
+- Gäller flöden, flygplatsens check-ins, användarens check-ins, check-in-detalj (404), kommentarer, gilla (404), sök, foton på flygplatssidan, `friendsVisited`, `home_visit`- och `overtaken`-notiser. Profilens flygplatslista, karta och statistikkort räknas bara på check-ins som tittaren får se.
+- Privat profil: `GET /api/users/:u` får `isPrivate`, `canView`, `followRequested`; utan `canView` är `stats` null. Listor (`/checkins`, `/airports`, `/map`, `/map/:country`, `/wishlist`, `/badges`, `/followers`, `/following`, `/card`) ger 403 `{ error, code: "private_profile" }`. Privata profiler syns inte i globala topplistor (bara för sig själva och följare).
+
+## Följförfrågningar
+- `POST /api/users/:u/follow` mot privat profil -> `{ following: false, requested: true, followers }` och notis `follow_request`.
+- `GET /api/me/follow-requests` -> `[UserSummary & { requestedAt }]`.
+- `POST /api/me/follow-requests/:username` -> 204 (godkänn, notis `follow_accepted` till den som frågade); `DELETE /api/me/follow-requests/:username` -> 204 (avböj).
+- `DELETE /api/users/:u/follow` tar även bort en egen väntande förfrågan. `/followers`, `/following` och alla vänlistor räknar bara godkända följningar.
+
+## Blockera och rapportera
+- `POST /api/users/:u/block` -> 204 (tar bort följningar och förfrågningar åt båda håll); `DELETE /api/users/:u/block` -> 204; `GET /api/me/blocks` -> `[UserSummary & { blockedAt }]`.
+- Blockerade kan inte följa, kommentera eller gilla; deras check-ins och kommentarer döljs för den som blockerat och tvärtom. Inga notiser mellan dem.
+- `POST /api/reports` `{ type: "user" | "comment" | "checkin", target: username | id, reason: "spam" | "harassment" | "inappropriate" | "privacy" | "other", note? (max 500) }` -> 201 `{ id, status: "open" }` (samma öppna rapport från samma person ger 200 med samma id).
+- Moderatorer (env `MODERATORS=användarnamn,...`): `GET /api/moderation/reports?status=open|resolved|dismissed` -> `[{ id, type, target, reason, note, reporter, status, reportCount, createdAt }]`; `POST /api/moderation/reports/:id` `{ action: "dismiss" | "resolve" | "remove_content" }` -> rapporten. `remove_content` raderar kommentaren eller check-in:en (inte för `user`). Övriga får 403.
+
+## Web Push
+- `GET /api/push/public-key` -> `{ enabled, publicKey | null }` (VAPID, env `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`; i utveckling genereras nycklar till `server/data/vapid.json`).
+- `POST /api/push/subscriptions` `{ endpoint, keys: { p256dh, auth } }` (auth) -> 201; `DELETE /api/push/subscriptions` `{ endpoint }` -> 204. Max 10 prenumerationer per användare.
+- Varje ny notis skickas som push om användarens `push[type]` är på. Payload (JSON): `{ title: "Gatelog", body: text, url, tag, type, notificationId }`. Prenumerationer som svarar 404/410 tas bort.
+
+## Notiser
+- Nya typer: `follow_request`, `follow_accepted`, `overtaken`.
+- `badge`-notiser grupperas per händelse: en notis med `badges: [{ id, name, tier }]` (alla nivåer som nåddes av samma check-in eller handling). `badge` = första posten. Text: "Du nådde brons i Flygplatssamlare" eller "Du nådde 3 nya märkesnivåer".
+- Alla notiser får `groupKey` (t.ex. `badge:checkin:123`, `overtaken:2026-11-09`) och `url` (klientväg att öppna).
+- `overtaken`: när någon du följer går om dig i veckans topplista (unika flygplatser, ISO-vecka) skapas "anna gick om dig på veckans topplista". Högst en per vecka och person, och bara om check-in:en är synlig för dig.
+
+## Märken
+Höjda trösklar; vissa märken har bara tre nivåer (`tiers` har då tre poster):
+`checkins` 1/50/250/1000 · `airports` 5/25/100/250 · `countries` 3/15/40/80 · `continents` 3/4/5/6 · `nordic` 3/4/5 (brons/silver/guld) ·
+`hubs` 10/30/75/150 · `alphabet` 8/14/20/26 · `regions-se` 3/8/14/18 · `airlines` 5/15/40/80 · `front-cabin` 1/10/40/100 ·
+`transfer-king` 5/20/75/200 · `home-turf` 10/30/75/200 · `streak` 3/8/20/52 · `reviewer` 10/40/120/300 ·
+`lounge-expert` 1/10/40/100 · `photographer` 1/20/75/250 · `popular` 10/50/250/1000 · `conversationalist` 5/50/200/500
+
+## Validering av frågeparametrar
+Okända värden för uppräknade parametrar (`metric`, `period`, `scope`, `category`, `sort`, `type`, `visited`, `status`) ger 400 `{ error, allowed: [...] }` i stället för tyst standardvärde.
