@@ -2,7 +2,8 @@
 // Kör: npm run seed:demo -w server   (DB_PATH styr databasfil, default server/data/gatelog.db)
 // Befintliga demoanvändare tas bort och skapas om, så skriptet kan köras flera gånger.
 import bcrypt from 'bcryptjs';
-import { openDb, transaction } from '../src/db.js';
+import { openDb, transaction } from '../src/db/index.js';
+import { loadConfig } from '../src/config.js';
 import { syncBadges } from '../src/badges.js';
 import { notify, notifyHomeVisit } from '../src/notify.js';
 
@@ -184,7 +185,7 @@ export function seedDemo(db) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const db = openDb();
+  const db = openDb(loadConfig().dbPath);
   const r = seedDemo(db);
   console.log(`[seed-demo] Skapade ${r.users} användare (lösenord "${PASSWORD}") och ${r.checkins} check-ins.`);
   db.close();

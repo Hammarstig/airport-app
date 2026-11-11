@@ -3,7 +3,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { requireAuth } from '../auth.js';
 import { h, bad, HttpError, paging, AIRPORT_COLS, airportFrom, userSummary } from '../util.js';
-import { transaction } from '../db.js';
+import { transaction } from '../db/index.js';
 
 export const ATTRIBUTIONS = [
   {

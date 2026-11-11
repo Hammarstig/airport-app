@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { requireAuth } from '../auth.js';
 import { h, bad, notFound, HttpError, photoFrom } from '../util.js';
-import { transaction } from '../db.js';
+import { transaction } from '../db/index.js';
 import { awardBadges } from '../badges.js';
 
 export const MAX_PHOTOS_PER_CHECKIN = 4;

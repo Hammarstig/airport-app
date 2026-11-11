@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { h, bad, notFound, HttpError, cleanText, paging, USER_COLS, userFrom } from '../util.js';
-import { transaction } from '../db.js';
+import { transaction } from '../db/index.js';
 import { notify, NOTIFICATION_SELECT, notificationFrom } from '../notify.js';
 import { awardBadges } from '../badges.js';
 

@@ -4,7 +4,7 @@ import {
   h, notFound, HttpError, cleanText, validateHalfStep, validateDate, paging, USER_COLS, userFrom,
   LOUNGE_SELECT, loungeFrom,
 } from '../util.js';
-import { transaction } from '../db.js';
+import { transaction } from '../db/index.js';
 import { awardBadges } from '../badges.js';
 
 const REVIEW_SELECT = `

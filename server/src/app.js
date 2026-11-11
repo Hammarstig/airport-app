@@ -3,7 +3,7 @@ import cors from 'cors';
 import compression from 'compression';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { openDb } from './db.js';
+import { openDb } from './db/index.js';
 import { loadConfig, resolveSecret } from './config.js';
 import { optionalAuth, rateLimit } from './auth.js';
 import { HttpError } from './util.js';
@@ -149,7 +149,6 @@ export function createApp(opts = {}) {
   }
 
   // Felhanterare
-  // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, _next) => {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
     if (err?.type === 'entity.too.large') return res.status(413).json({ error: 'För stor förfrågan' });

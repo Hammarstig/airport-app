@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { normalizeWords, countryNameSv } from '../db.js';
+import { normalizeWords, countryNameSv } from '../db/index.js';
 import {
   h, bad, notFound, HttpError, cleanText, normIata, paging, round2, escapeLike, code2, LOUNGE_SELECT, loungeFrom,
   AIRPORT_COLS, airportFrom, CHECKIN_SELECT, checkinsWithPhotos, SUB_RATINGS, TRAVEL_CLASSES, photoFrom,

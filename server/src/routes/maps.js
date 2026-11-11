@@ -1,7 +1,7 @@
 // v1.3: kartvyer med täckningsgrad. En aggregerad SQL-fråga per anrop.
 import { Router } from 'express';
 import { h, notFound, code2 } from '../util.js';
-import { countryNameSv } from '../db.js';
+import { countryNameSv } from '../db/index.js';
 
 const CONTINENT_NAMES = {
   EU: 'Europa', AS: 'Asien', AF: 'Afrika', NA: 'Nordamerika', SA: 'Sydamerika', OC: 'Oceanien', AN: 'Antarktis',

@@ -4,7 +4,7 @@
 import { rmSync, existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openDb, transaction } from '../src/db.js';
+import { openDb, transaction } from '../src/db/index.js';
 import { createApp } from '../src/app.js';
 
 const N_CHECKINS = Number(process.env.BENCH_CHECKINS) || 300_000;

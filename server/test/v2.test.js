@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer, daysAgo } from './helpers.js';
 import { seedDemo } from '../scripts/seed-demo.js';
-import { openDb, rebuildStats, SCHEMA_VERSION } from '../src/db.js';
+import { openDb, rebuildStats, SCHEMA_VERSION } from '../src/db/index.js';
 import { levelInfo } from '../src/util.js';
 import { streakFrom, mondayOf } from '../src/badges.js';
 import { stripMetadata } from '../src/routes/photos.js';

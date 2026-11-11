@@ -5,7 +5,7 @@ import {
   h, bad, notFound, paging, round2, normIata, escapeLike, code2, LOUNGE_SELECT, loungeFrom,
   AIRPORT_COLS, airportFrom, USER_COLS, userFrom,
 } from '../util.js';
-import { normalizeWords, countryNameSv } from '../db.js';
+import { normalizeWords, countryNameSv } from '../db/index.js';
 import { globalMeans, bayesSql, LOUNGE_PRIOR } from '../stats.js';
 
 const countryName = countryNameSv;

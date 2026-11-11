@@ -4,7 +4,7 @@ import {
   h, bad, notFound, HttpError, cleanText, validateHalfStep, validateRatings, validateDate,
   normIata, paging, KINDS, TRAVEL_CLASSES, SUB_RATINGS, CHECKIN_SELECT, checkinsWithPhotos, levelInfo,
 } from '../util.js';
-import { transaction } from '../db.js';
+import { transaction } from '../db/index.js';
 import { awardBadges, userStreak } from '../badges.js';
 import { notify, notifyHomeVisit } from '../notify.js';
 

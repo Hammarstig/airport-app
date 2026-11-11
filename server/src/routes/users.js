@@ -4,7 +4,7 @@ import {
   h, bad, notFound, paging, round2, userSummary, levelInfo, AIRPORT_COLS, airportFrom,
   CHECKIN_SELECT, checkinsWithPhotos, escapeHtml,
 } from '../util.js';
-import { countryNameSv } from '../db.js';
+import { countryNameSv } from '../db/index.js';
 import { getBadges, userStreak } from '../badges.js';
 
 export default function userRoutes({ db }) {
