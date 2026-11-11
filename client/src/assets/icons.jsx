@@ -358,3 +358,58 @@ export function IconCheck(props) {
     </Svg>
   );
 }
+
+export function IconMore(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="5.5" r="1.3" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+      <circle cx="12" cy="18.5" r="1.3" fill="currentColor" />
+    </Svg>
+  );
+}
+
+export function IconFlag(props) {
+  return (
+    <Svg {...props}>
+      <path d="M5.5 21V4" />
+      <path d="M5.5 4.5h11l-2.5 4 2.5 4h-11" />
+    </Svg>
+  );
+}
+
+export function IconBan(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m6 6 12 12" />
+    </Svg>
+  );
+}
+
+export function IconLock(props) {
+  return (
+    <Svg {...props}>
+      <rect x="5" y="10.5" width="14" height="10" rx="1.5" />
+      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5M12 14.5v2.5" />
+    </Svg>
+  );
+}
+
+export function IconEye(props) {
+  return (
+    <Svg {...props}>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Svg>
+  );
+}
+
+export function IconEyeOff(props) {
+  return (
+    <Svg {...props}>
+      <path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.8 3.6M6.4 7.3C3.9 9 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1.1" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3.5 3.5l17 17" />
+    </Svg>
+  );
+}

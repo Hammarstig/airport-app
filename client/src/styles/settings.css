@@ -1,0 +1,219 @@
+/* Gatelog - inställningar, integritet, meny för blockera/rapportera */
+
+/* ---------- Synlighetsväljare: Publik / Vänner / Privat ----------
+   <div class="visibility-picker" role="radiogroup">
+     <label class="visibility-option"><input type="radio" name="vis" value="public"> <IconGlobe/>
+       <span class="visibility-option__title">Publik</span><span class="visibility-option__desc">Alla kan se</span></label> ... */
+.visibility-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+.visibility-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 96px;
+  padding: var(--sp-3);
+  border: 2px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.visibility-option input { position: absolute; opacity: 0; pointer-events: none; }
+.visibility-option svg { width: 22px; height: 22px; color: var(--ink-2); }
+.visibility-option__title { font-weight: 700; color: var(--ink); font-size: var(--fs-sm); }
+.visibility-option__desc { font-size: var(--fs-xs); color: var(--muted); line-height: 1.3; }
+.visibility-option:hover { border-color: var(--line-strong); }
+.visibility-option:has(input:checked), .visibility-option--active {
+  border-color: var(--ink);
+  background: var(--signal-soft);
+}
+.visibility-option:has(input:checked) svg, .visibility-option--active svg { color: var(--signal-text); }
+.visibility-option:has(input:checked)::before, .visibility-option--active::before,
+.visibility-option:has(input:checked)::after, .visibility-option--active::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+.visibility-option:has(input:checked)::after, .visibility-option--active::after {
+  background: var(--surface);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6.5 12.5 3.8 3.8 7.2-8'/%3E%3C/svg%3E") center / 13px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6.5 12.5 3.8 3.8 7.2-8'/%3E%3C/svg%3E") center / 13px no-repeat;
+}
+.visibility-option:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 380px) {
+  .visibility-picker { grid-template-columns: minmax(0, 1fr); }
+  .visibility-option { min-height: 0; flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: var(--sp-2); }
+  .visibility-option__desc { flex-basis: 100%; }
+}
+
+/* Liten markering på check-in, profil m.m. */
+.visibility-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.visibility-chip svg { width: 13px; height: 13px; }
+
+/* ---------- Inställningsrad med reglage ---------- */
+.setting-list { display: flex; flex-direction: column; }
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 56px;
+  padding: var(--sp-3) 0;
+  cursor: pointer;
+}
+.setting-list > .setting-row + .setting-row { border-top: 1px solid var(--line); }
+.setting-row__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.setting-row__title { font-weight: 700; color: var(--ink); }
+.setting-row__desc { font-size: var(--fs-sm); color: var(--muted); line-height: 1.35; }
+.setting-row .select { width: auto; min-width: 9rem; }
+
+/* Reglage: <input type="checkbox" role="switch" class="switch"> */
+.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 32px;
+  margin: 0;
+  border-radius: var(--r-pill);
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+.switch::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 27, 45, .35);
+  transition: transform var(--dur) var(--ease);
+}
+.switch::after { content: ""; position: absolute; inset: -8px -2px; }
+.switch:checked { background: var(--good); }
+.switch:checked::before {
+  transform: translateX(20px);
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231D7A4C' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 14px no-repeat;
+}
+.switch:disabled { opacity: .5; cursor: not-allowed; }
+.switch:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- Meny: blockera / rapportera ----------
+   <div class="menu-wrap"><button class="icon-btn menu-btn" aria-haspopup="menu" aria-expanded>...</button>
+   <div class="menu" role="menu"><button class="menu__item" role="menuitem">...</button>...</div></div> */
+.menu-wrap { position: relative; display: inline-flex; }
+.menu-btn { color: var(--muted); }
+.menu-btn[aria-expanded="true"] { background: var(--surface-3); color: var(--ink); }
+.menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 220px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  animation: pop-in 140ms var(--ease);
+}
+.menu--up { top: auto; bottom: calc(100% + 4px); }
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  text-align: left;
+  text-decoration: none;
+}
+.menu__item svg { width: 20px; height: 20px; color: var(--ink-2); }
+.menu__item:hover, .menu__item:focus-visible { background: var(--surface-2); outline: none; }
+.menu__item:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.menu__item--danger, .menu__item--danger svg { color: var(--bad); }
+.menu__item--danger:hover { background: var(--bad-soft); }
+.menu__sep { height: 1px; margin: 4px 6px; background: var(--line); }
+/* På mobil kan menyn visas som bottenark: lägg .menu--sheet och en .modal__backdrop bakom */
+@media (max-width: 639px) {
+  .menu--sheet {
+    position: fixed;
+    inset: auto 0 0 0;
+    min-width: 0;
+    padding: var(--sp-2) var(--sp-2) calc(var(--sp-3) + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-width: 1px 0 0;
+    animation: sheet-up 220ms var(--ease);
+    z-index: 85;
+  }
+  .menu--sheet .menu__item { min-height: 52px; font-size: var(--fs-md); }
+}
+
+/* ---------- Rapportera: val av anledning ---------- */
+.choice-list { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0; padding: 0; border: 0; }
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: 12px var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  cursor: pointer;
+}
+.choice input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--ink); }
+.choice__title { font-weight: 700; color: var(--ink); }
+.choice__desc { display: block; font-size: var(--fs-sm); color: var(--muted); }
+.choice:has(input:checked) { border-color: var(--ink); background: var(--surface-2); }
+
+/* ---------- Meddelanderuta ---------- */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--sky-soft);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  border-left: 4px solid var(--info);
+}
+.notice svg { flex: none; width: 20px; height: 20px; color: var(--info); margin-top: 1px; }
+.notice--warn { background: var(--signal-soft); border-left-color: var(--signal-text); }
+.notice--warn svg { color: var(--signal-text); }
+.notice--danger { background: var(--bad-soft); border-left-color: var(--bad); }
+.notice--danger svg { color: var(--bad); }
+
+/* Blockerad användare i listor */
+.user-row--blocked .avatar { filter: grayscale(1); opacity: .6; }
