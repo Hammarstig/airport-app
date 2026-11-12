@@ -82,10 +82,10 @@ test.describe('utforska och topplistor', () => {
     await expect(page.locator('.result-row').first()).toBeVisible();
   });
 
-  test('topplistan är nåbar från mobilmenyn', async ({ page }) => {
-    // Bottom-nav saknar "Topplistor" men Utforska länkar dit.
+  test('topplistan är nåbar från menyn', async ({ page }) => {
+    // Topplistor är en egen menyflik (bottom-nav på mobil, toppmeny på desktop); Utforska har ingen dubblett.
     await page.goto('/explore');
-    await page.getByRole('link', { name: /Resenärer/ }).click();
+    await page.locator('nav[aria-label^="Huvudmeny"]:visible').getByRole('link', { name: 'Topplistor' }).click();
     await expect(page).toHaveURL(/\/leaderboard$/);
   });
 });

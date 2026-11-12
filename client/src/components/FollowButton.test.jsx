@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FollowButton } from './FollowButton.jsx';
-import { mockFetch, renderApp } from '../test/utils.jsx';
+import { mockFetch, renderApp, loginAs } from '../test/utils.jsx';
 
 const login = () => {
-  localStorage.setItem('gatelog.token', 'aaa.bbb.ccc');
-  localStorage.setItem('gatelog.user', JSON.stringify({ username: 'me' }));
+  loginAs('me');
 };
 
 describe('FollowButton', () => {

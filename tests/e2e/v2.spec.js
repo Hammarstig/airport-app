@@ -441,6 +441,6 @@ test.describe('konto', () => {
     await expect(page.getByText('Fel lösenord.')).toBeVisible();
     await expect(page).toHaveURL(/\/settings$/);
     await expect(form.getByLabel('Bekräfta med ditt lösenord')).toBeVisible();
-    expect(await page.evaluate(() => localStorage.getItem('gatelog.token'))).not.toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('gatelog.user'))).not.toBeNull();
   });
 });

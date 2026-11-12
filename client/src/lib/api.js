@@ -1,37 +1,41 @@
 import { cacheClear, cacheGet, cacheInvalidate, cacheSet } from './cache.js';
 import { forgetRecent, rememberAirports, rememberRecent } from './localAirports.js';
 
-const TOKEN_KEY = 'gatelog.token';
-
+// Access-token (15 min) hålls bara i minnet. Sessionen bärs av refresh-cookien (HttpOnly), och en ny
+// token hämtas med POST /api/auth/refresh vid sidladdning och när den gått ut.
+const LEGACY_TOKEN_KEY = 'gatelog.token';
 const JWT_SHAPE = /^[\w-]+\.[\w-]+\.[\w-]+$/;
+let accessToken = null;
 
-/** Sparad token, eller null. En token som inte ens ser ut som en JWT rensas direkt. */
+// Engångsmigrering: en token som äldre versioner sparade i localStorage flyttas till minnet och tas bort.
+try {
+  const legacy = localStorage.getItem(LEGACY_TOKEN_KEY);
+  if (legacy) {
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+    if (JWT_SHAPE.test(legacy)) accessToken = legacy;
+  }
+} catch {
+  /* lagring blockerad */
+}
+
 export function getToken() {
-  let t = null;
-  try {
-    t = localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
-  if (t && !JWT_SHAPE.test(t)) {
-    setToken(null);
-    return null;
-  }
-  return t;
+  return accessToken;
 }
 
 function storeToken(token) {
-  try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    /* lagring blockerad - sessionen gäller bara denna sidvisning */
-  }
+  accessToken = token && JWT_SHAPE.test(token) ? token : null;
+}
+
+/** Om en inloggad session väntas (sätts av auth): anrop utan token förnyar först. */
+let sessionExpected = false;
+export function expectSession(on) {
+  sessionExpected = on;
 }
 
 /** Byter inloggning (eller loggar ut med null): ny token och tom cache. */
 export function setToken(token) {
   storeToken(token);
+  sessionExpected = !!token;
   cacheClear();
   if (!token) forgetRecent();
 }
@@ -51,7 +55,7 @@ let refreshing = null;
 export function refreshSession() {
   refreshing ||= fetch('/api/auth/refresh', {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: 'include',
     headers: { Accept: 'application/json' }
   })
     .then(async (r) => {
@@ -62,6 +66,7 @@ export function refreshSession() {
       }
       const d = await r.json();
       storeToken(d.token);
+      sessionExpected = true;
       refreshListeners.forEach((fn) => fn(d.user));
       return d.token;
     })
@@ -98,12 +103,21 @@ function qs(params = {}) {
  * ska slängas efter ett lyckat skrivande anrop. Utan lista töms inget.
  */
 export async function request(path, opts = {}) {
+  // Sidladdning: sessionen finns men ingen token i minnet ännu. Hämta en innan anropet (delat löfte).
+  if (!accessToken && sessionExpected && !path.startsWith('/auth/')) {
+    try {
+      await refreshSession();
+    } catch (e) {
+      if (e.status === undefined) throw e;
+      sessionExpected = false;
+      if (unauthorizedHandler) unauthorizedHandler();
+    }
+  }
   try {
     return await send(path, opts);
   } catch (err) {
     // Utgången access-token: förnya sessionen en gång och försök igen. Återkallad session eller
-    // misslyckad förnyelse loggar ut (utom för anrop där 401 betyder något annat).
-    const { logoutOn401 = true } = opts;
+    // misslyckad förnyelse loggar ut.
     if (err.status !== 401 || !err.hadToken || path.startsWith('/auth/')) throw err;
     if (err.code !== 'session_revoked') {
       try {
@@ -114,7 +128,8 @@ export async function request(path, opts = {}) {
         if (e.status === undefined) throw e;
       }
     }
-    if (logoutOn401 && unauthorizedHandler) unauthorizedHandler();
+    sessionExpected = false;
+    if (unauthorizedHandler) unauthorizedHandler();
     throw err;
   }
 }
@@ -133,7 +148,7 @@ async function send(path, { method = 'GET', body, params, signal, invalidate } =
       method,
       headers,
       body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
-      credentials: 'same-origin',
+      credentials: 'include',
       signal
     });
   } catch (err) {
@@ -242,14 +257,13 @@ Object.assign(api, {
   register: (body) => request('/auth/register', { method: 'POST', body }),
   login: (body) => request('/auth/login', { method: 'POST', body }),
   updateMe: (body) => write('PATCH', '/me', body, [...ME, '/leaderboard', '/feed']),
-  // Fel lösenord ger 403 i v3 (401 i v2); logga aldrig ut på det här anropet (BUG-09).
-  deleteMe: (password) =>
-    request('/me', { method: 'DELETE', body: { password }, invalidate: CONTENT, logoutOn401: false }),
+  // Fel lösenord ger 403 (BUG-09).
+  deleteMe: (password) => write('DELETE', '/me', { password }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   logoutAll: () => request('/auth/logout-all', { method: 'POST' }),
   revokeSession: (id) => write('DELETE', `/me/sessions/${enc(id)}`, undefined, ['/me/sessions']),
   changePassword: (currentPassword, newPassword) =>
-    request('/me/password', { method: 'POST', body: { currentPassword, newPassword }, logoutOn401: false }),
+    request('/me/password', { method: 'POST', body: { currentPassword, newPassword } }),
   updateSettings: (body) => write('PATCH', '/me/settings', body, ['/me/settings', ...CONTENT]),
   acceptFollow: (u) => write('POST', `/me/follow-requests/${enc(u)}`, undefined, ['/me/follow-requests', '/users']),
   declineFollow: (u) => write('DELETE', `/me/follow-requests/${enc(u)}`, undefined, ['/me/follow-requests']),
@@ -296,7 +310,11 @@ Object.assign(api, {
 
 /** Laddar ner egen data (GET /api/me/export) som fil. */
 export async function downloadExport() {
-  const res = await fetch('/api/me/export', { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!accessToken) await refreshSession();
+  const res = await fetch('/api/me/export', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    credentials: 'include'
+  });
   if (!res.ok) throw new Error(`Exporten misslyckades (${res.status})`);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);

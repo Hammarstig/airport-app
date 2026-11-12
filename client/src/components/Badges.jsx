@@ -51,12 +51,16 @@ function BadgeCard({ b, onOpen }) {
       <button
         type="button"
         className={`badge-card${locked ? ' badge-card--locked' : ` badge-card--${b.tier}`}`}
-        aria-label={`${b.name}, ${b.tier ? TIER_LABEL[b.tier] : 'ej upplåst'}`}
+        aria-haspopup="dialog"
         onClick={() => onOpen(b)}
       >
         <BadgeIcon badge={b} className="badge-card__icon" />
         <span className="badge-card__name">{b.name}</span>
-        {b.tier && <span className={`tier-chip tier--${b.tier}`}>{TIER_LABEL[b.tier]}</span>}
+        {b.tier ? (
+          <span className={`tier-chip tier--${b.tier}`}>{TIER_LABEL[b.tier]}</span>
+        ) : (
+          <span className="visually-hidden">ej upplåst</span>
+        )}
         <span className="badge-card__desc">{b.description}</span>
         {!maxed(b) && <Progress b={b} />}
         {b.earnedAt && <span className="badge-card__date">{formatDate(b.earnedAt)}</span>}

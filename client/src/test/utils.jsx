@@ -2,6 +2,7 @@ import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '../components/Toast.jsx';
 import { AuthProvider } from '../lib/auth.jsx';
+import { setToken } from '../lib/api.js';
 
 /** Renderar med router, toast och auth som i appen. */
 export function renderApp(ui, { route = '/' } = {}) {
@@ -27,4 +28,10 @@ export function mockFetch(routes) {
     return new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
   return calls;
+}
+
+/** Simulerar inloggning: access-token i minnet och sparad användare (som efter en riktig inloggning). */
+export function loginAs(username, token = 'aaa.bbb.ccc') {
+  setToken(token);
+  localStorage.setItem('gatelog.user', JSON.stringify({ username }));
 }

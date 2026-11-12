@@ -5,6 +5,8 @@ const DEMO_PASSWORD = 'demo1234';
 const TOKEN_KEY = 'gatelog.token';
 
 let seq = 0;
+// Token -> inloggningsuppgifter, så att useToken kan ge webbläsaren en riktig session (refresh-cookie).
+const credentials = new Map();
 /** Unikt användarnamn (3-20 tecken a-z0-9_). */
 function uniqueName(prefix = 'e2e') {
   seq += 1;
@@ -20,32 +22,58 @@ function isMobile(testInfo) {
 async function apiRegister(request, extra = {}) {
   const username = extra.username || uniqueName();
   const res = await request.post('/api/auth/register', {
-    data: { username, password: 'hemligt123', displayName: `Testare ${username}`, ...extra },
+    data: { username, password: 'hemligt123', displayName: `Testare ${username}`, ...extra }
   });
   expect(res.status(), await res.text()).toBe(201);
   const body = await res.json();
+  credentials.set(body.token, { username, password: extra.password || 'hemligt123' });
   return { username, token: body.token, user: body.user };
 }
 
 async function apiLogin(request, username, password = DEMO_PASSWORD) {
   const res = await request.post('/api/auth/login', { data: { username, password } });
   expect(res.ok()).toBeTruthy();
-  return (await res.json()).token;
+  const token = (await res.json()).token;
+  credentials.set(token, { username, password });
+  return token;
 }
 
-/** Lägger token i localStorage innan appen startar. */
+/**
+ * Loggar in sidan: access-token läggs där appen migrerar den från vid start (localStorage, första
+ * laddningen), och om uppgifterna är kända loggar webbläsarkontexten in så att refresh-cookien finns
+ * och sessionen överlever omladdningar (appen håller access-token bara i minnet).
+ */
 async function useToken(page, token) {
-  await page.addInitScript(([k, t]) => {
-    try {
-      // Bara vid första laddningen i fliken, så att utloggning inte skrivs över vid nästa navigering.
-      if (!window.sessionStorage.getItem('e2e.tokenSet')) {
-        window.localStorage.setItem(k, t);
-        window.sessionStorage.setItem('e2e.tokenSet', '1');
+  const cred = credentials.get(token);
+  if (cred) {
+    const res = await page.context().request.post('/api/auth/login', { data: cred });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    const user = (await res.json()).user;
+    await page.addInitScript((u) => {
+      try {
+        if (!window.sessionStorage.getItem('e2e.userSet')) {
+          window.localStorage.setItem('gatelog.user', JSON.stringify(u));
+          window.sessionStorage.setItem('e2e.userSet', '1');
+        }
+      } catch {
+        /* ignorera */
       }
-    } catch {
-      /* ignorera */
-    }
-  }, [TOKEN_KEY, token]);
+    }, user);
+  }
+  await page.addInitScript(
+    ([k, t]) => {
+      try {
+        // Bara vid första laddningen i fliken, så att utloggning inte skrivs över vid nästa navigering.
+        if (!window.sessionStorage.getItem('e2e.tokenSet')) {
+          window.localStorage.setItem(k, t);
+          window.sessionStorage.setItem('e2e.tokenSet', '1');
+        }
+      } catch {
+        /* ignorera */
+      }
+    },
+    [TOKEN_KEY, token]
+  );
 }
 
 /** Registrerar en ny användare via API och loggar in sidan med den. */
@@ -58,7 +86,7 @@ async function loginNewUser(page, request, extra) {
 async function apiCheckin(request, token, body) {
   const res = await request.post('/api/checkins', {
     headers: { Authorization: `Bearer ${token}` },
-    data: { visitedOn: daysAgo(1), kind: 'departure', ...body },
+    data: { visitedOn: daysAgo(1), kind: 'departure', ...body }
   });
   expect(res.status(), await res.text()).toBe(201);
   return res.json();
@@ -135,7 +163,9 @@ async function clickCentered(locator) {
 /** Väljer betyg i en stjärngrupp (fieldset + radioknappar, v2). value t.ex. 4.5 eller 4. */
 async function setStars(page, groupName, value) {
   const label = `${value.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} av 5`;
-  const radio = page.getByRole('group', { name: groupName, exact: true }).getByRole('radio', { name: label, exact: true });
+  const radio = page
+    .getByRole('group', { name: groupName, exact: true })
+    .getByRole('radio', { name: label, exact: true });
   // Radioknapparna är visuellt dolda i halvstjärnor; välj via tangentbordet som en skärmläsaranvändare.
   await radio.focus();
   await page.keyboard.press('Space');
@@ -144,7 +174,9 @@ async function setStars(page, groupName, value) {
 
 /** Öppnar en hopfällbar sektion (<details>) i check-in-formuläret. */
 async function openSection(page, title) {
-  const details = page.locator('details.disclosure').filter({ has: page.locator('.disclosure__title', { hasText: title }) });
+  const details = page
+    .locator('details.disclosure')
+    .filter({ has: page.locator('.disclosure__title', { hasText: title }) });
   if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
   await expect(details).toHaveAttribute('open', '');
 }
@@ -165,5 +197,5 @@ module.exports = {
   daysAgo,
   collectProblems,
   makeJpeg,
-  pickFromCombobox,
+  pickFromCombobox
 };

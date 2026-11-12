@@ -2,12 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QuickPick } from './QuickPick.jsx';
-import { mockFetch, renderApp } from '../../test/utils.jsx';
+import { mockFetch, renderApp, loginAs } from '../../test/utils.jsx';
 
 describe('QuickPick', () => {
   it('visar senaste och väljer med ett tryck', async () => {
-    localStorage.setItem('gatelog.token', 'aaa.bbb.ccc');
-    localStorage.setItem('gatelog.user', JSON.stringify({ username: 'anna' }));
+    loginAs('anna');
     mockFetch({
       '/api/me': { username: 'anna' },
       '/api/me/recent-airports': [
@@ -24,8 +23,7 @@ describe('QuickPick', () => {
   });
 
   it('använder lokalt sparade senaste när nätet saknas (BUG-10)', async () => {
-    localStorage.setItem('gatelog.token', 'aaa.bbb.ccc');
-    localStorage.setItem('gatelog.user', JSON.stringify({ username: 'anna' }));
+    loginAs('anna');
     localStorage.setItem(
       'gatelog.recent',
       JSON.stringify([{ airport: { iata: 'ARN', name: 'Arlanda', city: 'Stockholm' }, visits: 2, isHome: false }])

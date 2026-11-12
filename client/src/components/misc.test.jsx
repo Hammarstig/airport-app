@@ -8,7 +8,7 @@ import { CheckinCard } from './CheckinCard.jsx';
 import { useDebounced } from '../hooks/useDebounced.js';
 import { usePaged } from '../hooks/usePaged.js';
 import { setUnread } from '../hooks/useUnread.js';
-import { mockFetch, renderApp } from '../test/utils.jsx';
+import { mockFetch, renderApp, loginAs } from '../test/utils.jsx';
 
 function Boom() {
   throw new Error('Failed to fetch dynamically imported module: /assets/X.js');
@@ -75,8 +75,7 @@ describe('CheckinCard', () => {
   });
 
   it('gilla uppdateras direkt och rullas tillbaka vid fel', async () => {
-    localStorage.setItem('gatelog.token', 'aaa.bbb.ccc');
-    localStorage.setItem('gatelog.user', JSON.stringify({ username: 'me' }));
+    loginAs('me');
     let resolve;
     global.fetch = vi.fn((url) =>
       url.includes('/like') ? new Promise((r) => (resolve = r)) : Promise.resolve(new Response('{}'))

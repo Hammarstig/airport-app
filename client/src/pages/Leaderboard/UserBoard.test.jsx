@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
 import { UserBoard } from './UserBoard.jsx';
-import { mockFetch, renderApp } from '../../test/utils.jsx';
+import { mockFetch, renderApp, loginAs } from '../../test/utils.jsx';
 
 const u = (n) => ({ username: n, displayName: n, level: 2 });
 
 describe('UserBoard', () => {
   it('visar alltid en egen rad med uppmaning när jag saknar värde', async () => {
-    localStorage.setItem('gatelog.token', 'aaa.bbb.ccc');
-    localStorage.setItem('gatelog.user', JSON.stringify({ username: 'me' }));
+    loginAs('me');
     mockFetch({
       '/api/me': { username: 'me' },
       '/api/rankings/users': {
@@ -28,8 +27,7 @@ describe('UserBoard', () => {
   });
 
   it('fäster egen placering när jag är utanför listan', async () => {
-    localStorage.setItem('gatelog.token', 'aaa.bbb.ccc');
-    localStorage.setItem('gatelog.user', JSON.stringify({ username: 'me' }));
+    loginAs('me');
     mockFetch({
       '/api/me': { username: 'me' },
       '/api/rankings/users': {

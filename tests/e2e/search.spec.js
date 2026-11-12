@@ -1,6 +1,6 @@
 // Flygplatssök, söksidans flikar och URL-filter, recensionssök med <mark>, XSS och tangentbord i autocomplete.
 const { test, expect } = require('@playwright/test');
-const { apiRegister, apiCheckin, isMobile } = require('./helpers');
+const { apiRegister, apiCheckin } = require('./helpers');
 
 const resultCodes = (page) => page.getByRole('list', { name: 'Flygplatser' }).locator('.result-row .iata-tag');
 
@@ -104,14 +104,13 @@ test.describe('flygplatssök', () => {
     await expect(input).toHaveValue(/^ARN - Stockholm-Arlanda Airpor$/);
   });
 
-  test('topbarens sök (desktop) navigerar till vald flygplats', async ({ page }) => {
-    test.skip(isMobile(test.info()), 'topbar-sök finns bara på desktop');
-    await page.goto('/');
-    const input = page.getByRole('combobox', { name: 'Sök flygplats' });
-    await input.fill('heathrow');
-    await expect(page.getByRole('listbox').getByRole('option').first()).toBeVisible();
-    await input.press('Enter');
-    await expect(page).toHaveURL(/\/airport\/LHR$/);
+  test('Utforska utan sökord visar kategorier och sökning ger träffar (sammanslagen vy)', async ({ page }) => {
+    await page.goto('/search');
+    await expect(page.getByRole('heading', { level: 1, name: 'Utforska' })).toBeVisible();
+    await expect(page.locator('.tile--continent')).toHaveCount(6);
+    await page.locator('#search-q').fill('heathrow');
+    await expect(resultCodes(page).first()).toHaveText('LHR');
+    await expect(page.locator('.tile--continent')).toHaveCount(0);
   });
 });
 
