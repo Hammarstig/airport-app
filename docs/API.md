@@ -1,416 +1,321 @@
-# Gatelog API-kontrakt (v1)
+# Gatelog API (v3)
 
-Alla anrop under `/api`. JSON in/ut. Auth: `Authorization: Bearer <jwt>`.
-Fel: HTTP-status + `{ "error": "meddelande" }`. 400 validering, 401 ej inloggad, 403 ej ägare, 404 saknas, 409 konflikt.
-Endast flygplatser med IATA-kod (3 bokstäver, versaler) finns i systemet.
+Aktuell referens för alla vägar. Historik och brytande ändringar: [CHANGELOG.md](CHANGELOG.md).
+Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker varje väg.
 
-## Gemensamma objekt
+## Grunder
+- Alla vägar ligger under `/api`. JSON in och ut (utom foton, `card.svg` och export).
+- Endast flygplatser med IATA-kod (tre versaler) finns. Små bokstäver accepteras i in-data och vägar.
+- **Auth:** `Authorization: Bearer <access-token>`. Se [Sessioner](#sessioner).
+- **Fel:** HTTP-status + `{ "error": "meddelande", ...extra }`.
 
+| Status | Betydelse |
+|---|---|
+| 400 | Validering. Okänt värde på uppräknad parameter ger även `allowed: [...]`. |
+| 401 | Inte inloggad. `code`: `token_expired` (förnya med `/auth/refresh`), `session_revoked` eller `invalid_token`. |
+| 403 | Saknar behörighet (inte ägare, inte moderator, blockerad, fel lösenord vid kontoradering eller lösenordsbyte). Privat profil: `code: "private_profile"`. |
+| 404 | Finns inte, eller får inte ses (dolda check-ins ger 404). |
+| 409 | Konflikt (användarnamn upptaget, lounge finns, max antal foton). |
+| 413 | För stor förfrågan (JSON > 50 kB, foto > 5 MB). |
+| 429 | Rate limit, med `Retry-After`. |
+| 500 | Internt fel, med `requestId`. |
+
+- **Paginering:** `limit` och `offset` där det anges; för stora värden kapas till max.
+- **Cache:** API-svar har `Cache-Control: private, no-cache` och svag ETag (304 vid oförändrat). Undantag: kartor `private, max-age=30`, `nearby` `private, max-age=60`, `airlines` och `push/public-key` `public, max-age=3600`, `attributions` `public, max-age=86400`, statistikkort `public, max-age=300`, export `no-store`. Svar över 1 kB gzip-komprimeras.
+- **Headers:** `X-Request-Id` på alla svar (en skickad giltig `X-Request-Id`, 1-64 tecken `[A-Za-z0-9_.-]`, återanvänds). Strikt CSP, `nosniff`, `X-Frame-Options: DENY`.
+- **Rate limit:** `/api/auth/*` 100 anrop per 15 min och IP. Skrivande anrop per användare (eller IP): totalt 300 per 15 min; check-ins 60/h, foton 20/h, kommentarer 60/h, följningar 100/h, gilla 300/h, loungerecensioner 30/h. Bakom proxy krävs `TRUST_PROXY`.
+
+## Objekt
 ```jsonc
-// UserSummary
-{ "username": "oliver", "displayName": "Oliver", "homeIata": "GOT" | null }
+// UserSummary (homeIata är null för andra om användaren döljer sin hemmaflygplats)
+{ "username": "oliver", "displayName": "Oliver", "homeIata": "GOT" | null, "level": 7 }
 
 // AirportSummary
-{ "iata": "GOT", "icao": "ESGG", "name": "Göteborg Landvetter Airport", "city": "Göteborg",
-  "country": "SE", "continent": "EU", "lat": 57.66, "lon": 12.28, "type": "large" }
+{ "iata": "GOT", "icao": "ESGG", "name": "Göteborg Landvetter Airport", "city": "Göteborg", "country": "SE",
+  "continent": "EU", "lat": 57.66, "lon": 12.28, "type": "large" | "medium" | "small",
+  "region": "SE-Q", "regionName": "Västra Götalands län" }
 
 // Ratings (delbetyg, heltal 1-5 eller null)
 { "security": 4, "cleanliness": 5, "food": 3, "wifi": 4, "transfer": null, "lounges": 4 }
 
-// Checkin (ett besök)
+// Checkin
 { "id": 12, "user": UserSummary, "airport": AirportSummary,
-  "visitedOn": "2026-11-01",            // YYYY-MM-DD
-  "kind": "departure" | "arrival" | "transfer" | "layover",
-  "rating": 4.5 | null,                  // totalbetyg 0.5-5 i steg om 0.5
-  "ratings": Ratings,
-  "comment": "text" | null,              // max 1000 tecken
-  "likes": 3, "likedByMe": false, "createdAt": "ISO-8601" }
+  "visitedOn": "2026-11-01", "kind": "departure" | "arrival" | "transfer" | "layover",
+  "rating": 4.5 | null,                        // 0,5-5 i steg om 0,5
+  "ratings": Ratings, "comment": "text" | null,  // max 1000 tecken
+  "likes": 3, "likedByMe": false, "commentCount": 2,
+  "airline": { "iata": "SK", "name": "..." } | null,
+  "travelClass": "economy" | "premium_economy" | "business" | "first" | null,
+  "lounge": { "id": 4, "name": "SAS Lounge", "terminal": null } | null,
+  "flightNumber": "SK1421" | null, "photos": Photo[],
+  "visibility": "public" | "friends" | "private", "publishAt": "ISO",
+  "createdAt": "ISO", "editedAt": "ISO" | null }
+
+// Photo
+{ "id": 1, "url": "/uploads/<32 hex>.jpg", "width": 1600 | null, "height": 1200 | null, "createdAt": "ISO" }
+
+// Lounge
+{ "id": 4, "iata": "GOT", "name": "SAS Lounge", "terminal": null, "avgRating": 4.25 | null, "reviewCount": 2 }
+
+// LoungeReview
+{ "id": 9, "loungeId": 4, "user": UserSummary, "rating": 4.5, "comment": "..." | null, "visitedOn": "2026-10-01", "createdAt": "ISO" }
+
+// Level
+{ "level": 7, "title": "Pendlare", "xp": 1540, "levelXp": 1050, "nextLevelXp": 1400 }
+
+// Streak (ISO-veckor i rad med minst en check-in, Europe/Stockholm)
+{ "current": 3, "longest": 8, "thisWeek": true }
 ```
 
-## Auth
+## Synlighet och integritet
+- Varje check-in har `visibility`: `public` (alla om profilen är publik, annars godkända följare), `friends` (godkända följare) eller `private` (bara ägaren). Standard är användarens `defaultVisibility`.
+- Före `publishAt` (skapad + `publishDelayHours`) ser bara ägaren check-in:en.
+- Blockering döljer check-ins, kommentarer och notiser åt båda håll.
+- Reglerna gäller flöden, flygplatsens och användarens check-ins, check-in-detalj, kommentarer, gilla, sök, flygplatsens fotogalleri, `friendsVisited` samt `home_visit`- och `overtaken`-notiser.
+- Profilens flygplatslista, karta och statistikkort räknas på de check-ins tittaren får se. Räknare (antal flygplatser, länder, XP) och flygplatsernas betygssnitt räknas på allt.
+- **Privat profil:** följning kräver godkännande. Andra än godkända följare får 403 `private_profile` på `/users/:u/{checkins, airports, map, map/:country, wishlist, badges, followers, following, card, card.svg}`, och profilen visar `stats: null`. Privata profiler syns i globala topplistor bara för sig själva och sina följare.
+
+## Sessioner
 | Metod | Väg | Body | Svar |
 |---|---|---|---|
-| POST | /api/auth/register | `{username, password, displayName?, homeIata?}` | 201 `{token, user}` |
-| POST | /api/auth/login | `{username, password}` | `{token, user}` |
-| GET | /api/me | - | `UserSummary` (401 utan token) |
-| PATCH | /api/me | `{displayName?, homeIata?}` | `UserSummary` |
+| POST | /auth/register | `{ username, password, displayName?, homeIata? }` | 201 `{ token, user, expiresIn }` + cookie |
+| POST | /auth/login | `{ username, password }` | `{ token, user, expiresIn }` + cookie (401 vid fel) |
+| POST | /auth/refresh | - (cookie) | `{ token, user, expiresIn }`, roterar cookien |
+| POST | /auth/logout | - | 204, återkallar aktuell session och rensar cookien |
+| POST | /auth/logout-all | - (auth) | 204, återkallar alla sessioner |
+| GET | /me/sessions | - | `[{ id, createdAt, lastUsedAt, client, current }]` |
+| DELETE | /me/sessions/:id | - | 204 |
+| POST | /me/password | `{ currentPassword, newPassword }` | `{ token, expiresIn }`; 403 vid fel nuvarande lösenord; andra sessioner återkallas |
 
-username: 3-20 tecken `[a-z0-9_]` (gemener). password: minst 8 tecken. 409 om username upptaget.
+- `user` är UserSummary plus `isModerator`.
+- `token` är en access-token (JWT, HS256) som gäller i 15 minuter (`expiresIn: 900`) och bär sessionens id. Sessionen kontrolleras vid varje anrop, så utloggning och lösenordsbyte gäller direkt.
+- Cookien `gl_refresh` är `HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=30 dagar` och `Secure` i produktion. Varje refresh ger en ny cookie. Föregående token godtas i 30 sekunder (flera flikar); därefter återkallar en återanvänd token hela sessionen.
+- `username`: 3-20 tecken `[a-z0-9_]` (gemenas). Lösenord: 8-200 tecken, inte lika med användarnamnet och inte ett vanligt lösenord. 409 om användarnamnet är upptaget.
+
+## Eget konto
+| Metod | Väg | Svar |
+|---|---|---|
+| GET | /me | UserSummary + `isModerator` |
+| PATCH | /me | `{ displayName?, homeIata? }` -> som GET |
+| GET | /me/settings | Settings |
+| PATCH | /me/settings | delvis Settings -> Settings |
+| GET | /me/recent-airports?limit=6 | `[{ airport, lastVisit, visits, isHome }]`: hemmaflygplatsen först (även obesökt), sedan senast incheckade |
+| GET | /me/export | JSON med all egen data (`user, checkins, loungeReviews, comments, wishlist, following, followers`), `Content-Disposition: attachment` |
+| DELETE | /me | `{ password }` -> 204. 400 utan lösenord, 403 vid fel. Raderar allt utom lounger man skapat. |
+
+```jsonc
+// Settings
+{ "isPrivate": false, "defaultVisibility": "public", "publishDelayHours": 0 | 1 | 24 | 168,
+  "hideHomeAirport": false, "notifyHomeVisits": true,
+  "push": { "follow": true, "follow_request": true, "follow_accepted": true, "comment": true,
+            "like": true, "badge": true, "home_visit": true, "overtaken": true } }
+```
+Görs profilen publik godkänns väntande följförfrågningar.
 
 ## Flygplatser
 | Metod | Väg | Svar |
 |---|---|---|
-| GET | /api/airports?q=got&limit=20 | `AirportSummary[]` - matchar IATA exakt först, sedan ICAO/namn/stad (prefix). Stora flygplatser före små. |
-| GET | /api/airports/:iata | `AirportSummary & { stats, lounges }` |
-| GET | /api/airports/:iata/checkins?limit=20&offset=0 | `Checkin[]` nyast först |
-| GET | /api/airports/:iata/lounges | `Lounge[]` |
-| POST | /api/airports/:iata/lounges | `{name, terminal?}` -> 201 `Lounge` (auth) |
+| GET | /airports?q=&country=&continent=&type=&minRating=&visited=&sort=&limit=20&offset=0 | `[AirportSummary & { countryName, matchedOn, avgRating, ratingCount, checkins }]` |
+| GET | /airports/nearby?lat=&lon=&limit=10&radiusKm=500&scope=scheduled\|all | `[AirportSummary & { countryName, distanceKm }]` närmast först |
+| GET | /airports/:iata | AirportSummary & `{ countryName, stats, lounges: Lounge[], photos: Photo[] (12), onMyWishlist, myVisits, friendsVisited: UserSummary[] (10) }` |
+| GET | /airports/:iata/checkins?limit&offset | `Checkin[]` efter `visitedOn`, nyast först |
+| GET | /airports/:iata/lounges | `Lounge[]` |
+| POST | /airports/:iata/lounges | `{ name, terminal? }` -> 201 Lounge (auth; 409 om namnet finns) |
 
-`stats`: `{ visitors, checkins, avgRating | null, ratingCount, subAverages: { security, cleanliness, food, wifi, transfer, lounges } (null om inga) }`
-
-`Lounge`: `{ id, iata, name, terminal | null, avgRating | null, reviewCount }`
-
-## Lounger
-| Metod | Väg | Svar |
-|---|---|---|
-| GET | /api/lounges/:id | `Lounge & { reviews: LoungeReview[] }` |
-| POST | /api/lounges/:id/reviews | `{rating (1-5, steg 0.5), comment?, visitedOn}` -> 201 `LoungeReview` (auth) |
-
-`LoungeReview`: `{ id, loungeId, user: UserSummary, rating, comment, visitedOn, createdAt }`
+- **Sök (`q`):** matchar i ordning IATA exakt, ICAO exakt, landskod exakt, stad (prefix och ord-prefix), flygplatsnamn (ord-prefix), land (svenska och engelska namn). Skiftlägesokänsligt och diakritik-tolerant ("goteborg" hittar Göteborg). `matchedOn`: `iata | icao | city | name | country`. Inom nivå: large > medium > small, sedan antal check-ins. Söksträng utan sökbara tecken ger `[]`.
+- `type`: `large | medium | small`. `visited`: `any | mine | notmine` (ignoreras utan inloggning). `sort`: `relevance | rating | checkins | name` (standard `relevance` med `q`, annars `checkins`). `sort=rating` använder Bayesianskt snitt.
+- `nearby`: `radiusKm` max 2000, `limit` max 50; 400 vid ogiltig position.
+- `stats`: `{ visitors, checkins, avgRating, ratingCount, subAverages (Ratings-format med snitt eller null), topAirlines: [{ airline, checkins }] (5), classMix: { economy, premium_economy, business, first } }`.
+- `onMyWishlist` och `myVisits` är `false` och `0` utan inloggning.
 
 ## Check-ins
 | Metod | Väg | Svar |
 |---|---|---|
-| POST | /api/checkins | `{iata, visitedOn, kind, rating?, ratings?, comment?}` -> 201 `Checkin` (auth). visitedOn får inte vara i framtiden. |
-| GET | /api/checkins/:id | `Checkin` |
-| DELETE | /api/checkins/:id | 204 (endast ägare) |
-| POST | /api/checkins/:id/like | `{likes, likedByMe:true}` (auth) |
-| DELETE | /api/checkins/:id/like | `{likes, likedByMe:false}` (auth) |
-| GET | /api/feed?limit=20&offset=0 | `Checkin[]` alla användare, nyast först |
+| POST | /checkins | se nedan -> 201 Checkin + belöningar (auth) |
+| GET | /checkins/:id | Checkin (404 om dold) |
+| PATCH | /checkins/:id | delvis -> Checkin (ägare) |
+| DELETE | /checkins/:id | 204 (ägare; foton och kopplad loungerecension raderas) |
+| POST | /checkins/:id/like | `{ likes, likedByMe: true }` (auth, idempotent) |
+| DELETE | /checkins/:id/like | `{ likes, likedByMe: false }` |
+| GET | /feed?scope=global\|friends\|mine&iata=&limit&offset | `Checkin[]` efter `createdAt`, nyast först. `friends` = jag + godkända följningar (auth). |
 
-## Användare och topplistor
-| Metod | Väg | Svar |
-|---|---|---|
-| GET | /api/users/:username | `UserSummary & { stats: { uniqueAirports, totalCheckins, countries, continents, avgGivenRating } }` |
-| GET | /api/users/:username/airports?sort=rating\|visits\|recent | `[{ airport: AirportSummary, visits, lastVisit, myRating }]` - användarens egen lista; myRating = senaste satta totalbetyg |
-| GET | /api/users/:username/checkins?limit&offset | `Checkin[]` |
-| GET | /api/leaderboard?metric=airports\|countries\|checkins&limit=50 | `[{ rank, user: UserSummary, value }]` |
-| GET | /api/rankings/airports?minRatings=1&limit=50&country=SE | `[{ rank, airport, avgRating, ratingCount }]` bäst betygsatta |
-
-## Sök i kommentarer och bedömningar
-`GET /api/search?q=lounge&iata=GOT&minRating=4&limit=20&offset=0`
-
-Fulltextsök (SQLite FTS5) över check-in-kommentarer och loungerecensioner. Alla parametrar valfria men minst en av q/iata krävs.
-Svar: `[{ type: "checkin" | "lounge_review", id, user, airport, loungeName | null, rating, comment, snippet, visitedOn, createdAt }]`
-`snippet` innehåller träffen markerad med `<mark>…</mark>` (övrig text HTML-escapad).
-
-## Health
-`GET /api/health` -> `{ ok: true, airports: 8799 }`
-
----
-# v1.1 - Utforska/sök i Untappd-stil
-
-Mappning från Untappd: öl -> flygplats, bryggeri -> land, ölstil -> kategori (kontinent / storlek / delbetyg), venue -> lounge, Top Rated by style -> topplistor per delbetyg.
-
-## Utökad flygplatssökning
-`GET /api/airports?q=&country=SE&continent=EU&type=large|medium|small&minRating=4&visited=any|mine|notmine&sort=relevance|rating|checkins|name&limit=20&offset=0`
-Svar som tidigare men varje objekt får även `avgRating | null, ratingCount, checkins`. `visited` kräver inloggning (annars ignoreras). Utan `q` returneras listning enligt filter (default sort=checkins).
-
-## Länder ("bryggerier")
-| GET | /api/countries?continent=EU | `[{ code: "SE", name: "Sverige", continent, airports, checkins, avgRating | null }]` (landsnamn på svenska via Intl.DisplayNames('sv')) |
-| GET | /api/countries/:code | `{ code, name, continent, airports, checkins, visitors, avgRating, topAirports: [{airport, avgRating, ratingCount, checkins}] (10 st) }` |
-
-## Kategoritopplistor ("Top Rated by style")
-`GET /api/rankings/airports?category=overall|security|cleanliness|food|wifi|transfer|lounges&country=&continent=&type=&minRatings=1&limit=50`
-Lägg till `category` (default overall) - sorterar på respektive delbetygssnitt. Svar `[{ rank, airport, avgRating, ratingCount }]` där avgRating avser vald kategori.
-
-## Lounger
-`GET /api/lounges?q=&iata=&country=&sort=rating|reviews|name&limit=20&offset=0` -> `[Lounge & { airport: AirportSummary }]`
-`GET /api/rankings/lounges?limit=50&minReviews=1` -> `[{ rank, lounge, airport, avgRating, reviewCount }]`
-
-## Användare
-`GET /api/users?q=oli&limit=20` -> `[UserSummary & { uniqueAirports }]`
-
-## Önskelista ("Wishlist")
-| GET | /api/users/:username/wishlist | `[{ airport, addedAt }]` |
-| POST | /api/wishlist | `{iata}` -> 201 (auth) |
-| DELETE | /api/wishlist/:iata | 204 (auth) |
-`GET /api/airports/:iata` får även `onMyWishlist: boolean` och `myVisits: number` när inloggad.
-
-## Märken (Badges)
-`GET /api/users/:username/badges` -> `[{ id, name, description, icon, earnedAt | null, progress: {current, target} }]`
-Märken räknas fram från data (ingen egen tabell krävs): Första check-in, 10/25/50/100 unika flygplatser, 5/15/30 länder, Alla 6 kontinenter (exkl. AN), Transferkung (10 transfer), Loungeexpert (5 loungerecensioner), Hemmaplan (5 besök på hemmaflygplatsen), Recensent (20 check-ins med kommentar), Nordisk resenär (SE, NO, DK, FI, IS).
-Check-in-svar (POST /api/checkins) får fältet `newBadges: Badge[]` med märken som låstes upp av just den check-in:en.
-
-## Flöde
-`GET /api/feed?scope=global|mine&iata=` - scope mine = egna check-ins (auth).
-
----
-# v1.2 - Sök på allt, resedetaljer och foto
-
-## Flygplatssök matchar stad, namn, land och IATA
-`GET /api/airports?q=` ska matcha (skiftlägesokänsligt, diakritik-tolerant så "goteborg" hittar "Göteborg"):
-1. IATA exakt (t.ex. "got") - högst
-2. ICAO exakt
-3. Stad (prefix och ord-prefix, t.ex. "stock" -> ARN, BMA, NYO)
-4. Flygplatsnamn (ord-prefix, t.ex. "landvetter", "heathrow")
-5. Land - landsnamn på svenska OCH engelska samt landskod ("sverige", "sweden", "se") -> listar landets flygplatser, stora först
-Inom samma nivå: large > medium > small, sedan antal check-ins. Varje träff får `matchedOn: "iata"|"icao"|"city"|"name"|"country"` och `countryName` (svenska).
-Implementera t.ex. med en normaliserad sökkolumn (gemener, utan diakritik) + FTS5-tabell för flygplatser.
-
-## Flygbolag
-Data: `server/data/airlines.json` (986 aktiva bolag med IATA-kod, från OpenFlights, ODbL). Seeda till tabell `airlines`.
-`GET /api/airlines?q=sas&limit=10` -> `[{ iata, icao, name, country }]` (matchar IATA-kod exakt först, sedan namn-prefix/ord).
-
-## Check-in får resedetaljer
-POST /api/checkins tar även (alla valfria):
-- `airlineIata`: "SK" (måste finnas i airlines)
-- `travelClass`: "economy" | "premium_economy" | "business" | "first"
-- `loungeId`: id för lounge på samma flygplats, ELLER `newLounge: { name, terminal? }` som skapar loungen
-- `loungeRating`: 1-5 i steg om 0.5 - skapar samtidigt en LoungeReview (med checkin-kommentaren om ingen separat `loungeComment` anges)
-- `flightNumber`: t.ex. "SK1421" (valfri, max 8 tecken, [A-Z0-9])
-Checkin-objektet får: `airline: {iata, name} | null, travelClass | null, lounge: {id, name, terminal} | null, flightNumber | null, photos: Photo[]`.
-Sök (`/api/search`) får filter `airline=SK`, `travelClass=business`. Flygplatssidans stats får `topAirlines: [{airline, checkins}]` (5 st) och `classMix: {economy, premium_economy, business, first}`.
-
-## Foto ("kort") på check-in
-- `POST /api/checkins/:id/photos` (auth, ägare) - `multipart/form-data`, fält `photo` (jpeg/png/webp, max 5 MB, max 4 foton per check-in). Klienten skalar ner till max 1600 px JPEG innan uppladdning. Servern kontrollerar magic bytes, sparar med slumpat filnamn under `server/data/uploads/` (env `UPLOAD_DIR`) och returnerar 201 `Photo`.
-- `Photo`: `{ id, url: "/uploads/<fil>", width?, height?, createdAt }`
-- `DELETE /api/photos/:id` (ägare) -> 204
-- `GET /uploads/<fil>` serveras statiskt med `X-Content-Type-Options: nosniff`.
-- Flygplatssidan får `photos: Photo[]` (senaste 12) för ett galleri.
-
----
-# v1.3 - Kartor och täckningsgrad
-
-`server/data/airports.json` har nu även `region` (ISO 3166-2, t.ex. "SE-N") och `regionName` ("Hallands län"). AirportSummary får `region` och `regionName`.
-
-Täckningsgrad räknas mot flygplatser med reguljärtrafik (`scheduled=true`, 4 008 st) som standard; `scope=all` räknar mot alla 8 799.
-
-| GET | /api/users/:username/map?scope=scheduled\|all | `{ totals: {visited, total, pct}, continents: [{code, name, visited, total, pct}], countries: [{code, name, continent, visited, total, pct}] }` - pct med en decimal, länder med total=0 utelämnas |
-| GET | /api/users/:username/map/:country?scope= | `{ country: {code, name, visited, total, pct}, regions: [{code, name, visited, total, pct}], airports: [{iata, name, city, lat, lon, type, scheduled, visited, visits}] }` |
-
-Svaren ska vara snabba (< 50 ms med demodata): en aggregerad SQL-fråga per anrop, index på checkins(user_id, iata) och airports(country, region). Sätt `Cache-Control: private, max-age=30`.
-
-# Prestanda- och strukturkrav (gäller hela appen)
-- Android först: PWA installerbar i Chrome på Android (manifest med maskable-ikoner 192/512 PNG, service worker som cachar app-skal och statiska filer, offline-sida). Kamera via `<input type="file" accept="image/*" capture="environment">`. iPhone (Safari/PWA) i nästa steg, men bryt inget där.
-- Upplevd snabbhet: skeleton-laddning, optimistisk UI för gilla/önskelista, debounce 150 ms på autocomplete med avbrytning (AbortController), kodsplittning per route (React.lazy), kartbiblioteket laddas bara på kartsidan. Mål: initial JS < 200 kB gzip, LCP < 2,5 s på "Moto G Power"-emulering med 4G-throttling, inga layoutskutt.
-- API: gzip-komprimering, ETag/Cache-Control för flygplatsdata, inga N+1-frågor.
-
-# Förtydliganden från backend (implementation)
-- Fel utöver ovan: 413 för för stor body (JSON > 50 kB eller foto > 5 MB), 429 vid rate limit på `/api/auth` (default 100 anrop/15 min per IP, env `AUTH_RATE_MAX`, `AUTH_RATE_WINDOW_MS`).
-- `username` gemenas innan validering vid register/login ("Kalle" blir "kalle").
-- `visitedOn` får vara högst dagens datum i UTC eller Europe/Stockholm (det senare av de två).
-- `stats.subAverages`: objektet finns alltid, varje fält är `null` om inga delbetyg finns för det.
-- Ordning: `/api/feed` efter `createdAt` (nyast först); flygplatsens och användarens check-ins efter `visitedOn` (nyast först).
-- `GET /api/airports`: en exakt landskod ("se") rankas direkt efter IATA/ICAO så att landet inte drunknar i stadsprefix (`matchedOn: "country"`). En söksträng utan sökbara tecken ger `[]`.
-- `GET /api/airports/:iata`: `onMyWishlist` (false) och `myVisits` (0) finns även utan inloggning.
-- `POST /api/wishlist` är idempotent (201 även om flygplatsen redan finns i listan) och svarar `{ airport, addedAt }`. `DELETE /api/wishlist/:iata` ger 204 även om den inte fanns.
-- Märken: `icon` är en emoji. `earnedAt` är `visitedOn` (YYYY-MM-DD) för den check-in/recension som nådde målet. Id: `first-checkin`, `airports-10|25|50|100`, `countries-5|15|30`, `all-continents`, `nordic`, `transfer-king`, `home-turf`, `reviewer`, `lounge-expert`.
-- `POST /api/checkins` med `newLounge` återanvänder en befintlig lounge med samma namn (skiftlägesokänsligt) på samma flygplats. Loungerecensioner skapade via check-in raderas med check-in:en. Sökfiltren `airline`/`travelClass` matchar loungerecensioner via kopplad check-in.
-- Foton: 409 när check-in:en redan har 4 foton, 400 om filen inte är JPEG/PNG/WEBP enligt magic bytes. `width`/`height` läses ur bildhuvudet (kan vara null).
-- `GET /api/countries` sorteras på svenskt namn (valfritt `sort=checkins|rating`). Ett lands kontinent är den vanligaste bland dess flygplatser.
-- Kartor: `regions[].code` kan vara null (namn "Okänd region"). `airports` i `/map/:country` innehåller även besökta flygplatser utanför scope, men de räknas inte i `total`.
-- Caching: API-svar har `Cache-Control: private, no-cache` + ETag (304 vid oförändrat), kartor `private, max-age=30`, `/api/airlines` `public, max-age=3600`. gzip för svar > 1 kB.
-
-# v2 - Socialt, gamification, topplistor
-
-Allt i v1-v1.3 gäller fortfarande om inget annat sägs här. Nya fel: 429 vid rate limit (alla skrivande anrop, se nedan), med `Retry-After`.
-
-## Ändrade gemensamma objekt
+**POST /checkins** body: `{ iata, visitedOn, kind, rating?, ratings?, comment?, visibility?, airlineIata?, travelClass?, flightNumber?, loungeId? | newLounge?: { name, terminal? }, loungeRating?, loungeComment? }`
+- `visitedOn` får inte vara i framtiden (senaste av dagens datum i UTC och Europe/Stockholm). `flightNumber` max 8 tecken `[A-Z0-9]`. `loungeId` måste ligga på samma flygplats; `newLounge` återanvänder en befintlig lounge med samma namn. `loungeRating` (1-5, halvsteg) kräver lounge och skapar en LoungeReview (med `loungeComment` eller check-in-kommentaren).
+- Svaret är Checkin plus:
 ```jsonc
-// UserSummary får nivå (alla ställen där UserSummary förekommer)
-{ "username": "oliver", "displayName": "Oliver", "homeIata": "GOT", "level": 7 }
-
-// Checkin får
-{ ..., "commentCount": 2, "editedAt": "ISO-8601" | null }
-
-// Level
-{ "level": 7, "title": "Globetrotter", "xp": 1540, "levelXp": 1050, "nextLevelXp": 1400 }
-// Nivå L kräver 25*L*(L-1) XP (L1=0, L2=50, L3=150, L4=300 ...). nextLevelXp = gränsen för nästa nivå.
-// XP räknas fram ur data: 10/check-in, +25/unik flygplats, +50/land, +100/kontinent,
-// +5/check-in med kommentar, +5/check-in med totalbetyg, +10/loungerecension, +5/foto.
-
-// Streak (veckor i rad, ISO-veckor efter visitedOn, Europe/Stockholm)
-{ "current": 3, "longest": 8, "thisWeek": true }
-// current räknar veckor i följd som slutar denna vecka, eller förra veckan om denna vecka ännu saknar check-in.
-```
-
-## Följa
-| Metod | Väg | Svar |
-|---|---|---|
-| POST | /api/users/:username/follow | `{ following: true, followers }` (auth). 400 om man följer sig själv. Idempotent. Skapar notis `follow`. |
-| DELETE | /api/users/:username/follow | `{ following: false, followers }` (auth) |
-| GET | /api/users/:username/followers?limit=50&offset=0 | `[UserSummary & { followedByMe }]` nyast först |
-| GET | /api/users/:username/following?limit=50&offset=0 | `[UserSummary & { followedByMe }]` nyast först |
-
-`GET /api/users/:username` får även: `followers, following, followedByMe, followsMe` (false utan inloggning), `levelInfo: Level`, `streak: Streak`, `stats.xp`.
-`GET /api/users?q=` får `followedByMe` per rad.
-
-## Flöde
-`GET /api/feed?scope=global|friends|mine&iata=` - `friends` = check-ins från dem jag följer plus mina egna (auth, annars 401).
-
-## Kommentarer på check-ins
-| Metod | Väg | Svar |
-|---|---|---|
-| GET | /api/checkins/:id/comments?limit=50&offset=0 | `Comment[]` äldst först |
-| POST | /api/checkins/:id/comments | `{ body }` (1-500 tecken) -> 201 `Comment` (auth). Notis `comment` till check-in-ägaren. |
-| PATCH | /api/comments/:id | `{ body }` -> `Comment` (endast författaren) |
-| DELETE | /api/comments/:id | 204 (författaren eller check-in-ägaren) |
-
-`Comment`: `{ id, checkinId, user: UserSummary, body, createdAt, editedAt | null, canDelete }` (`canDelete` true för författare och check-in-ägare).
-
-## Gilla ("skål")
-Oförändrat (`POST/DELETE /api/checkins/:id/like`). Gilla skapar notis `like` (en per användare och check-in, ingen notis för egna).
-
-## Notiser
-| Metod | Väg | Svar |
-|---|---|---|
-| GET | /api/notifications?limit=30&offset=0&unread=1 | `{ items: Notification[], unread }` nyast först (auth) |
-| GET | /api/notifications/unread-count | `{ unread }` (auth, billig att polla) |
-| POST | /api/notifications/read | `{ ids?: number[] }` - utan ids markeras alla som lästa -> `{ unread }` (auth) |
-
-`Notification`: `{ id, type, actor: UserSummary | null, checkinId | null, airport: { iata, name } | null, badge: { id, name, tier } | null, text, read, createdAt }`
-- `type`: `follow` (någon följer dig), `comment` (kommentar på din check-in), `like` (gillade din check-in), `badge` (du nådde en ny märkesnivå), `home_visit` (någon du har ömsesidig följning med, eller som följer dig, checkade in på din hemmaflygplats).
-- `text` är en färdig svensk mening, t.ex. "anna gillade din check-in på GOT". Inga notiser till sig själv.
-
-## Märken med nivåer
-`GET /api/users/:username/badges` -> `Badge[]`. Check-in-svarets `newBadges` är `Badge[]` (märken där en ny nivå nåddes, `tier` = den nya nivån).
-```jsonc
-// Badge
-{ "id": "airports", "name": "Flygplatssamlare", "description": "Besök unika flygplatser",
-  "category": "explorer" | "traveller" | "social",
-  "tier": null | "bronze" | "silver" | "gold" | "platinum", "tierLevel": 0,   // 0 = ej upplåst
-  "earnedAt": "ISO-8601" | null,                                           // när senaste nivån nåddes
-  "tiers": [{ "tier": "bronze", "target": 10, "earnedAt": "ISO" | null }, ...],
-  "progress": { "current": 7, "target": 10 },                              // mot nästa nivå (eller högsta)
-  "rarity": 12.5 }                                                         // % av användare med minst brons
-```
-- Nivåer nås när måttet når målet. `earnedAt` är tidpunkten då servern registrerade nivån (inte besöksdatum). Nivåer tas inte tillbaka om check-ins raderas.
-- Fältet `icon` utgår. Grafik: `client/src/assets/badges/<id>.svg`, nivåramen läggs på med klass per `tier`.
-- Märken (id: mått, brons/silver/guld/platina):
-  `checkins`: check-ins 1/25/100/250 · `airports`: unika flygplatser 10/25/50/100 · `countries`: länder 5/15/30/50 ·
-  `continents`: kontinenter exkl. AN 2/3/4/6 · `nordic`: nordiska länder (SE, NO, DK, FI, IS) 2/3/4/5 ·
-  `hubs`: unika stora (large) flygplatser 5/15/30/60 · `alphabet`: olika begynnelsebokstäver i besökta IATA-koder 5/10/18/26 ·
-  `regions-se`: svenska län 2/4/8/12 · `airlines`: olika flygbolag 3/10/20/40 · `front-cabin`: check-ins i business/first 1/5/15/30 ·
-  `transfer-king`: transfer-check-ins 3/10/25/50 · `home-turf`: check-ins på hemmaflygplatsen 5/15/30/60 ·
-  `streak`: längsta veckostreak 2/4/8/16 · `reviewer`: check-ins med kommentar 5/20/50/100 ·
-  `lounge-expert`: loungerecensioner 1/5/15/30 · `photographer`: foton 1/10/30/75 ·
-  `popular`: mottagna gilla 5/25/100/250 · `conversationalist`: skrivna kommentarer 5/25/100/250
-
-## Check-in: svar, redigering
-POST /api/checkins svarar som tidigare plus:
-```jsonc
-{ ..., "newBadges": Badge[], "xpGained": 45, "levelInfo": Level, "levelUp": false,
+{ "newBadges": Badge[], "xpGained": 45, "levelInfo": Level, "levelUp": false,
   "milestones": { "isNewAirport": true, "isNewCountry": false, "isNewContinent": false,
                   "uniqueAirports": 11, "countries": 9, "continents": 3, "worldPct": 0.3, "streak": Streak } }
 ```
-`worldPct` = andel av flygplatserna med reguljärtrafik (4 008) som användaren besökt, en decimal.
+`worldPct` = andel av flygplatserna med reguljärtrafik (4 008) som besökts, en decimal.
 
-`PATCH /api/checkins/:id` (ägare) - samma fält som POST utom `iata`, `newLounge`, `loungeRating` och `loungeComment`. Bara skickade fält ändras; `null` tömmer ett valfritt fält. `ratings` ersätts i sin helhet om det skickas. Svar `Checkin` med `editedAt`.
+**PATCH /checkins/:id**: samma fält som POST utom `iata` (400), `newLounge`, `loungeRating` och `loungeComment`. Bara skickade fält ändras; `null` tömmer valfria fält; `ratings` ersätts helt. Sätter `editedAt`.
 
-## Topplistor
-`GET /api/rankings/users?metric=airports|countries|continents|checkins|reviews|xp&period=week|month|year|all&scope=global|friends|country&country=SE&limit=50`
-```jsonc
-{ "metric": "airports", "period": "week", "from": "2026-11-02" | null, "to": "2026-11-08" | null,
-  "items": [{ "rank": 1, "user": UserSummary, "value": 12, "change": 2 | null }],
-  "me": { "rank": 57, "value": 3, "change": -1 | null } | null,   // null utan inloggning eller om man saknar värde
-  "around": [{ rank, user, value, change }] }                       // upp till 2 över och 2 under mig (inkl. mig), tom utan me
-```
-- Perioder är kalenderperioder i Europe/Stockholm efter `visitedOn` (vecka = ISO-vecka mån-sön). `period=all` ger `from/to = null`.
-- `scope=friends` = jag + de jag följer (auth). `scope=country` räknar bara check-ins på flygplatser i `country` ("flest flygplatser i Sverige").
-- `metric=xp` och `reviews` stöds bara för `period=all` och `scope=global|friends` (annars 400).
-- `change` = placering förra perioden minus placering nu (positivt = klättrat), null om man inte fanns med förra perioden eller vid `period=all`.
-- `GET /api/leaderboard` finns kvar (array som tidigare) och tar samma `period`/`scope`/`country`.
-
-## Viktat snitt i rankingar
-`GET /api/rankings/airports` och `GET /api/rankings/lounges` sorterar på Bayesianskt snitt `score = (C*m + summa) / (C + n)` där `m` är snittet för kategorin över alla betyg, `C = 5` för flygplatser och `3` för lounger. Raderna får `score` (två decimaler); `avgRating` är fortfarande det råa snittet. `GET /api/airports?sort=rating` använder också `score`.
-
-## Snabb check-in
+## Kommentarer
 | Metod | Väg | Svar |
 |---|---|---|
-| GET | /api/airports/nearby?lat=57.7&lon=11.97&limit=10&radiusKm=500&scope=scheduled\|all | `[AirportSummary & { countryName, distanceKm }]` närmast först. Default bara reguljärtrafik. 400 vid ogiltig lat/lon. |
-| GET | /api/me/recent-airports?limit=6 | `[{ airport: AirportSummary, lastVisit, visits, isHome }]` - hemmaflygplatsen först, sedan senast incheckade (auth) |
+| GET | /checkins/:id/comments?limit=50&offset=0 | `Comment[]` äldst först |
+| POST | /checkins/:id/comments | `{ body }` (1-500 tecken) -> 201 Comment (auth) |
+| PATCH | /comments/:id | `{ body }` -> Comment (författaren) |
+| DELETE | /comments/:id | 204 (författaren eller check-in-ägaren) |
 
-`GET /api/airports/:iata` får `friendsVisited: UserSummary[]` (max 10, personer jag följer som checkat in där; tom utan inloggning).
+`Comment`: `{ id, checkinId, user, body, createdAt, editedAt | null, canDelete }`.
 
-## Konto
+## Foton
 | Metod | Väg | Svar |
 |---|---|---|
-| DELETE | /api/me | `{ password }` -> 204. Raderar konto, check-ins, foton (filer), kommentarer, gilla, recensioner, följningar, notiser. Lounger man skapat finns kvar. 401 vid fel lösenord. |
-| GET | /api/me/export | JSON med all egen data (`user, checkins, loungeReviews, comments, wishlist, following, followers`) som `Content-Disposition: attachment` |
+| POST | /checkins/:id/photos | `multipart/form-data`, fält `photo` -> 201 Photo (ägare) |
+| DELETE | /photos/:id | 204 (ägare) |
+| GET | /uploads/:fil | bilden (`nosniff`, sandbox-CSP, lång cache) |
 
-## Loungerecensioner
-`PATCH /api/lounge-reviews/:id` `{ rating?, comment?, visitedOn? }` -> `LoungeReview` (författaren). `DELETE /api/lounge-reviews/:id` -> 204 (författaren).
-`GET /api/lounges/:id?limit=20&offset=0` - `reviews` pagineras (default 20, nyast först); `reviewCount` är totalen.
+JPEG, PNG eller WEBP enligt magic bytes (annars 400), max 5 MB (413), max 4 per check-in (409). EXIF, XMP, IPTC, GPS och kommentarer tas bort innan lagring. Filnamn slumpas.
 
-## Sök
-`/api/search`-träffar får även `snippetParts: [{ text, mark: boolean }]` så att klienten kan rendera utan `innerHTML`. `snippet` (HTML) finns kvar.
+## Användare, följa och blockera
+| Metod | Väg | Svar |
+|---|---|---|
+| GET | /users?q=&limit=20 | `[UserSummary & { uniqueAirports, followedByMe }]` |
+| GET | /users/:u | Profil, se nedan |
+| GET | /users/:u/airports?sort=recent\|visits\|rating | `[{ airport, visits, lastVisit, myRating }]` (myRating = senaste totalbetyg) |
+| GET | /users/:u/checkins?limit&offset | `Checkin[]` efter `visitedOn` |
+| GET | /users/:u/followers?limit=50&offset=0 | `[UserSummary & { followedByMe }]` |
+| GET | /users/:u/following | som ovan |
+| POST | /users/:u/follow | `{ following, requested, followers }` (auth; 400 för sig själv, 403 vid blockering) |
+| DELETE | /users/:u/follow | `{ following: false, requested: false, followers }` (tar även bort egen förfrågan) |
+| GET | /me/follow-requests | `[UserSummary & { requestedAt }]` |
+| POST | /me/follow-requests/:u | 204 godkänn (notis `follow_accepted`) |
+| DELETE | /me/follow-requests/:u | 204 avböj |
+| POST | /users/:u/block | 204 (tar bort följningar, förfrågningar och notiser mellan er) |
+| DELETE | /users/:u/block | 204 |
+| GET | /me/blocks | `[UserSummary & { blockedAt }]` |
 
-## Statistikkort för delning
-| GET | /api/users/:username/card?year=2026 | JSON: `{ user, year | null, checkins, uniqueAirports, newAirports, countries, continents, worldPct, topAirport: {airport, visits} | null, topAirline: {iata, name, checkins} | null, longestStreak, levelInfo, badges (antal upplåsta nivåer), topCountries: [{code, name, airports}] (3 st), firstVisit, lastVisit }`. Utan `year` gäller hela tiden. |
-| GET | /api/users/:username/card.svg?year=2026 | `image/svg+xml` 1200x630 (Open Graph-format) med samma siffror |
+**Profil** (`GET /users/:u`): UserSummary & `{ isPrivate, canView, stats: { uniqueAirports, totalCheckins, countries, continents, avgGivenRating, xp } | null, followers, following, followedByMe, followRequested, followsMe, levelInfo: Level, streak: Streak | null }`.
 
-## Övrigt
-- `GET /api/attributions` -> `[{ name, url, license, licenseUrl, usage }]` (OurAirports, OpenFlights, Natural Earth/world-atlas). Samma innehåll i `server/data/ATTRIBUTION.md`.
-- Rate limit per användare (inloggad) eller IP på skrivande anrop: totalt 300 per 15 min; check-ins 60/h, foton 20/h, kommentarer 60/h, följningar 100/h. Bakom proxy måste `TRUST_PROXY` sättas.
-- Foton: EXIF/XMP/GPS tas bort server-side (JPEG APP1/APP13-segment, PNG eXIf/tEXt/iTXt/zTXt, WEBP EXIF/XMP) innan lagring.
-- `JWT_SECRET` krävs (minst 32 tecken) när `NODE_ENV=production`; annars startar inte servern.
+## Önskelista
+| Metod | Väg | Svar |
+|---|---|---|
+| GET | /users/:u/wishlist | `[{ airport, addedAt }]` |
+| POST | /wishlist | `{ iata }` -> 201 `{ airport, addedAt }` (idempotent) |
+| DELETE | /wishlist/:iata | 204 |
 
-## Förtydliganden v2 (backend)
-- `GET /api/search`: standardordning är nyast först (`sort=recent`); `sort=relevance` sorterar på bm25. `offset` begränsas till 1000. Flygplatsfiltret avgörs i FTS-indexet.
-- Topplistor för vecka/månad/år räknas globalt och cachas upp till 30 s (`RANKING_CACHE_MS`); `period=all` läses direkt ur förberäknad statistik och är alltid aktuell. Vid lika värde sorteras på användarens registreringsordning.
-- `GET /api/rankings/lounges` får `score` (Bayesianskt, C = 3) och sorteras på det.
-- `GET /api/airports/nearby`: `radiusKm` default 500, max 2000; `limit` max 50.
-- `GET /api/me/recent-airports`: hemmaflygplatsen visas även om den inte besökts (`visits: 0`).
-- `PATCH /api/checkins/:id` kan inte ändra `iata` (400). `loungeId: null` tar bort kopplingen till loungen.
-- `DELETE /api/me` kräver `{ password }` i body (400 om det saknas).
-- Notiser för märken skapas när en ny högsta nivå nås (en per märke och händelse). Gilla- och följnotiser skapas högst en gång per användare och check-in respektive följning.
-- `newBadges` kan även uppstå vid kommentar, foto och loungerecension; de ges då som notis (svaren för de anropen innehåller inte `newBadges`).
-- Felsvar 500 innehåller `requestId`; alla svar har headern `X-Request-Id` (skickad `X-Request-Id` återanvänds om den är 1-64 tecken `[A-Za-z0-9_.-]`).
-- Statistik (`airport_stats`, `user_stats`, `user_airports`, ...) uppdateras av triggers i samma transaktion som ändringen. `npm run bench -w server` seedar 300 000 check-ins och mäter budgeten (autocomplete < 20 ms, recensionssök < 50 ms).
-- Databasen versioneras med `PRAGMA user_version` (numrerade migreringar i `server/src/db.js`), äldre databaser uppgraderas vid start.
+## Notiser och Web Push
+| Metod | Väg | Svar |
+|---|---|---|
+| GET | /notifications?limit=30&offset=0&unread=1 | `{ items: Notification[], unread }` nyast först |
+| GET | /notifications/unread-count | `{ unread }` |
+| POST | /notifications/read | `{ ids?: number[] }` (utan ids: alla) -> `{ unread }` |
+| GET | /push/public-key | `{ enabled, publicKey \| null }` |
+| POST | /push/subscriptions | `{ endpoint (https), keys: { p256dh, auth } }` -> 201 (auth, max 10 per användare) |
+| DELETE | /push/subscriptions | `{ endpoint }` -> 204 |
 
-# v3 - Integritet, sessioner, blockering, Web Push (kontrakt runda 3)
-
-Gäller utöver v2. En konsoliderad referens ersätter denna fil när runda 3 är klar.
-
-## Sessioner
-- `POST /api/auth/register` och `/login` svarar `{ token, user, expiresIn: 900 }` och sätter cookien `gl_refresh` (`HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=30 dagar`, `Secure` i produktion).
-- `token` är en access-token som gäller i 15 minuter. Utgången token ger 401 `{ error, code: "token_expired" }`; återkallad session ger 401 `{ error, code: "session_revoked" }`.
-- `POST /api/auth/refresh` (cookie, ingen body) -> `{ token, user, expiresIn }` och roterar cookien. 401 och rensad cookie om den saknas, är ogiltig eller återkallad. En redan använd refresh-token återkallar hela sessionen.
-- `POST /api/auth/logout` -> 204, återkallar aktuell session (via cookie eller access-token) och rensar cookien.
-- `POST /api/auth/logout-all` (auth) -> 204, återkallar alla användarens sessioner.
-- `GET /api/me/sessions` -> `[{ id, createdAt, lastUsedAt, client, current }]` (`client` = webbläsarens klientsträng, kortad); `DELETE /api/me/sessions/:id` -> 204.
-- `POST /api/me/password` `{ currentPassword, newPassword }` -> `{ token, expiresIn }`. 403 vid fel nuvarande lösenord. Alla andra sessioner återkallas.
-- Lösenordskrav (registrering och byte): 8-200 tecken, inte lika med användarnamnet, inte ett vanligt lösenord (lokal lista), annars 400.
-- `DELETE /api/me` med fel lösenord ger **403** (inte 401).
-- `GET /api/me` får `isModerator: boolean`.
-
-## Inställningar och integritet
-`GET /api/me/settings` och `PATCH /api/me/settings` (delvis):
 ```jsonc
-{ "isPrivate": false,                 // privat profil: följning kräver godkännande
-  "defaultVisibility": "public",       // "public" | "friends" | "private" för nya check-ins
-  "publishDelayHours": 0,              // 0 | 1 | 24 | 168: andra ser check-in först efter fördröjningen
-  "hideHomeAirport": false,            // homeIata visas som null för andra
-  "notifyHomeVisits": true,            // ta emot home_visit-notiser
-  "push": { "follow": true, "follow_request": true, "follow_accepted": true, "comment": true,
-            "like": true, "badge": true, "home_visit": true, "overtaken": true } }
+// Notification
+{ "id": 5, "type": "follow" | "follow_request" | "follow_accepted" | "comment" | "like" | "badge" | "home_visit" | "overtaken",
+  "actor": UserSummary | null, "checkinId": 12 | null, "airport": { "iata", "name" } | null,
+  "badge": { "id", "name", "tier" } | null, "badges": [{ "id", "name", "tier" }] | null,
+  "groupKey": "badge:checkin:12", "url": "/c/12", "text": "anna gillade din check-in på GOT",
+  "read": false, "createdAt": "ISO" }
 ```
-- Check-in tar `visibility` i POST/PATCH (default `defaultVisibility`). Checkin-objektet får `visibility` och `publishAt` (ISO; `createdAt` plus fördröjning).
-- Synlighet för andra än ägaren: `public` = alla (om profilen är publik, annars godkända följare), `friends` = godkända följare, `private` = bara ägaren. Före `publishAt` ser bara ägaren check-in:en. Blockering döljer åt båda håll.
-- Gäller flöden, flygplatsens check-ins, användarens check-ins, check-in-detalj (404), kommentarer, gilla (404), sök, foton på flygplatssidan, `friendsVisited`, `home_visit`- och `overtaken`-notiser. Profilens flygplatslista, karta och statistikkort räknas bara på check-ins som tittaren får se.
-- Privat profil: `GET /api/users/:u` får `isPrivate`, `canView`, `followRequested`; utan `canView` är `stats` null. Listor (`/checkins`, `/airports`, `/map`, `/map/:country`, `/wishlist`, `/badges`, `/followers`, `/following`, `/card`) ger 403 `{ error, code: "private_profile" }`. Privata profiler syns inte i globala topplistor (bara för sig själva och följare).
-
-## Följförfrågningar
-- `POST /api/users/:u/follow` mot privat profil -> `{ following: false, requested: true, followers }` och notis `follow_request`.
-- `GET /api/me/follow-requests` -> `[UserSummary & { requestedAt }]`.
-- `POST /api/me/follow-requests/:username` -> 204 (godkänn, notis `follow_accepted` till den som frågade); `DELETE /api/me/follow-requests/:username` -> 204 (avböj).
-- `DELETE /api/users/:u/follow` tar även bort en egen väntande förfrågan. `/followers`, `/following` och alla vänlistor räknar bara godkända följningar.
-
-## Blockera och rapportera
-- `POST /api/users/:u/block` -> 204 (tar bort följningar och förfrågningar åt båda håll); `DELETE /api/users/:u/block` -> 204; `GET /api/me/blocks` -> `[UserSummary & { blockedAt }]`.
-- Blockerade kan inte följa, kommentera eller gilla; deras check-ins och kommentarer döljs för den som blockerat och tvärtom. Inga notiser mellan dem.
-- `POST /api/reports` `{ type: "user" | "comment" | "checkin", target: username | id, reason: "spam" | "harassment" | "inappropriate" | "privacy" | "other", note? (max 500) }` -> 201 `{ id, status: "open" }` (samma öppna rapport från samma person ger 200 med samma id).
-- Moderatorer (env `MODERATORS=användarnamn,...`): `GET /api/moderation/reports?status=open|resolved|dismissed` -> `[{ id, type, target, reason, note, reporter, status, reportCount, createdAt }]`; `POST /api/moderation/reports/:id` `{ action: "dismiss" | "resolve" | "remove_content" }` -> rapporten. `remove_content` raderar kommentaren eller check-in:en (inte för `user`). Övriga får 403.
-
-## Web Push
-- `GET /api/push/public-key` -> `{ enabled, publicKey | null }` (VAPID, env `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`; i utveckling genereras nycklar till `server/data/vapid.json`).
-- `POST /api/push/subscriptions` `{ endpoint, keys: { p256dh, auth } }` (auth) -> 201; `DELETE /api/push/subscriptions` `{ endpoint }` -> 204. Max 10 prenumerationer per användare.
-- Varje ny notis skickas som push om användarens `push[type]` är på. Payload (JSON): `{ title: "Gatelog", body: text, url, tag, type, notificationId }`. Prenumerationer som svarar 404/410 tas bort.
-
-## Notiser
-- Nya typer: `follow_request`, `follow_accepted`, `overtaken`.
-- `badge`-notiser grupperas per händelse: en notis med `badges: [{ id, name, tier }]` (alla nivåer som nåddes av samma check-in eller handling). `badge` = första posten. Text: "Du nådde brons i Flygplatssamlare" eller "Du nådde 3 nya märkesnivåer".
-- Alla notiser får `groupKey` (t.ex. `badge:checkin:123`, `overtaken:2026-11-09`) och `url` (klientväg att öppna).
-- `overtaken`: när någon du följer går om dig i veckans topplista (unika flygplatser, ISO-vecka) skapas "anna gick om dig på veckans topplista". Högst en per vecka och person, och bara om check-in:en är synlig för dig.
+- Ingen notis till sig själv eller mellan blockerade. Gilla, följ och förfrågan skapas högst en gång per person och mål.
+- `badge`: en notis per händelse med alla nivåer som nåddes (`badges`; `badge` = första). Text "Du nådde brons i Flygplatssamlare" eller "Du nådde 3 nya märkesnivåer".
+- `home_visit`: när någon som följer dig checkar in på din hemmaflygplats, om du har `notifyHomeVisits` på och får se check-in:en (aldrig för fördröjda eller privata).
+- `overtaken`: när någon du följer passerar dig i veckans topplista (unika flygplatser, ISO-vecka). Högst en per person och vecka.
+- Push skickas efter commit om `push[type]` är på. Payload: `{ title: "Gatelog", body, url, tag (= groupKey), type, notificationId }`. VAPID-nycklar via `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` och `VAPID_SUBJECT` (i utveckling genereras `server/data/vapid.json`; i produktion utan nycklar är push avstängt). Prenumerationer som svarar 404/410, eller fallerar fem gånger, tas bort.
 
 ## Märken
-Höjda trösklar; vissa märken har bara tre nivåer (`tiers` har då tre poster):
-`checkins` 1/50/250/1000 · `airports` 5/25/100/250 · `countries` 3/15/40/80 · `continents` 3/4/5/6 · `nordic` 3/4/5 (brons/silver/guld) ·
-`hubs` 10/30/75/150 · `alphabet` 8/14/20/26 · `regions-se` 3/8/14/18 · `airlines` 5/15/40/80 · `front-cabin` 1/10/40/100 ·
-`transfer-king` 5/20/75/200 · `home-turf` 10/30/75/200 · `streak` 3/8/20/52 · `reviewer` 10/40/120/300 ·
-`lounge-expert` 1/10/40/100 · `photographer` 1/20/75/250 · `popular` 10/50/250/1000 · `conversationalist` 5/50/200/500
+`GET /users/:u/badges` -> `Badge[]` (18 st). Nivåer sparas när de nås och tas inte tillbaka.
+```jsonc
+{ "id": "airports", "name": "Flygplatssamlare", "description": "...", "category": "explorer" | "traveller" | "social",
+  "tier": null | "bronze" | "silver" | "gold" | "platinum", "tierLevel": 0,
+  "earnedAt": "ISO" | null, "tiers": [{ "tier": "bronze", "target": 5, "earnedAt": "ISO" | null }, ...],
+  "progress": { "current": 3, "target": 5 }, "rarity": 12.5 }   // rarity = % av användarna med minst brons
+```
+| id | Mått | Nivåer |
+|---|---|---|
+| checkins | check-ins | 1 / 50 / 250 / 1000 |
+| airports | unika flygplatser | 5 / 25 / 100 / 250 |
+| countries | länder | 3 / 15 / 40 / 80 |
+| continents | kontinenter utom Antarktis | 3 / 4 / 5 / 6 |
+| nordic | nordiska länder (SE, NO, DK, FI, IS) | 3 / 4 / 5 (tre nivåer) |
+| hubs | unika stora flygplatser | 10 / 30 / 75 / 150 |
+| alphabet | begynnelsebokstäver i IATA-koder | 8 / 14 / 20 / 26 |
+| regions-se | svenska län | 3 / 8 / 14 / 18 |
+| airlines | flygbolag | 5 / 15 / 40 / 80 |
+| front-cabin | check-ins i business/first | 1 / 10 / 40 / 100 |
+| transfer-king | transfer-check-ins | 5 / 20 / 75 / 200 |
+| home-turf | check-ins på hemmaflygplatsen | 10 / 30 / 75 / 200 |
+| streak | längsta veckostreak | 3 / 8 / 20 / 52 |
+| reviewer | check-ins med kommentar | 10 / 40 / 120 / 300 |
+| lounge-expert | loungerecensioner | 1 / 10 / 40 / 100 |
+| photographer | foton | 1 / 20 / 75 / 250 |
+| popular | mottagna gilla | 10 / 50 / 250 / 1000 |
+| conversationalist | skrivna kommentarer | 5 / 50 / 200 / 500 |
 
-## Validering av frågeparametrar
-Okända värden för uppräknade parametrar (`metric`, `period`, `scope`, `category`, `sort`, `type`, `visited`, `status`) ger 400 `{ error, allowed: [...] }` i stället för tyst standardvärde.
+**XP:** 10 per check-in, +25 per unik flygplats, +50 per land, +100 per kontinent, +5 per check-in med kommentar, +5 per check-in med totalbetyg, +10 per loungerecension, +5 per foto. Nivå L kräver 25·L·(L-1) XP.
+
+## Topplistor
+| Metod | Väg | Svar |
+|---|---|---|
+| GET | /rankings/users?metric=&period=&scope=&country=&limit=50 | se nedan |
+| GET | /leaderboard (samma parametrar) | `[{ rank, user, value }]` (äldre form) |
+| GET | /rankings/airports?category=&country=&continent=&type=&minRatings=1&limit=50 | `[{ rank, airport, avgRating, score, ratingCount }]` |
+| GET | /rankings/lounges?minReviews=1&limit=50 | `[{ rank, lounge, airport, avgRating, score, reviewCount }]` |
+
+- `metric`: `airports | countries | continents | checkins | reviews | xp`. `period`: `week | month | year | all` (kalenderperiod i Europe/Stockholm efter `visitedOn`). `scope`: `global | friends | country` (`friends` kräver inloggning; `country` kräver `country` och räknar bara check-ins i landet). `xp` och `reviews` bara med `period=all` och scope global eller friends (annars 400).
+- Svar: `{ metric, period, from | null, to | null, items: [{ rank, user, value, change }], me: { rank, value, change } | null, around: [...] }`. Lika värde ger samma plats. `change` = förra periodens placering minus nuvarande (null om ny eller vid `period=all`). `around` = upp till två över och två under mig.
+- Perioder räknas globalt och cachas upp till 30 s (`RANKING_CACHE_MS`); `period=all` är alltid aktuell.
+- `category`: `overall | security | cleanliness | food | wifi | transfer | lounges`. Sortering på Bayesianskt snitt `score = (C·m + summa) / (C + n)` där `m` är kategorins snitt över alla betyg och `C = 5` (flygplatser) eller `3` (lounger). `avgRating` är det råa snittet.
+
+## Utforska
+| Metod | Väg | Svar |
+|---|---|---|
+| GET | /countries?continent=&sort=name\|checkins\|rating | `[{ code, name (svenska), continent, airports, checkins, avgRating }]` |
+| GET | /countries/:code | `{ code, name, continent, airports, checkins, visitors, avgRating, topAirports: [{ airport, avgRating, ratingCount, checkins }] (10) }` |
+| GET | /lounges?q=&iata=&country=&sort=rating\|reviews\|name&limit&offset | `[Lounge & { airport }]` |
+| GET | /lounges/:id?limit=20&offset=0 | Lounge & `{ reviews: LoungeReview[] }` (synliga recensioner, nyast först) |
+| POST | /lounges/:id/reviews | `{ rating (1-5, halvsteg), comment?, visitedOn }` -> 201 LoungeReview (auth) |
+| PATCH | /lounge-reviews/:id | `{ rating?, comment?, visitedOn? }` -> LoungeReview (författaren) |
+| DELETE | /lounge-reviews/:id | 204 (författaren) |
+| GET | /airlines?q=&limit=10 | `[{ iata, icao, name, country }]` (IATA/ICAO exakt först, sedan namn) |
+
+Ett lands kontinent är den vanligaste bland dess flygplatser.
+
+## Sök i kommentarer och recensioner
+`GET /search?q=&iata=&minRating=&airline=&travelClass=&sort=recent|relevance&limit=20&offset=0` (minst en av `q` och `iata`)
+- Fulltextsök (SQLite FTS5, diakritik-tolerant prefix per ord, alla ord krävs) i check-in-kommentarer och loungerecensioner som tittaren får se.
+- Svar: `[{ type: "checkin" | "lounge_review", id, user, airport, loungeName | null, rating, comment, snippet, snippetParts, visitedOn, createdAt }]`.
+- `snippet` är HTML-escapad med träffar i `<mark>`; `snippetParts: [{ text, mark }]` är samma utdrag som segment för rendering utan `innerHTML`.
+- Standard är nyast först; `relevance` sorterar på bm25. `offset` max 1000. Söksträng utan sökbara ord ger 400.
+
+## Kartor
+| Metod | Väg | Svar |
+|---|---|---|
+| GET | /users/:u/map?scope=scheduled\|all | `{ totals: { visited, total, pct }, continents: [{ code, name, visited, total, pct }], countries: [{ code, name, continent, visited, total, pct }] }` |
+| GET | /users/:u/map/:country?scope= | `{ country: { code, name, visited, total, pct }, regions: [{ code, name, visited, total, pct }], airports: [{ iata, name, city, lat, lon, type, scheduled, region, regionName, visited, visits }] }` |
+
+Täckning räknas mot flygplatser med reguljärtrafik (4 008), `scope=all` mot alla 8 799. `pct` med en decimal. Länder utan flygplatser i scope utelämnas. Besökta flygplatser utanför scope visas i `airports` men räknas inte i `total`.
+
+## Statistikkort
+| Metod | Väg | Svar |
+|---|---|---|
+| GET | /users/:u/card?year=2026 | `{ user, year \| null, checkins, uniqueAirports, newAirports, countries, continents, worldPct, topAirport, topAirline, longestStreak, levelInfo, badges, topCountries: [{ code, name, airports }] (3), firstVisit, lastVisit }` |
+| GET | /users/:u/card.svg?year= | `image/svg+xml` 1200x630 (Open Graph) |
+
+## Rapporter och moderering
+| Metod | Väg | Svar |
+|---|---|---|
+| POST | /reports | `{ type: "user" \| "comment" \| "checkin", target: username \| id, reason: "spam" \| "harassment" \| "inappropriate" \| "privacy" \| "other", note? }` -> 201 `{ id, status }` (samma öppna rapport igen ger 200) |
+| GET | /moderation/reports?status=open\|resolved\|dismissed&limit&offset | `[{ id, type, target, reason, note, reporter, status, reportCount, createdAt }]` (moderator) |
+| POST | /moderation/reports/:id | `{ action: "dismiss" \| "resolve" \| "remove_content" }` -> rapporten (moderator). Avslutar alla öppna rapporter för samma mål; `remove_content` raderar kommentaren eller check-in:en. |
+
+Moderatorer anges med env `MODERATORS=användarnamn,...`.
+
+## Övrigt
+| Metod | Väg | Svar |
+|---|---|---|
+| GET | /health | `{ ok: true, airports: 8799 }` |
+| GET | /attributions | `[{ name, url, license, licenseUrl, usage }]` (även `server/data/ATTRIBUTION.md`) |
+
+## Drift
+- Miljövariabler: se `server/.env.example` (läses endast i `server/src/config.js`). `JWT_SECRET` (minst 32 tecken) krävs när `NODE_ENV=production`, annars startar inte servern.
+- Databas: SQLite (`node:sqlite`), versionerad med `PRAGMA user_version` och numrerade migreringar i `server/src/db/migrations/`. Statistiktabeller hålls i synk av triggers i samma transaktion.
+- Prestanda: `npm run bench -w server` seedar 300 000 check-ins och kontrollerar budgeten (flygplatsautocomplete < 20 ms, recensionssök < 50 ms).
