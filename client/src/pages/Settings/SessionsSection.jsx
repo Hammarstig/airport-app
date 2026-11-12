@@ -77,7 +77,7 @@ export function SessionsSection() {
               </span>
               {!s.current && (
                 <button type="button" className="btn btn--ghost btn--sm" onClick={() => revoke(s.id)}>
-                  Logga ut enheten
+                  Avsluta
                 </button>
               )}
             </li>
@@ -86,7 +86,7 @@ export function SessionsSection() {
       )}
       <div>
         <button type="button" className="btn btn--sm" onClick={all}>
-          Logga ut på alla enheter
+          Avsluta alla inloggningar
         </button>
       </div>
     </div>
