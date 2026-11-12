@@ -1,6 +1,7 @@
 // v1.3: kartvyer med täckningsgrad. En aggregerad SQL-fråga per anrop.
 import { Router } from 'express';
-import { h, notFound, code2 } from '../util.js';
+import { h, notFound, code2, enumParam } from '../util.js';
+import { checkinVisible, requireProfileAccess } from '../visibility.js';
 import { countryNameSv } from '../db/index.js';
 
 const CONTINENT_NAMES = {
@@ -10,26 +11,43 @@ const pct = (v, t) => (t ? Math.round((v / t) * 1000) / 10 : 0);
 
 export default function mapRoutes({ db }) {
   const r = Router();
-  const userByName = db.prepare('SELECT id FROM users WHERE username = ?');
+  const userByName = db.prepare('SELECT * FROM users WHERE username = ?');
 
-  function userId(raw) {
-    const u = userByName.get(String(raw).toLowerCase());
+  /** Användarens id efter behörighetskontroll. */
+  function userId(req) {
+    const u = userByName.get(String(req.params.username).toLowerCase());
     if (!u) throw notFound('Användaren finns inte');
+    requireProfileAccess(db, req.user?.id, u);
     return u.id;
   }
-  const scopeAll = (q) => q.scope === 'all';
+  const scopeAll = (q) => enumParam(q, 'scope', ['scheduled', 'all'], 'scheduled') === 'all';
+
+  /**
+   * Besökta flygplatser (iata, visits) som tittaren får se: ägaren läser förberäknad statistik,
+   * andra räknas på synliga check-ins.
+   */
+  function visitedSql(req, uid) {
+    if (req.user?.id === uid) return { sql: 'SELECT iata, visits FROM user_airports WHERE user_id = ?', params: [uid] };
+    const vis = checkinVisible(req.user?.id);
+    return {
+      sql: `SELECT c.iata, COUNT(*) AS visits FROM checkins c JOIN users u ON u.id = c.user_id
+        WHERE c.user_id = ? AND ${vis.sql} GROUP BY c.iata`,
+      params: [uid, ...vis.params],
+    };
+  }
   const privateCache = (res) => res.set('Cache-Control', 'private, max-age=30');
 
-  const overview = db.prepare(`
+  const overview = (v) => db.prepare(`
     SELECT a.country, a.continent, COUNT(*) AS total, COUNT(v.iata) AS visited
     FROM airports a
-    LEFT JOIN (SELECT iata FROM user_airports WHERE user_id = ?) v ON v.iata = a.iata
+    LEFT JOIN (${v.sql}) v ON v.iata = a.iata
     WHERE (? = 1 OR a.scheduled = 1) AND a.country IS NOT NULL
     GROUP BY a.country, a.continent`);
 
   r.get('/users/:username/map', h((req, res) => {
-    const uid = userId(req.params.username);
-    const rows = overview.all(uid, scopeAll(req.query) ? 1 : 0);
+    const uid = userId(req);
+    const v = visitedSql(req, uid);
+    const rows = overview(v).all(...v.params, scopeAll(req.query) ? 1 : 0);
     const countries = new Map();
     const continents = new Map();
     let visited = 0;
@@ -61,19 +79,20 @@ export default function mapRoutes({ db }) {
   }));
 
   // Alla flygplatser i landet inom scope, plus besökta utanför scope (visas på kartan men räknas inte i total).
-  const countryAirports = db.prepare(`
+  const countryAirports = (v) => db.prepare(`
     SELECT a.iata, a.name, a.city, a.lat, a.lon, a.type, a.scheduled, a.region, a.region_name,
            IFNULL(v.visits, 0) AS visits, (? = 1 OR a.scheduled = 1) AS in_scope
     FROM airports a
-    LEFT JOIN (SELECT iata, visits FROM user_airports WHERE user_id = ?) v ON v.iata = a.iata
+    LEFT JOIN (${v.sql}) v ON v.iata = a.iata
     WHERE a.country = ? AND (? = 1 OR a.scheduled = 1 OR v.visits IS NOT NULL)
     ORDER BY a.type_rank, a.name`);
 
   r.get('/users/:username/map/:country', h((req, res) => {
-    const uid = userId(req.params.username);
+    const uid = userId(req);
     const code = code2(req.params.country);
     const all = scopeAll(req.query) ? 1 : 0;
-    const rows = code ? countryAirports.all(all, uid, code, all) : [];
+    const v = visitedSql(req, uid);
+    const rows = code ? countryAirports(v).all(all, ...v.params, code, all) : [];
     if (!rows.length) {
       const exists = code && db.prepare('SELECT 1 FROM airports WHERE country = ? LIMIT 1').get(code);
       if (!exists) throw notFound('Landet finns inte');

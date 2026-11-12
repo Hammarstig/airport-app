@@ -59,7 +59,8 @@ export default function accountRoutes({ db, photos }) {
     const password = req.body?.password;
     if (typeof password !== 'string' || !password) throw bad('password krävs för att radera kontot');
     const u = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
-    if (!(await bcrypt.compare(password, u.password_hash))) throw new HttpError(401, 'Fel lösenord');
+    // 403 (inte 401): fel lösenord ska inte tolkas som utgången session av klienten.
+    if (!(await bcrypt.compare(password, u.password_hash))) throw new HttpError(403, 'Fel lösenord');
     const files = db.prepare('SELECT filename FROM photos WHERE user_id = ?').all(req.user.id).map((p) => p.filename);
     transaction(db, () => {
       db.prepare('DELETE FROM users WHERE id = ?').run(req.user.id);
@@ -81,9 +82,9 @@ export default function accountRoutes({ db, photos }) {
         JOIN lounges lo ON lo.id = r.lounge_id WHERE r.user_id = ? ORDER BY r.id`).all(uid),
       comments: db.prepare('SELECT * FROM comments WHERE user_id = ? ORDER BY id').all(uid),
       wishlist: db.prepare('SELECT iata, added_at FROM wishlist WHERE user_id = ? ORDER BY added_at').all(uid),
-      following: db.prepare(`SELECT u.username, f.created_at FROM follows f JOIN users u ON u.id = f.followee_id
+      following: db.prepare(`SELECT u.username, f.status, f.created_at FROM follows f JOIN users u ON u.id = f.followee_id
         WHERE f.follower_id = ?`).all(uid),
-      followers: db.prepare(`SELECT u.username, f.created_at FROM follows f JOIN users u ON u.id = f.follower_id
+      followers: db.prepare(`SELECT u.username, f.status, f.created_at FROM follows f JOIN users u ON u.id = f.follower_id
         WHERE f.followee_id = ?`).all(uid),
     };
     delete out.user.password_hash;

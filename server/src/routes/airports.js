@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { normalizeWords, countryNameSv } from '../db/index.js';
 import {
-  h, bad, notFound, HttpError, cleanText, normIata, paging, round2, escapeLike, code2, LOUNGE_SELECT, loungeFrom,
+  h, bad, notFound, HttpError, cleanText, normIata, paging, enumParam, round2, escapeLike, code2, LOUNGE_SELECT, loungeFrom,
   AIRPORT_COLS, airportFrom, CHECKIN_SELECT, checkinsWithPhotos, SUB_RATINGS, TRAVEL_CLASSES, photoFrom,
   USER_COLS, userFrom,
 } from '../util.js';
 import { globalMeans, bayesSql, AIRPORT_PRIOR } from '../stats.js';
+import { checkinVisible } from '../visibility.js';
 import { requireAuth } from '../auth.js';
 
 const MATCHED_ON = ['iata', 'icao', 'country', 'city', 'name', 'country'];
@@ -63,18 +64,19 @@ export default function airportRoutes({ db }) {
     if (country) { where.push('a.country = ?'); params.push(country); }
     const continent = code2(req.query.continent);
     if (continent) { where.push('a.continent = ?'); params.push(continent); }
-    if (['large', 'medium', 'small'].includes(req.query.type)) { where.push('a.type = ?'); params.push(req.query.type); }
+    const type = enumParam(req.query, 'type', ['large', 'medium', 'small'], null);
+    if (type) { where.push('a.type = ?'); params.push(type); }
     const minRating = Number(req.query.minRating);
     if (req.query.minRating !== undefined && req.query.minRating !== '' && Number.isFinite(minRating)) {
       where.push('s.rating_count > 0 AND s.rating_sum / s.rating_count >= ?'); params.push(minRating);
     }
-    if (req.user && req.query.visited === 'mine') {
+    const visited = enumParam(req.query, 'visited', ['any', 'mine', 'notmine'], 'any');
+    if (req.user && visited === 'mine') {
       where.push('EXISTS (SELECT 1 FROM user_airports m WHERE m.user_id = ? AND m.iata = a.iata)'); params.push(req.user.id);
-    } else if (req.user && req.query.visited === 'notmine') {
+    } else if (req.user && visited === 'notmine') {
       where.push('NOT EXISTS (SELECT 1 FROM user_airports m WHERE m.user_id = ? AND m.iata = a.iata)'); params.push(req.user.id);
     }
-    const sort = ['relevance', 'rating', 'checkins', 'name'].includes(req.query.sort)
-      ? req.query.sort : (raw ? 'relevance' : 'checkins');
+    const sort = enumParam(req.query, 'sort', ['relevance', 'rating', 'checkins', 'name'], raw ? 'relevance' : 'checkins');
     const score = sort === 'rating' ? bayesSql('s.rating_sum', 's.rating_count', globalMeans(db).overall, AIRPORT_PRIOR) : 'NULL';
     const order = {
       relevance: 'm, a.type_rank, IFNULL(s.checkins, 0) DESC, a.scheduled DESC, a.search_name',
@@ -113,7 +115,7 @@ export default function airportRoutes({ db }) {
     let radius = Number(req.query.radiusKm);
     if (!Number.isFinite(radius) || radius <= 0) radius = 500;
     radius = Math.min(radius, 2000);
-    const all = req.query.scope === 'all' ? 1 : 0;
+    const all = enumParam(req.query, 'scope', ['scheduled', 'all'], 'scheduled') === 'all' ? 1 : 0;
     const dLat = radius / 111;
     const cos = Math.cos((lat * Math.PI) / 180);
     const dLon = cos > 0.01 ? radius / (111 * cos) : 360;
@@ -148,8 +150,9 @@ export default function airportRoutes({ db }) {
       topAirlines: topAirlines.map((x) => ({ airline: { iata: x.iata, name: x.name }, checkins: x.n })),
       classMix: Object.fromEntries(TRAVEL_CLASSES.map((k) => [k, s['cls_' + k] ?? 0])),
     };
-    const photos = db.prepare(`SELECT p.* FROM photos p JOIN checkins c ON c.id = p.checkin_id
-      WHERE c.iata = ? ORDER BY p.id DESC LIMIT 12`).all(a.iata).map(photoFrom);
+    const pv = checkinVisible(req.user?.id);
+    const photos = db.prepare(`SELECT p.* FROM photos p JOIN checkins c ON c.id = p.checkin_id JOIN users u ON u.id = c.user_id
+      WHERE c.iata = ? AND ${pv.sql} ORDER BY p.id DESC LIMIT 12`).all(a.iata, ...pv.params).map(photoFrom);
     let onMyWishlist = false;
     let myVisits = 0;
     let friendsVisited = [];
@@ -158,10 +161,13 @@ export default function airportRoutes({ db }) {
         (SELECT visits FROM user_airports WHERE user_id = ? AND iata = ?) AS v`).get(req.user.id, a.iata, req.user.id, a.iata);
       onMyWishlist = !!me.w;
       myVisits = me.v ?? 0;
+      // Personer jag följer som har minst en check-in här som jag får se.
+      const fv = checkinVisible(req.user.id);
       friendsVisited = db.prepare(`SELECT ${USER_COLS('u', '')} FROM follows f
-        JOIN user_airports ua ON ua.user_id = f.followee_id AND ua.iata = ?
         JOIN users u ON u.id = f.followee_id
-        WHERE f.follower_id = ? ORDER BY ua.last_visit DESC, u.username LIMIT 10`).all(a.iata, req.user.id).map((x) => userFrom(x));
+        WHERE f.follower_id = ? AND f.status = 'accepted' AND EXISTS (
+          SELECT 1 FROM checkins c WHERE c.user_id = u.id AND c.iata = ? AND ${fv.sql})
+        ORDER BY u.username LIMIT 10`).all(req.user.id, a.iata, ...fv.params).map((x) => userFrom(x));
     }
     res.json({
       ...airportFrom(a),
@@ -178,9 +184,10 @@ export default function airportRoutes({ db }) {
   r.get('/airports/:iata/checkins', h((req, res) => {
     const a = airportOr404(req.params.iata);
     const { limit, offset } = paging(req.query);
-    const rows = db.prepare(`${CHECKIN_SELECT} WHERE c.iata = ?
+    const vis = checkinVisible(req.user?.id);
+    const rows = db.prepare(`${CHECKIN_SELECT} WHERE c.iata = ? AND ${vis.sql}
       ORDER BY c.visited_on DESC, c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`)
-      .all(req.user?.id ?? -1, a.iata, limit, offset);
+      .all(req.user?.id ?? -1, a.iata, ...vis.params, limit, offset);
     res.json(checkinsWithPhotos(db, rows));
   }));
 

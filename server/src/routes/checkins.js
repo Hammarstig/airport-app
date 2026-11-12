@@ -2,11 +2,41 @@ import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import {
   h, bad, notFound, HttpError, cleanText, validateHalfStep, validateRatings, validateDate,
-  normIata, paging, KINDS, TRAVEL_CLASSES, SUB_RATINGS, CHECKIN_SELECT, checkinsWithPhotos, levelInfo,
+  normIata, paging, enumParam, KINDS, TRAVEL_CLASSES, SUB_RATINGS, CHECKIN_SELECT, checkinsWithPhotos, levelInfo,
 } from '../util.js';
+import { checkinVisible, visibleCheckin, VISIBILITIES } from '../visibility.js';
 import { transaction } from '../db/index.js';
-import { awardBadges, userStreak } from '../badges.js';
+import { awardBadges, userStreak, todayStockholm, mondayOf } from '../badges.js';
 import { notify, notifyHomeVisit } from '../notify.js';
+
+function parseVisibility(v) {
+  if (!VISIBILITIES.includes(v)) {
+    throw new HttpError(400, `visibility måste vara en av ${VISIBILITIES.join(', ')}`, { allowed: VISIBILITIES });
+  }
+  return v;
+}
+
+/**
+ * Notis "overtaken": följare till incheckaren som hade exakt lika många unika flygplatser denna vecka
+ * som incheckaren hade före check-in:en (och minst en) har nu blivit omsprungna. Högst en per vecka och person.
+ */
+function notifyOvertaken(db, { uid, iata, visitedOn, visibility, delayed }) {
+  if (visibility === 'private' || delayed) return;
+  const from = mondayOf(todayStockholm());
+  const to = new Date(Date.parse(from + 'T00:00:00Z') + 6 * 86400000).toISOString().slice(0, 10);
+  if (visitedOn < from || visitedOn > to) return;
+  const week = 'SELECT COUNT(DISTINCT iata) FROM checkins WHERE user_id = ? AND visited_on BETWEEN ? AND ?';
+  const firstAtIata = db.prepare('SELECT COUNT(*) AS n FROM checkins WHERE user_id = ? AND iata = ? AND visited_on BETWEEN ? AND ?')
+    .get(uid, iata, from, to).n === 1;
+  if (!firstAtIata) return;
+  const before = db.prepare(`SELECT (${week}) AS n`).get(uid, from, to).n - 1;
+  if (before < 1) return;
+  const rows = db.prepare(`SELECT f.follower_id AS id, (${week.replace('user_id = ?', 'user_id = f.follower_id')}) AS v
+    FROM follows f WHERE f.followee_id = ? AND f.status = 'accepted'`).all(from, to, uid);
+  for (const r of rows) {
+    if (r.v === before) notify(db, { userId: r.id, type: 'overtaken', actorId: uid, groupKey: `overtaken:${from}` });
+  }
+}
 
 /** Validerar resedetaljer som är gemensamma för POST och PATCH. `undefined` = ej skickat. */
 function travelDetails(db, b) {
@@ -40,7 +70,6 @@ function travelDetails(db, b) {
 export default function checkinRoutes({ db, photos, limiters }) {
   const r = Router();
   const airportRow = db.prepare('SELECT iata, country, continent FROM airports WHERE iata = ?');
-  const getCheckin = db.prepare(`${CHECKIN_SELECT} WHERE c.id = ?`);
   const checkinRow = db.prepare('SELECT * FROM checkins WHERE id = ?');
   const likeCount = db.prepare('SELECT COUNT(*) AS n FROM likes WHERE checkin_id = ?');
   const loungeById = db.prepare('SELECT id, iata FROM lounges WHERE id = ?');
@@ -54,8 +83,10 @@ export default function checkinRoutes({ db, photos, limiters }) {
     return id;
   }
 
+  /** Check-in som tittaren får se (synlighet, fördröjning, blockering), annars null. */
   const one = (viewerId, id) => {
-    const row = getCheckin.get(viewerId, id);
+    const vis = checkinVisible(viewerId);
+    const row = db.prepare(`${CHECKIN_SELECT} WHERE c.id = ? AND ${vis.sql}`).get(viewerId ?? -1, id, ...vis.params);
     return row ? checkinsWithPhotos(db, [row])[0] : null;
   };
 
@@ -95,8 +126,12 @@ export default function checkinRoutes({ db, photos, limiters }) {
     if (loungeRating !== null && loungeId === null && !newLounge) throw bad('loungeRating kräver loungeId eller newLounge');
 
     const uid = req.user.id;
+    const me = db.prepare('SELECT default_visibility, publish_delay_hours FROM users WHERE id = ?').get(uid);
+    const visibility = b.visibility === undefined || b.visibility === null ? me.default_visibility : parseVisibility(b.visibility);
     const xpBefore = xpOf.get(uid)?.xp ?? 0;
-    const now = new Date().toISOString();
+    const nowMs = Date.now();
+    const now = new Date(nowMs).toISOString();
+    const publishAt = new Date(nowMs + me.publish_delay_hours * 3600_000).toISOString();
     const { id, newBadges, milestones } = transaction(db, () => {
       if (newLounge) {
         const existing = loungeByName.get(iata, newLounge.name);
@@ -106,17 +141,18 @@ export default function checkinRoutes({ db, photos, limiters }) {
       }
       const cid = Number(db.prepare(`INSERT INTO checkins
         (user_id, iata, visited_on, kind, rating, r_security, r_cleanliness, r_food, r_wifi, r_transfer, r_lounges,
-         comment, created_at, airline_iata, travel_class, lounge_id, flight_number)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+         comment, created_at, airline_iata, travel_class, lounge_id, flight_number, visibility, publish_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         uid, iata, visitedOn, b.kind, rating,
         rt.security, rt.cleanliness, rt.food, rt.wifi, rt.transfer, rt.lounges,
-        comment, now, td.airline ?? null, td.travelClass ?? null, loungeId, td.flightNumber ?? null,
+        comment, now, td.airline ?? null, td.travelClass ?? null, loungeId, td.flightNumber ?? null, visibility, publishAt,
       ).lastInsertRowid);
       if (loungeRating !== null) {
         db.prepare(`INSERT INTO lounge_reviews (lounge_id, user_id, rating, comment, visited_on, created_at, checkin_id)
           VALUES (?, ?, ?, ?, ?, ?, ?)`).run(loungeId, uid, loungeRating, loungeComment ?? comment, visitedOn, now, cid);
       }
       notifyHomeVisit(db, { actorId: uid, checkinId: cid, iata });
+      notifyOvertaken(db, { uid, iata, visitedOn, visibility, delayed: publishAt > now });
 
       const m = db.prepare(`SELECT
           (SELECT visits FROM user_airports WHERE user_id = ? AND iata = ?) AS visits,
@@ -129,7 +165,7 @@ export default function checkinRoutes({ db, photos, limiters }) {
       const isNewAirport = m.visits === 1;
       return {
         id: cid,
-        newBadges: awardBadges(db, uid),
+        newBadges: awardBadges(db, uid, `badge:checkin:${cid}`),
         milestones: {
           isNewAirport,
           isNewCountry: isNewAirport && m.country_airports === 1,
@@ -188,12 +224,13 @@ export default function checkinRoutes({ db, photos, limiters }) {
     if ('travelClass' in td) set.travel_class = td.travelClass;
     if ('flightNumber' in td) set.flight_number = td.flightNumber;
     if (b.loungeId !== undefined) set.lounge_id = loungeFor(cur.iata, b.loungeId);
+    if (b.visibility !== undefined) set.visibility = parseVisibility(b.visibility);
     const cols = Object.keys(set);
     if (cols.length) {
       transaction(db, () => {
         db.prepare(`UPDATE checkins SET ${cols.map((c) => `${c} = ?`).join(', ')}, edited_at = ? WHERE id = ?`)
           .run(...cols.map((c) => set[c]), new Date().toISOString(), id);
-        awardBadges(db, req.user.id);
+        awardBadges(db, req.user.id, `badge:checkin:${id}:edit`);
       });
     }
     res.json(one(req.user.id, id));
@@ -212,14 +249,14 @@ export default function checkinRoutes({ db, photos, limiters }) {
 
   r.post('/checkins/:id/like', requireAuth, limiters.like, h((req, res) => {
     const id = idParam(req.params.id);
-    const row = checkinRow.get(id);
+    const row = visibleCheckin(db, req.user.id, id);
     if (!row) throw notFound('Check-in finns inte');
     transaction(db, () => {
       const info = db.prepare('INSERT OR IGNORE INTO likes (checkin_id, user_id, created_at) VALUES (?, ?, ?)')
         .run(id, req.user.id, new Date().toISOString());
       if (info.changes && row.user_id !== req.user.id) {
         notify(db, { userId: row.user_id, type: 'like', actorId: req.user.id, checkinId: id });
-        awardBadges(db, row.user_id);
+        awardBadges(db, row.user_id, `badge:like:${id}:${req.user.id}`);
       }
     });
     res.json({ likes: likeCount.get(id).n, likedByMe: true });
@@ -234,17 +271,18 @@ export default function checkinRoutes({ db, photos, limiters }) {
 
   r.get('/feed', h((req, res) => {
     const { limit, offset } = paging(req.query);
-    const scope = ['mine', 'friends'].includes(req.query.scope) ? req.query.scope : 'global';
+    const scope = enumParam(req.query, 'scope', ['global', 'friends', 'mine'], 'global');
     if (scope !== 'global' && !req.user) throw new HttpError(401, `Inloggning krävs för scope=${scope}`);
     const iata = normIata(req.query.iata) || null;
     if (iata && !/^[A-Z]{3}$/.test(iata)) throw bad('iata måste vara en IATA-kod med tre bokstäver');
-    const where = ['(? IS NULL OR c.iata = ?)'];
-    const params = [iata, iata];
+    const vis = checkinVisible(req.user?.id);
+    const where = ['(? IS NULL OR c.iata = ?)', vis.sql];
+    const params = [iata, iata, ...vis.params];
     if (scope === 'mine') {
       where.push('c.user_id = ?');
       params.push(req.user.id);
     } else if (scope === 'friends') {
-      where.push('(c.user_id = ? OR c.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))');
+      where.push(`(c.user_id = ? OR c.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ? AND status = 'accepted'))`);
       params.push(req.user.id, req.user.id);
     }
     const rows = db.prepare(`${CHECKIN_SELECT} WHERE ${where.join(' AND ')}

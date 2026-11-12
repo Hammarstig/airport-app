@@ -2,10 +2,11 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import {
-  h, bad, notFound, paging, round2, normIata, escapeLike, code2, LOUNGE_SELECT, loungeFrom,
+  h, bad, notFound, paging, enumParam, round2, normIata, escapeLike, code2, LOUNGE_SELECT, loungeFrom,
   AIRPORT_COLS, airportFrom, USER_COLS, userFrom,
 } from '../util.js';
 import { normalizeWords, countryNameSv } from '../db/index.js';
+import { requireProfileAccess } from '../visibility.js';
 import { globalMeans, bayesSql, LOUNGE_PRIOR } from '../stats.js';
 
 const countryName = countryNameSv;
@@ -45,8 +46,9 @@ export default function exploreRoutes({ db }) {
       avgRating: round2(stats.get(code)?.avg_rating ?? null),
     }));
     if (continent) list = list.filter((c) => c.continent === continent);
-    if (req.query.sort === 'checkins') list.sort((a, b) => b.checkins - a.checkins || collator.compare(a.name, b.name));
-    else if (req.query.sort === 'rating') list.sort((a, b) => (b.avgRating ?? -1) - (a.avgRating ?? -1) || collator.compare(a.name, b.name));
+    const sort = enumParam(req.query, 'sort', ['name', 'checkins', 'rating'], 'name');
+    if (sort === 'checkins') list.sort((a, b) => b.checkins - a.checkins || collator.compare(a.name, b.name));
+    else if (sort === 'rating') list.sort((a, b) => (b.avgRating ?? -1) - (a.avgRating ?? -1) || collator.compare(a.name, b.name));
     else list.sort((a, b) => collator.compare(a.name, b.name));
     res.json(list);
   }));
@@ -105,7 +107,7 @@ export default function exploreRoutes({ db }) {
       rating: 'lo2.avg_rating IS NULL, lo2.avg_rating DESC, lo2.review_count DESC, lo2.name',
       reviews: 'lo2.review_count DESC, lo2.avg_rating DESC, lo2.name',
       name: 'lo2.name COLLATE NOCASE, lo2.iata',
-    }[req.query.sort] ?? 'lo2.avg_rating IS NULL, lo2.avg_rating DESC, lo2.review_count DESC, lo2.name';
+    }[enumParam(req.query, 'sort', ['rating', 'reviews', 'name'], 'rating')];
     const rows = db.prepare(`${LOUNGE_WITH_AIRPORT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
       ORDER BY ${order} LIMIT ? OFFSET ?`).all(...params, limit, offset);
     res.json(rows.map((row) => ({ ...loungeFrom(row), airport: airportFrom(row, 'a_') })));
@@ -161,7 +163,7 @@ export default function exploreRoutes({ db }) {
     const pfx = escapeLike(q) + '%';
     const rows = db.prepare(`
       SELECT ${USER_COLS('u', '')}, IFNULL(us.airports, 0) AS unique_airports,
-        EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.followee_id = u.id) AS followed_by_me
+        EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.followee_id = u.id AND f.status = 'accepted') AS followed_by_me
       FROM users u LEFT JOIN user_stats us ON us.user_id = u.id
       WHERE ? = '' OR u.username LIKE ? ESCAPE '\\' OR lower(u.display_name) LIKE ? ESCAPE '\\'
       ORDER BY (u.username LIKE ? ESCAPE '\\') DESC, unique_airports DESC, u.username
@@ -170,12 +172,12 @@ export default function exploreRoutes({ db }) {
   }));
 
   // ---- Önskelista ----
-  const userByName = db.prepare('SELECT id FROM users WHERE username = ?');
   const airportExists = db.prepare('SELECT 1 FROM airports WHERE iata = ?');
 
   r.get('/users/:username/wishlist', h((req, res) => {
-    const u = userByName.get(String(req.params.username).toLowerCase());
+    const u = db.prepare('SELECT * FROM users WHERE username = ?').get(String(req.params.username).toLowerCase());
     if (!u) throw notFound('Användaren finns inte');
+    requireProfileAccess(db, req.user?.id, u);
     const rows = db.prepare(`SELECT ${AIRPORT_COLS('a', '')}, w.added_at FROM wishlist w
       JOIN airports a ON a.iata = w.iata WHERE w.user_id = ? ORDER BY w.added_at DESC, a.iata`).all(u.id);
     res.json(rows.map((row) => ({ airport: airportFrom(row), addedAt: row.added_at })));

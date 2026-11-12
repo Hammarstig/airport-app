@@ -1,6 +1,6 @@
 // Topplistor: resenärer (period/scope/egen placering) och bäst betygsatta flygplatser (Bayesianskt snitt).
 import { Router } from 'express';
-import { h, bad, HttpError, paging, round2, code2, SUB_RATINGS, AIRPORT_COLS, airportFrom, USER_COLS, userFrom } from '../util.js';
+import { h, bad, HttpError, paging, enumParam, round2, code2, SUB_RATINGS, AIRPORT_COLS, airportFrom, USER_COLS, userFrom } from '../util.js';
 import { globalMeans, bayesSql, categoryCols, AIRPORT_PRIOR } from '../stats.js';
 import { todayStockholm, mondayOf } from '../badges.js';
 
@@ -65,7 +65,7 @@ function ranking(db, opts, cacheMs = 0) {
     if (cache.size > 100) cache.delete(cache.keys().next().value);
   }
   if (opts.scope !== 'friends') return hit.rows;
-  const friends = new Set(db.prepare('SELECT followee_id AS id FROM follows WHERE follower_id = ?').all(opts.viewerId).map((r) => r.id));
+  const friends = new Set(db.prepare('SELECT followee_id AS id FROM follows WHERE follower_id = ? AND status = \'accepted\'').all(opts.viewerId).map((r) => r.id));
   friends.add(opts.viewerId);
   return assignRanks(hit.rows.filter((r) => friends.has(r.user_id)).map((r) => ({ ...r })));
 }
@@ -74,7 +74,7 @@ function computeRanking(db, { metric, scope, country, viewerId, from, to }) {
   const where = [];
   const params = [];
   if (scope === 'friends') {
-    where.push('x.user_id IN (SELECT ? UNION SELECT followee_id FROM follows WHERE follower_id = ?)');
+    where.push("x.user_id IN (SELECT ? UNION SELECT followee_id FROM follows WHERE follower_id = ? AND status = 'accepted')");
     params.push(viewerId, viewerId);
   }
   let sql;
@@ -100,10 +100,22 @@ function computeRanking(db, { metric, scope, country, viewerId, from, to }) {
   return assignRanks(rows);
 }
 
+/**
+ * Privata profiler syns bara för sig själva och sina godkända följare; blockerade döljs.
+ * Returnerar en funktion som filtrerar och rankar om en lista.
+ */
+function privacyFilter(db, viewerId) {
+  const hidden = new Set(db.prepare(`SELECT id FROM users u WHERE (u.is_private = 1 AND u.id <> ? AND NOT EXISTS (
+      SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.followee_id = u.id AND f.status = 'accepted'))
+    OR EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = u.id AND b.blocked_id = ?) OR (b.blocker_id = ? AND b.blocked_id = u.id))`)
+    .all(viewerId ?? -1, viewerId ?? -1, viewerId ?? -1, viewerId ?? -1).map((r) => r.id));
+  return (rows) => (hidden.size ? assignRanks(rows.filter((r) => !hidden.has(r.user_id)).map((r) => ({ ...r }))) : rows);
+}
+
 export function userRanking(db, query, viewerId, cacheMs = 0) {
-  const metric = METRICS.includes(query.metric) ? query.metric : 'airports';
-  const period = PERIODS.includes(query.period) ? query.period : 'all';
-  const scope = ['global', 'friends', 'country'].includes(query.scope) ? query.scope : 'global';
+  const metric = enumParam(query, 'metric', METRICS, 'airports');
+  const period = enumParam(query, 'period', PERIODS, 'all');
+  const scope = enumParam(query, 'scope', ['global', 'friends', 'country'], 'global');
   const { limit } = paging(query, { defLimit: 50, maxLimit: 200 });
   if (scope === 'friends' && !viewerId) throw new HttpError(401, 'Inloggning krävs för scope=friends');
   let country = null;
@@ -115,9 +127,10 @@ export function userRanking(db, query, viewerId, cacheMs = 0) {
     throw bad(`metric=${metric} stöds bara för period=all och scope global/friends`);
   }
   const range = periodRange(period);
-  const list = ranking(db, { metric, scope, country, viewerId, from: range.from, to: range.to }, cacheMs);
+  const seen = privacyFilter(db, viewerId);
+  const list = seen(ranking(db, { metric, scope, country, viewerId, from: range.from, to: range.to }, cacheMs));
   const prev = range.prev
-    ? new Map(ranking(db, { metric, scope, country, viewerId, ...range.prev }, cacheMs).map((r) => [r.user_id, r.rank]))
+    ? new Map(seen(ranking(db, { metric, scope, country, viewerId, ...range.prev }, cacheMs)).map((r) => [r.user_id, r.rank]))
     : null;
   const change = (r) => (prev && prev.has(r.user_id) ? prev.get(r.user_id) - r.rank : null);
 
@@ -161,12 +174,12 @@ export default function rankingRoutes({ db, config }) {
     let minRatings = parseInt(req.query.minRatings, 10);
     if (!Number.isFinite(minRatings) || minRatings < 1) minRatings = 1;
     const { limit } = paging(req.query, { defLimit: 50, maxLimit: 200 });
-    const category = SUB_RATINGS.includes(req.query.category) ? req.query.category : 'overall';
+    const category = enumParam(req.query, 'category', ['overall', ...SUB_RATINGS], 'overall');
     const c = categoryCols(category);
     const score = bayesSql(`s.${c.sum}`, `s.${c.n}`, globalMeans(db)[category], AIRPORT_PRIOR);
     const country = code2(req.query.country);
     const continent = code2(req.query.continent);
-    const type = ['large', 'medium', 'small'].includes(req.query.type) ? req.query.type : null;
+    const type = enumParam(req.query, 'type', ['large', 'medium', 'small'], null);
     const rows = db.prepare(`
       SELECT RANK() OVER (ORDER BY t.score DESC) AS rnk, t.* FROM (
         SELECT ${AIRPORT_COLS('a', '')}, s.${c.sum} * 1.0 / s.${c.n} AS avg_rating, s.${c.n} AS rating_count, ${score} AS score

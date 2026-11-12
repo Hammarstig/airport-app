@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { h, bad, paging, TRAVEL_CLASSES, normIata, escapeHtml, USER_COLS, AIRPORT_COLS, userFrom, airportFrom } from '../util.js';
+import { checkinVisible, reviewVisible } from '../visibility.js';
+import { h, bad, paging, enumParam, TRAVEL_CLASSES, normIata, escapeHtml, USER_COLS, AIRPORT_COLS, userFrom, airportFrom } from '../util.js';
 
 // Markörer som FTS5 sätter runt träffar. Kontrolltecken rensas bort ur all inmatad text,
 // så de kan aldrig förekomma i en kommentar.
@@ -86,7 +87,10 @@ export default function searchRoutes({ db }) {
     // Två delfrågor (check-ins, loungerecensioner) som var och en hämtar offset+limit rader i sorteringsordning
     // och slås ihop i JS. Standard är nyast först (FTS5 kan då gå baklänges i rowid och sluta tidigt);
     // sort=relevance använder bm25. Flygplatsfiltret ligger i FTS-indexet (kolumnen iata).
-    const sort = req.query.sort === 'relevance' && q ? 'relevance' : 'recent';
+    const sortParam = enumParam(req.query, 'sort', ['recent', 'relevance'], 'recent');
+    const sort = sortParam === 'relevance' && q ? 'relevance' : 'recent';
+    const cv = checkinVisible(req.user?.id);
+    const rv = reviewVisible(req.user?.id);
     const take = Math.min(offset, 1000) + limit;
     const match = q ? `comment : (${q})${iata ? ` AND iata : "${iata}"` : ''}` : null;
     const parts = [
@@ -96,7 +100,8 @@ export default function searchRoutes({ db }) {
         table: 'checkins c',
         joins: 'JOIN users u ON u.id = c.user_id JOIN airports a ON a.iata = c.iata',
         id: 'c.id',
-        where: `(? IS NULL OR c.rating >= ?) ${cFilter}`,
+        where: `(? IS NULL OR c.rating >= ?) ${cFilter} AND ${cv.sql}`,
+        vis: cv.params,
         plainWhere: 'c.comment IS NOT NULL AND c.iata = ?',
         order: 'c.created_at DESC, c.id DESC',
       },
@@ -107,7 +112,8 @@ export default function searchRoutes({ db }) {
         joins: `JOIN lounges lo ON lo.id = r.lounge_id JOIN users u ON u.id = r.user_id
           JOIN airports a ON a.iata = lo.iata LEFT JOIN checkins lc ON lc.id = r.checkin_id`,
         id: 'r.id',
-        where: `(? IS NULL OR r.rating >= ?) ${rFilter}`,
+        where: `(? IS NULL OR r.rating >= ?) ${rFilter} AND ${rv.sql}`,
+        vis: rv.params,
         plainWhere: 'r.comment IS NOT NULL AND lo.iata = ?',
         order: 'r.created_at DESC, r.id DESC',
       },
@@ -119,11 +125,11 @@ export default function searchRoutes({ db }) {
           FROM ${p.fts} JOIN ${p.table} ON ${p.id} = ${p.fts}.rowid ${p.joins}
           WHERE ${p.fts} MATCH ? AND ${p.where}
           ORDER BY ${sort === 'relevance' ? 'score' : `${p.fts}.rowid DESC`} LIMIT ?`)
-          .all(match, minRating, minRating, ...fp, take);
+          .all(match, minRating, minRating, ...fp, ...p.vis, take);
       }
       return db.prepare(`SELECT ${p.select}, NULL AS snip, 0 AS score FROM ${p.table} ${p.joins}
         WHERE ${p.plainWhere} AND ${p.where} ORDER BY ${p.order} LIMIT ?`)
-        .all(iata, minRating, minRating, ...fp, take);
+        .all(iata, minRating, minRating, ...fp, ...p.vis, take);
     };
 
     let rows;

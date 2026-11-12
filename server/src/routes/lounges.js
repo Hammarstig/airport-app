@@ -6,10 +6,11 @@ import {
 } from '../util.js';
 import { transaction } from '../db/index.js';
 import { awardBadges } from '../badges.js';
+import { reviewVisible } from '../visibility.js';
 
 const REVIEW_SELECT = `
   SELECT r.id, r.lounge_id, r.user_id, r.rating, r.comment, r.visited_on, r.created_at, ${USER_COLS('u', 'u_')}
-  FROM lounge_reviews r JOIN users u ON u.id = r.user_id`;
+  FROM lounge_reviews r JOIN users u ON u.id = r.user_id LEFT JOIN checkins lc ON lc.id = r.checkin_id`;
 
 function reviewFrom(row) {
   return {
@@ -45,8 +46,9 @@ export default function loungeRoutes({ db, limiters }) {
   r.get('/lounges/:id', h((req, res) => {
     const lo = loungeOr404(req.params.id);
     const { limit, offset } = paging(req.query, { defLimit: 20, maxLimit: 100 });
-    const reviews = db.prepare(`${REVIEW_SELECT} WHERE r.lounge_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`)
-      .all(lo.id, limit, offset);
+    const vis = reviewVisible(req.user?.id);
+    const reviews = db.prepare(`${REVIEW_SELECT} WHERE r.lounge_id = ? AND ${vis.sql} ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`)
+      .all(lo.id, ...vis.params, limit, offset);
     res.json({ ...loungeFrom(lo), reviews: reviews.map(reviewFrom) });
   }));
 
@@ -59,7 +61,7 @@ export default function loungeRoutes({ db, limiters }) {
     const id = transaction(db, () => {
       const rid = Number(db.prepare(`INSERT INTO lounge_reviews (lounge_id, user_id, rating, comment, visited_on, created_at)
         VALUES (?, ?, ?, ?, ?, ?)`).run(lo.id, req.user.id, rating, comment, visitedOn, new Date().toISOString()).lastInsertRowid);
-      awardBadges(db, req.user.id);
+      awardBadges(db, req.user.id, `badge:review:${rid}`);
       return rid;
     });
     res.status(201).json(reviewFrom(getReview.get(id)));
