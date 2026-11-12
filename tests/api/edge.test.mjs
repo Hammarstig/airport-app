@@ -373,10 +373,14 @@ describe('v2: socialt, notiser, topplistor och konto', () => {
   test('topplistor: ogiltiga kombinationer ger 400', async () => {
     assert.equal((await api('GET', '/api/rankings/users?metric=xp&period=week')).status, 400);
     assert.equal((await api('GET', '/api/rankings/users?metric=reviews&scope=country&country=SE')).status, 400);
-    // Okänt mått/period faller tillbaka på standardvärden (samma mönster som category i v1).
-    const fb = await api('GET', '/api/rankings/users?metric=bogus&period=bogus');
-    assert.equal(fb.status, 200);
-    assert.equal(fb.body.metric, 'airports');
+    // v3: okända värden på uppräknade parametrar ger 400 med tillåtna värden.
+    for (const q of ['metric=bogus', 'period=bogus', 'scope=bogus']) {
+      const fb = await api('GET', `/api/rankings/users?${q}`);
+      assert.equal(fb.status, 400, q);
+      assert.ok(Array.isArray(fb.body.allowed) && fb.body.allowed.length > 0, `${q}: allowed saknas`);
+    }
+    assert.equal((await api('GET', '/api/rankings/airports?category=bogus')).status, 400);
+    assert.equal((await api('GET', '/api/airports?sort=bogus')).status, 400);
     const r = await api('GET', '/api/rankings/users?metric=airports&period=all&limit=100000');
     assert.equal(r.status, 200);
     assert.ok(r.body.items.length <= 100);
@@ -410,8 +414,8 @@ describe('v2: socialt, notiser, topplistor och konto', () => {
     assert.ok(!/password|\$2[aby]\$/.test(text));
     assert.equal((await api('DELETE', '/api/me', { token: tokB, body: {} })).status, 400);
     const wrong = await api('DELETE', '/api/me', { token: tokB, body: { password: 'fel-losenord' } });
-    // Dokumenterat beteende (401). Se BUG-09: klienten tolkar 401 som utgången session.
-    assert.equal(wrong.status, 401);
+    // v3: fel lösenord ger 403 (inte 401, som klienten tolkar som utgången session; BUG-09).
+    assert.equal(wrong.status, 403);
     assert.equal((await api('GET', '/api/me', { token: tokB })).status, 200);
   });
 });
