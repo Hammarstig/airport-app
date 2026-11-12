@@ -209,7 +209,7 @@ export default function photoRoutes({ db, photos, limiters }) {
       ins = transaction(db, () => {
         const x = db.prepare(`INSERT INTO photos (checkin_id, user_id, filename, width, height, created_at)
           VALUES (?, ?, ?, ?, ?, ?)`).run(req.checkinId, req.user.id, filename, info.width, info.height, new Date().toISOString());
-        awardBadges(db, req.user.id);
+        awardBadges(db, req.user.id, `badge:photo:${x.lastInsertRowid}`);
         return x;
       });
     } catch (e) {

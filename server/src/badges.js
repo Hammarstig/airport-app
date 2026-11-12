@@ -2,6 +2,7 @@
 // Nivåer lagras i user_badges när de nås (syncBadges) och tas inte tillbaka. Måtten räknas fram ur
 // förberäknad statistik (user_stats, user_airports) med ett fåtal indexerade frågor per användare.
 import { levelInfo } from './util.js';
+import { notify } from './notify.js';
 
 let rarityCache = null;
 export const TIERS = ['bronze', 'silver', 'gold', 'platinum'];
@@ -9,24 +10,24 @@ const NORDIC = ['SE', 'NO', 'DK', 'FI', 'IS'];
 const MAIN_CONTINENTS = ['EU', 'AS', 'AF', 'NA', 'SA', 'OC'];
 
 export const BADGE_DEFS = [
-  { id: 'checkins', name: 'Incheckad', description: 'Gör check-ins', category: 'traveller', tiers: [1, 25, 100, 250], m: 'checkins' },
-  { id: 'airports', name: 'Flygplatssamlare', description: 'Besök unika flygplatser', category: 'explorer', tiers: [10, 25, 50, 100], m: 'airports' },
-  { id: 'countries', name: 'Gränslös', description: 'Besök flygplatser i olika länder', category: 'explorer', tiers: [5, 15, 30, 50], m: 'countries' },
-  { id: 'continents', name: 'Världsresenär', description: 'Besök bebodda kontinenter (Antarktis räknas inte)', category: 'explorer', tiers: [2, 3, 4, 6], m: 'continents' },
-  { id: 'nordic', name: 'Nordisk resenär', description: 'Besök Sverige, Norge, Danmark, Finland och Island', category: 'explorer', tiers: [2, 3, 4, 5], m: 'nordic' },
-  { id: 'hubs', name: 'Hubbjägare', description: 'Besök stora flygplatser', category: 'explorer', tiers: [5, 15, 30, 60], m: 'hubs' },
-  { id: 'alphabet', name: 'IATA-alfabetet', description: 'Samla IATA-koder som börjar på olika bokstäver', category: 'explorer', tiers: [5, 10, 18, 26], m: 'alphabet' },
-  { id: 'regions-se', name: 'Länsresenär', description: 'Besök flygplatser i olika svenska län', category: 'explorer', tiers: [2, 4, 8, 12], m: 'regionsSe' },
-  { id: 'airlines', name: 'Bolagsbytare', description: 'Flyg med olika flygbolag', category: 'traveller', tiers: [3, 10, 20, 40], m: 'airlines' },
-  { id: 'front-cabin', name: 'Främre kabinen', description: 'Check-ins i business eller first', category: 'traveller', tiers: [1, 5, 15, 30], m: 'frontCabin' },
-  { id: 'transfer-king', name: 'Transferkung', description: 'Logga transfer-check-ins', category: 'traveller', tiers: [3, 10, 25, 50], m: 'transfers' },
-  { id: 'home-turf', name: 'Hemmaplan', description: 'Check-ins på din hemmaflygplats', category: 'traveller', tiers: [5, 15, 30, 60], m: 'home' },
-  { id: 'streak', name: 'Vanefluga', description: 'Veckor i rad med minst en check-in (längsta svit)', category: 'traveller', tiers: [2, 4, 8, 16], m: 'longestStreak' },
-  { id: 'reviewer', name: 'Recensent', description: 'Check-ins med kommentar', category: 'social', tiers: [5, 20, 50, 100], m: 'commented' },
-  { id: 'lounge-expert', name: 'Loungeexpert', description: 'Recensera lounger', category: 'social', tiers: [1, 5, 15, 30], m: 'reviews' },
-  { id: 'photographer', name: 'Fotograf', description: 'Ladda upp foton', category: 'social', tiers: [1, 10, 30, 75], m: 'photos' },
-  { id: 'popular', name: 'Populär', description: 'Få gilla på dina check-ins', category: 'social', tiers: [5, 25, 100, 250], m: 'likesReceived' },
-  { id: 'conversationalist', name: 'Samtalare', description: 'Skriv kommentarer på check-ins', category: 'social', tiers: [5, 25, 100, 250], m: 'commentsWritten' },
+  { id: 'checkins', name: 'Incheckad', description: 'Gör check-ins', category: 'traveller', tiers: [1, 50, 250, 1000], m: 'checkins' },
+  { id: 'airports', name: 'Flygplatssamlare', description: 'Besök unika flygplatser', category: 'explorer', tiers: [5, 25, 100, 250], m: 'airports' },
+  { id: 'countries', name: 'Gränslös', description: 'Besök flygplatser i olika länder', category: 'explorer', tiers: [3, 15, 40, 80], m: 'countries' },
+  { id: 'continents', name: 'Världsresenär', description: 'Besök bebodda kontinenter (Antarktis räknas inte)', category: 'explorer', tiers: [3, 4, 5, 6], m: 'continents' },
+  { id: 'nordic', name: 'Nordisk resenär', description: 'Besök Sverige, Norge, Danmark, Finland och Island', category: 'explorer', tiers: [3, 4, 5], m: 'nordic' },
+  { id: 'hubs', name: 'Hubbjägare', description: 'Besök stora flygplatser', category: 'explorer', tiers: [10, 30, 75, 150], m: 'hubs' },
+  { id: 'alphabet', name: 'IATA-alfabetet', description: 'Samla IATA-koder som börjar på olika bokstäver', category: 'explorer', tiers: [8, 14, 20, 26], m: 'alphabet' },
+  { id: 'regions-se', name: 'Länsresenär', description: 'Besök flygplatser i olika svenska län', category: 'explorer', tiers: [3, 8, 14, 18], m: 'regionsSe' },
+  { id: 'airlines', name: 'Bolagsbytare', description: 'Flyg med olika flygbolag', category: 'traveller', tiers: [5, 15, 40, 80], m: 'airlines' },
+  { id: 'front-cabin', name: 'Främre kabinen', description: 'Check-ins i business eller first', category: 'traveller', tiers: [1, 10, 40, 100], m: 'frontCabin' },
+  { id: 'transfer-king', name: 'Transferkung', description: 'Logga transfer-check-ins', category: 'traveller', tiers: [5, 20, 75, 200], m: 'transfers' },
+  { id: 'home-turf', name: 'Hemmaplan', description: 'Check-ins på din hemmaflygplats', category: 'traveller', tiers: [10, 30, 75, 200], m: 'home' },
+  { id: 'streak', name: 'Vanefluga', description: 'Veckor i rad med minst en check-in (längsta svit)', category: 'traveller', tiers: [3, 8, 20, 52], m: 'longestStreak' },
+  { id: 'reviewer', name: 'Recensent', description: 'Check-ins med kommentar', category: 'social', tiers: [10, 40, 120, 300], m: 'commented' },
+  { id: 'lounge-expert', name: 'Loungeexpert', description: 'Recensera lounger', category: 'social', tiers: [1, 10, 40, 100], m: 'reviews' },
+  { id: 'photographer', name: 'Fotograf', description: 'Ladda upp foton', category: 'social', tiers: [1, 20, 75, 250], m: 'photos' },
+  { id: 'popular', name: 'Populär', description: 'Få gilla på dina check-ins', category: 'social', tiers: [10, 50, 250, 1000], m: 'likesReceived' },
+  { id: 'conversationalist', name: 'Samtalare', description: 'Skriv kommentarer på check-ins', category: 'social', tiers: [5, 50, 200, 500], m: 'commentsWritten' },
 ];
 const BY_ID = new Map(BADGE_DEFS.map((d) => [d.id, d]));
 export const badgeDef = (id) => BY_ID.get(id);
@@ -109,9 +110,9 @@ export function userMetrics(db, userId) {
 
 /**
  * Registrerar nya märkesnivåer för användaren. Returnerar [{ badgeId, tierLevel }] för de märken där
- * en ny högsta nivå nåddes. Med notify skapas en notis per sådant märke.
+ * en ny högsta nivå nåddes. Med notify skapas EN notis för hela händelsen (groupKey) med alla nivåer.
  */
-export function syncBadges(db, userId, { notify = false, metrics } = {}) {
+export function syncBadges(db, userId, { notify: doNotify = false, metrics, groupKey } = {}) {
   const m = metrics ?? userMetrics(db, userId);
   const have = new Map();
   for (const r of db.prepare('SELECT badge_id, MAX(tier_level) AS t FROM user_badges WHERE user_id = ? GROUP BY badge_id').all(userId)) {
@@ -119,8 +120,6 @@ export function syncBadges(db, userId, { notify = false, metrics } = {}) {
   }
   const now = new Date().toISOString();
   const ins = db.prepare('INSERT OR IGNORE INTO user_badges (user_id, badge_id, tier_level, earned_at) VALUES (?, ?, ?, ?)');
-  const note = db.prepare(`INSERT INTO notifications (user_id, type, badge_id, badge_tier, created_at)
-    VALUES (?, 'badge', ?, ?, ?)`);
   const out = [];
   for (const d of BADGE_DEFS) {
     const value = m[d.m] ?? 0;
@@ -130,7 +129,12 @@ export function syncBadges(db, userId, { notify = false, metrics } = {}) {
     for (let t = before + 1; t <= reached; t++) ins.run(userId, d.id, t, now);
     out.push({ badgeId: d.id, tierLevel: reached });
     rarityCache = null;
-    if (notify) note.run(userId, d.id, reached, now);
+  }
+  if (doNotify && out.length) {
+    notify(db, {
+      userId, type: 'badge', badgeId: out[0].badgeId, badgeTier: out[0].tierLevel,
+      groupKey: groupKey ?? `badge:${now}`, data: out.map((x) => ({ id: x.badgeId, tierLevel: x.tierLevel })),
+    });
   }
   return out;
 }
@@ -177,9 +181,9 @@ export function getBadges(db, userId, { metrics } = {}) {
 }
 
 /** Synkar märken efter en händelse och returnerar Badge-objekt för de nya nivåerna (med notiser). */
-export function awardBadges(db, userId) {
+export function awardBadges(db, userId, groupKey) {
   const m = userMetrics(db, userId);
-  const fresh = syncBadges(db, userId, { notify: true, metrics: m });
+  const fresh = syncBadges(db, userId, { notify: true, metrics: m, groupKey });
   if (!fresh.length) return [];
   const ids = new Set(fresh.map((f) => f.badgeId));
   return getBadges(db, userId, { metrics: m }).filter((b) => ids.has(b.id));

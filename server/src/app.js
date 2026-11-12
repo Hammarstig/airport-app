@@ -19,6 +19,9 @@ import rankingRoutes from './routes/rankings.js';
 import socialRoutes from './routes/social.js';
 import accountRoutes from './routes/account.js';
 import photoRoutes, { photoStore, uploadsStatic } from './routes/photos.js';
+import pushRoutes from './routes/push.js';
+import { createPushService, resolveVapid } from './push.js';
+import { setPushService } from './notify.js';
 
 const CSP = [
   "default-src 'self'",
@@ -84,6 +87,8 @@ function requestLog(enabled) {
  * @param {{windowMs:number,max:number}} [opts.authRateLimit]
  * @param {Record<string,{windowMs:number,max:number}>} [opts.writeRateLimits] ersätter valda skrivgränser
  * @param {Record<string,string>} [opts.env] miljövariabler (default process.env)
+ * @param {{publicKey:string,privateKey:string,subject:string}} [opts.vapid] VAPID-nycklar (annars från config)
+ * @param {(sub:object, payload:string)=>Promise<unknown>} [opts.pushSender] ersätter web-push (tester)
  */
 export function createApp(opts = {}) {
   const cfg = loadConfig(opts.env ?? process.env);
@@ -129,9 +134,14 @@ export function createApp(opts = {}) {
     res.json({ ok: true, airports: n });
   });
 
-  const ctx = { db: database, secret, photos, limiters, config: cfg };
+  // Web Push: egen avsändare kan injiceras (tester), annars web-push med VAPID.
+  const push = createPushService({ db: database, vapid: opts.vapid ?? resolveVapid(cfg), sender: opts.pushSender });
+  setPushService(database, push);
+  app.locals.push = push;
+
+  const ctx = { db: database, secret, photos, limiters, config: cfg, push };
   for (const routes of [authRoutes, airportRoutes, loungeRoutes, checkinRoutes, userRoutes, searchRoutes,
-    exploreRoutes, mapRoutes, rankingRoutes, socialRoutes, accountRoutes, photoRoutes]) {
+    exploreRoutes, mapRoutes, rankingRoutes, socialRoutes, accountRoutes, photoRoutes, pushRoutes]) {
     app.use('/api', routes(ctx));
   }
 
@@ -150,7 +160,7 @@ export function createApp(opts = {}) {
 
   // Felhanterare
   app.use((err, req, res, _next) => {
-    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message, ...err.extra });
     if (err?.type === 'entity.too.large') return res.status(413).json({ error: 'För stor förfrågan' });
     if (err?.type === 'entity.parse.failed') return res.status(400).json({ error: 'Ogiltig JSON' });
     if (err?.status && err.status >= 400 && err.status < 500) {
