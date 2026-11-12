@@ -137,9 +137,9 @@ describe('socialt: följa, flöde, kommentarer, notiser', () => {
     assert.equal((await s.api('POST', '/api/users/ann/follow')).status, 401);
     assert.equal((await s.api('POST', '/api/users/finnsinte/follow', { token: bob })).status, 404);
     let r = await s.api('POST', '/api/users/ann/follow', { token: bob });
-    assert.deepEqual(r.body, { following: true, followers: 1 });
+    assert.deepEqual(r.body, { following: true, requested: false, followers: 1 });
     r = await s.api('POST', '/api/users/ann/follow', { token: bob });
-    assert.deepEqual(r.body, { following: true, followers: 1 }, 'idempotent');
+    assert.deepEqual(r.body, { following: true, requested: false, followers: 1 }, 'idempotent');
 
     const prof = await s.api('GET', '/api/users/ann', { token: bob });
     assert.equal(prof.body.followers, 1);
@@ -165,7 +165,7 @@ describe('socialt: följa, flöde, kommentarer, notiser', () => {
     assert.equal(n.body.items[0].actor.username, 'bob');
 
     r = await s.api('DELETE', '/api/users/ann/follow', { token: bob });
-    assert.deepEqual(r.body, { following: false, followers: 0 });
+    assert.deepEqual(r.body, { following: false, requested: false, followers: 0 });
     await s.api('POST', '/api/users/ann/follow', { token: bob });
   });
 
@@ -312,23 +312,33 @@ describe('gamification: XP, nivå, milstolpar, märken', () => {
     }
     const badges = await s.api('GET', '/api/users/resa/badges');
     const by = Object.fromEntries(badges.body.map((b) => [b.id, b]));
-    assert.equal(by.nordic.tier, 'gold'); // SE, DK, NO, FI
-    assert.deepEqual(by.nordic.tiers.map((t) => !!t.earnedAt), [true, true, true, false]);
+    assert.equal(by.nordic.tier, 'silver'); // SE, DK, NO, FI
+    assert.deepEqual(by.nordic.tiers.map((t) => !!t.earnedAt), [true, true, false]);
     assert.deepEqual(by.nordic.progress, { current: 4, target: 5 });
-    assert.equal(by['transfer-king'].tier, 'bronze');
-    assert.equal(by.airports.tier, null);
-    assert.equal(by.airports.tierLevel, 0);
-    assert.equal(by.airports.earnedAt, null);
+    assert.equal(by.countries.tier, 'bronze');
+    assert.equal(by['transfer-king'].tier, null, '3 transfer räcker inte (brons kräver 5)');
+    assert.equal(by.airports.tier, 'bronze', '5 unika flygplatser');
+    assert.equal(by.hubs.tier, null);
+    assert.equal(by.hubs.tierLevel, 0);
+    assert.equal(by.hubs.earnedAt, null);
     const n = await s.api('GET', '/api/notifications', { token: tok });
-    const nordic = n.body.items.filter((x) => x.type === 'badge' && x.badge.id === 'nordic');
-    assert.ok(nordic.length >= 1);
-    assert.match(nordic[0].text, /^Du nådde (silver|guld) i märket Nordisk resenär$/);
+    const badgeNotes = n.body.items.filter((x) => x.type === 'badge');
+    // En grupperad notis per check-in: OSL gav Gränslös + Nordisk resenär brons, HEL Flygplatssamlare brons + Nordisk silver
+    const groups = badgeNotes.map((x) => x.badges.map((b) => `${b.id}:${b.tier}`).sort().join(' '));
+    assert.ok(groups.includes('airports:bronze nordic:silver'), groups.join(' | '));
+    assert.ok(groups.includes('countries:bronze nordic:bronze'), groups.join(' | '));
+    const grouped = badgeNotes.find((x) => x.badges.length === 2);
+    assert.equal(grouped.text, 'Du nådde 2 nya märkesnivåer');
+    assert.match(grouped.groupKey, /^badge:checkin:\d+$/);
+    assert.equal(grouped.url, '/u/resa');
+    const single = badgeNotes.find((x) => x.badges.length === 1);
+    assert.equal(single.text, 'Du nådde brons i Incheckad');
 
     // Nivåer tas inte tillbaka när check-ins raderas
     const mine = await s.api('GET', '/api/users/resa/checkins?limit=50');
     for (const c of mine.body.filter((x) => x.airport.iata === 'HEL')) await s.api('DELETE', `/api/checkins/${c.id}`, { token: tok });
     const after = await s.api('GET', '/api/users/resa/badges');
-    assert.equal(after.body.find((b) => b.id === 'nordic').tier, 'gold');
+    assert.equal(after.body.find((b) => b.id === 'nordic').tier, 'silver');
   });
 });
 
@@ -557,7 +567,7 @@ describe('snabb check-in, redigering, lounger, konto', () => {
 
     const visitorsBefore = (await s.api('GET', '/api/airports/ARN')).body.stats.visitors;
     assert.equal((await s.api('DELETE', '/api/me', { token: tok, body: {} })).status, 400);
-    assert.equal((await s.api('DELETE', '/api/me', { token: tok, body: { password: 'fel-losen' } })).status, 401);
+    assert.equal((await s.api('DELETE', '/api/me', { token: tok, body: { password: 'fel-losen' } })).status, 403);
     assert.equal(readdirSync(s.uploadDir).length, 1);
     assert.equal((await s.api('DELETE', '/api/me', { token: tok, body: { password: 'hemligt123' } })).status, 204);
     assert.equal(readdirSync(s.uploadDir).length, 0, 'fotofiler raderade');

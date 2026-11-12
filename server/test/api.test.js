@@ -112,7 +112,7 @@ describe('auth', () => {
       body: { username: 'Kalle_1', password: 'hemligt123', displayName: 'Kalle', homeIata: 'got' },
     });
     assert.equal(reg.status, 201);
-    assert.deepEqual(reg.body.user, { username: 'kalle_1', displayName: 'Kalle', homeIata: 'GOT', level: 1 });
+    assert.deepEqual(reg.body.user, { username: 'kalle_1', displayName: 'Kalle', homeIata: 'GOT', level: 1, isModerator: false });
     assert.ok(reg.body.token);
 
     const dup = await api('POST', '/api/auth/register', { body: { username: 'kalle_1', password: 'hemligt123' } });
@@ -129,7 +129,7 @@ describe('auth', () => {
     assert.equal((await api('GET', '/api/me', { token: 'skräp' })).status, 401);
 
     const p = await api('PATCH', '/api/me', { token: login.body.token, body: { displayName: 'Karl', homeIata: 'ARN' } });
-    assert.deepEqual(p.body, { username: 'kalle_1', displayName: 'Karl', homeIata: 'ARN', level: 1 });
+    assert.deepEqual(p.body, { username: 'kalle_1', displayName: 'Karl', homeIata: 'ARN', level: 1, isModerator: false });
     const p2 = await api('PATCH', '/api/me', { token: login.body.token, body: { homeIata: 'XXX' } });
     assert.equal(p2.status, 400);
   });
@@ -592,18 +592,21 @@ describe('med demodata', () => {
     assert.equal(by.checkins.tier, 'bronze');
     assert.equal(by.airports.tier, 'bronze');
     assert.equal(by.countries.tier, 'bronze');
-    assert.equal(by.nordic.tier, 'platinum');
-    assert.equal(by['home-turf'].tier, 'bronze');
+    assert.equal(by.nordic.tier, 'gold', 'alla fem nordiska länder är högsta nivån');
+    assert.equal(by.nordic.tiers.length, 3);
+    assert.equal(by['home-turf'].tier, null, '5 besök räcker inte längre (brons kräver 10)');
     assert.equal(by.checkins.tiers.length, 4);
     assert.ok(by.checkins.earnedAt);
     assert.deepEqual(by.airports.progress, { current: 10, target: 25 });
-    assert.equal(by['regions-se'].tier, 'bronze');
+    assert.equal(by['regions-se'].tier, null);
+    assert.equal(r.body.filter((b) => b.tier).length, 11);
+    assert.equal(r.body.filter((b) => b.tier === 'platinum').length, 0);
     assert.ok(by.nordic.name && by.nordic.description && by.nordic.category);
     assert.equal(by.nordic.icon, undefined);
 
-    // MEL är tredje kontinenten (Världsresenär silver) och tionde begynnelsebokstaven (IATA-alfabetet silver)
+    // MEL är tredje kontinenten: Världsresenär brons
     const c = await api('POST', '/api/checkins', { token: oliver, body: { iata: 'MEL', visitedOn: '2026-10-25', kind: 'arrival' } });
-    assert.deepEqual(c.body.newBadges.map((b) => [b.id, b.tier]), [['continents', 'silver'], ['alphabet', 'silver']]);
+    assert.deepEqual(c.body.newBadges.map((b) => [b.id, b.tier]), [['continents', 'bronze']]);
     assert.equal(c.body.milestones.isNewContinent, true);
     assert.ok(c.body.newBadges[0].rarity > 0);
   });

@@ -96,10 +96,12 @@ export async function runBench({ log = console.log } = {}) {
   const app = createApp({ db, jwtSecret: 'bench-secret-bench-secret-bench-secret', uploadDir: join(dir, 'up'), env: { NODE_ENV: 'test', RANKING_CACHE_MS: '30000' } });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}/api`;
-  const { signToken } = await import('../src/auth.js');
-  const token = signToken('bench-secret-bench-secret-bench-secret', { id: 1, username: 'user0' });
+  const { signAccess, createSession } = await import('../src/sessions.js');
+  const token = signAccess('bench-secret-bench-secret-bench-secret', { id: 1, username: 'user0' }, createSession(db, 1, 'bench').sid);
   const q = (list) => list.map((x) => `/airports?q=${encodeURIComponent(x)}&limit=8`);
-  const results = [
+  let results;
+  try {
+  results = [
     await measure(base, 'autocomplete', q(['got', 'stock', 'lon', 'sverige', 'heathrow', 'new y', 'fr', 'a', 'essa', 'goteborg'])),
     await measure(base, 'recensionssök', ['lounge', 'kaffe', 'säkerhetskontroll', 'wifi', 'great', 'trångt gaterna']
       .map((x) => `/search?q=${encodeURIComponent(x)}`)),
@@ -110,7 +112,9 @@ export async function runBench({ log = console.log } = {}) {
     await measure(base, 'flöde vänner', ['/feed?scope=friends', '/feed'], { token }),
     await measure(base, 'flygplats och profil', ['/airports/LHR', '/users/user0', '/users/user0/badges', '/users/user0/map', '/countries'], { token }),
   ];
-  server.close();
+  } finally {
+    server.close();
+  }
   db.close();
   if (!process.env.BENCH_DB) rmSync(dir, { recursive: true, force: true });
   return results;

@@ -14,6 +14,8 @@ const USERS = [
   { username: 'anna', displayName: 'Anna Lind', home: 'ARN' },
   { username: 'mads', displayName: 'Mads Jensen', home: 'CPH' },
   { username: 'sarah', displayName: 'Sarah Miles', home: 'LHR' },
+  // Privat profil: check-ins bara för vänner, syns 24 h i efterhand och hemmaflygplatsen är dold.
+  { username: 'lena', displayName: 'Lena Berg', home: 'MMX', settings: { is_private: 1, default_visibility: 'friends', publish_delay_hours: 24, hide_home: 1 } },
 ];
 
 // Delbetyg: [security, cleanliness, food, wifi, transfer, lounges]
@@ -58,6 +60,11 @@ const CHECKINS = [
   ['sarah', 'JFK', '2026-06-14', 'arrival', 2, [1, 2, 3, 2, null, null], 'BA', 'business', 'BA117', 'Terminal 7 at JFK is tired. Long queues at immigration.', null],
   ['sarah', 'GOT', '2026-07-08', 'arrival', 4.5, [null, 5, null, 4, null, null], 'KL', 'economy', 'KL1157', 'Lovely small airport, the Flygbussarna coach to the city is easy.', null],
   ['sarah', 'CPH', '2026-07-12', 'departure', 4.5, [4, 5, 5, 5, null, null], 'SK', 'economy', 'SK501', 'Copenhagen airport has great food, try the smørrebrød.', null],
+
+  // lena (privat profil)
+  ['lena', 'MMX', '2026-08-14', 'departure', 4, [5, 4, 3, 4, null, null], 'SK', 'economy', 'SK184', 'Sturup är lugnt och nära, perfekt för morgonflyg.', null],
+  ['lena', 'ARN', '2026-08-14', 'transfer', 3, [3, 4, 3, 4, 3, null], 'SK', 'economy', 'SK1', 'Kort byte i T5, hann precis.', null],
+  ['lena', 'BER', '2026-09-20', 'arrival', 3.5, [3, 4, 3, 3, null, null], 'EW', 'economy', null, 'Nya BER fungerar, men långt till tåget.', null],
 ];
 
 const LIKES = [
@@ -69,7 +76,7 @@ const LIKES = [
 // Följrelationer: [följare, följd]
 const FOLLOWS = [
   ['oliver', 'anna'], ['oliver', 'mads'], ['anna', 'oliver'], ['anna', 'sarah'],
-  ['mads', 'oliver'], ['sarah', 'oliver'], ['sarah', 'anna'],
+  ['mads', 'oliver'], ['sarah', 'oliver'], ['sarah', 'anna'], ['anna', 'lena'], ['lena', 'anna'],
 ];
 
 // Kommentarer: [författare, check-in-ägare, iata, text]
@@ -178,7 +185,16 @@ export function seedDemo(db) {
     }
 
     // Märkesnivåer (med notiser). Oliver har redan läst sina märkesnotiser.
-    for (const u of USERS) syncBadges(db, ids[u.username], { notify: true });
+    // Integritetsinställningar, väntande följförfrågan och lenas check-ins som vänner-endast.
+    for (const u of USERS.filter((x) => x.settings)) {
+      const cols = Object.keys(u.settings);
+      db.prepare(`UPDATE users SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(...cols.map((c) => u.settings[c]), ids[u.username]);
+    }
+    db.prepare("UPDATE checkins SET visibility = 'friends' WHERE user_id = ?").run(ids.lena);
+    db.prepare("INSERT INTO follows (follower_id, followee_id, created_at, status) VALUES (?, ?, ?, 'pending')").run(ids.mads, ids.lena, stamp('2026-10-30'));
+    notify(db, { userId: ids.lena, type: 'follow_request', actorId: ids.mads });
+
+    for (const u of USERS) syncBadges(db, ids[u.username], { notify: true, groupKey: 'badge:seed' });
     db.prepare("UPDATE notifications SET read = 1 WHERE user_id = ? AND type = 'badge'").run(ids.oliver);
   });
   return { users: USERS.length, checkins: CHECKINS.length + STREAK.length };
