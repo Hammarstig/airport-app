@@ -22,13 +22,15 @@ export function buildBody(f, patch = false) {
       airlineIata: t.airline ? t.airline.iata : null,
       flightNumber: t.flightNumber || null,
       travelClass: t.travelClass || null,
-      loungeId: lounge
+      loungeId: lounge,
+      ...(f.visibility ? { visibility: f.visibility } : {})
     };
   }
   const subs = {};
   for (const s of SUB_RATINGS) if (f.ratings[s.key] != null) subs[s.key] = f.ratings[s.key];
   const t = f.travel;
   const body = { iata: f.airport.iata, visitedOn: f.visitedOn, kind: f.kind };
+  if (f.visibility) body.visibility = f.visibility;
   if (f.rating != null) body.rating = f.rating;
   if (Object.keys(subs).length) body.ratings = subs;
   if (f.comment.trim()) body.comment = f.comment.trim();

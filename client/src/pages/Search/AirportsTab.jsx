@@ -11,6 +11,7 @@ import {
 import { AirportRow } from '../../components/Rows.jsx';
 import { EmptyState, Segmented } from '../../components/ui.jsx';
 import { IconFilter, IconSearch } from '../../assets/icons.jsx';
+import { ExploreSections } from './ExploreSections.jsx';
 import { PAGE, FilterSelect, Results, useSearchResults } from './shared.jsx';
 
 const AIRPORT_SORTS = [
@@ -42,9 +43,12 @@ export function AirportsTab({ qs, q }) {
     limit: PAGE
   };
   const key = JSON.stringify(params);
-  const res = useSearchResults(key, (offset) => api.browseAirports({ ...params, offset }));
+  const activeFilters = ['country', 'continent', 'type', 'minRating', 'visited'].filter((k) => f[k]).length;
+  // Utan sökord och filter visas Utforska (kontinenter, länder, kategorier) i stället för en lång lista.
+  const browsing = !q && !activeFilters && !f.sort;
+  const res = useSearchResults(key, (offset) => api.browseAirports({ ...params, offset }), !browsing);
   const [open, setOpen] = useState(false);
-  const activeCount = ['country', 'continent', 'type', 'minRating', 'visited'].filter((k) => f[k]).length;
+  const activeCount = activeFilters;
 
   return (
     <div className="stack">
@@ -142,23 +146,27 @@ export function AirportsTab({ qs, q }) {
         </div>
       )}
 
-      <Results res={res} empty={<EmptyState icon={IconSearch} title="Inga flygplatser matchar" />}>
-        <ul className="list" aria-label="Flygplatser">
-          {res.items.map((a) => (
-            <AirportRow
-              key={a.iata}
-              airport={a}
-              avgRating={a.avgRating}
-              checkins={a.checkins ?? 0}
-              extra={
-                q && a.matchedOn
-                  ? `matchade ${(MATCHED_ON_LABEL[a.matchedOn] || a.matchedOn).toLowerCase()}`
-                  : undefined
-              }
-            />
-          ))}
-        </ul>
-      </Results>
+      {browsing ? (
+        <ExploreSections />
+      ) : (
+        <Results res={res} empty={<EmptyState icon={IconSearch} title="Inga flygplatser matchar" />}>
+          <ul className="list" aria-label="Flygplatser">
+            {res.items.map((a) => (
+              <AirportRow
+                key={a.iata}
+                airport={a}
+                avgRating={a.avgRating}
+                checkins={a.checkins ?? 0}
+                extra={
+                  q && a.matchedOn
+                    ? `matchade ${(MATCHED_ON_LABEL[a.matchedOn] || a.matchedOn).toLowerCase()}`
+                    : undefined
+                }
+              />
+            ))}
+          </ul>
+        </Results>
+      )}
     </div>
   );
 }

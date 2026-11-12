@@ -26,6 +26,12 @@ function ScopeToggle({ scope, onChange }) {
 }
 
 function WorldView({ username, scope }) {
+  // Besökta flygplatser som prickar på världskartan (laddas parallellt; kartan visas även utan dem).
+  const visitedAirports = useAsync(
+    () => api.userAirports(username, 'recent'),
+    [username],
+    () => api.peek.userAirports(username, 'recent')
+  );
   const { data, loading, error, reload } = useAsync(
     () => api.userMap(username, scope),
     [username, scope],
@@ -50,7 +56,7 @@ function WorldView({ username, scope }) {
           [visitedCountries.length, 'Länder']
         ]}
       />
-      <WorldMap username={username} countries={data.countries} />
+      <WorldMap username={username} countries={data.countries} airports={visitedAirports.data?.map((r) => r.airport)} />
       <section className="section" aria-labelledby="cont-title">
         <h2 className="section__title" id="cont-title">
           Kontinenter

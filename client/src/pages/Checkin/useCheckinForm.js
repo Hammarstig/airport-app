@@ -22,6 +22,7 @@ function fromCheckin(c) {
     rating: c.rating,
     ratings: Object.fromEntries(Object.entries(c.ratings || {}).filter(([, v]) => v != null)),
     comment: c.comment || '',
+    visibility: c.visibility || null,
     travel: {
       ...EMPTY_TRAVEL,
       airline: c.airline,
@@ -35,6 +36,7 @@ function fromCheckin(c) {
 
 const initial = (preset) => ({
   airport: null,
+  visibility: null,
   visitedOn: preset.date || todayIso(),
   kind: preset.kind || 'departure',
   rating: null,
@@ -55,6 +57,15 @@ export function useCheckinForm(editId, preset) {
   const validPreset = !editId && /^[A-Z]{3}$/.test(preset.iata || '');
   const [presetPending, setPresetPending] = useState(validPreset);
   const set = (patch) => setF((cur) => ({ ...cur, ...(typeof patch === 'function' ? patch(cur) : patch) }));
+
+  // Standardsynlighet från inställningarna (fältet visas som "Alla" tills den har hämtats).
+  const [defaultVisibility, setDefaultVisibility] = useState(() => api.peek.settings()?.defaultVisibility || 'public');
+  useEffect(() => {
+    api
+      .settings()
+      .then((s) => s?.defaultVisibility && setDefaultVisibility(s.defaultVisibility))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!editId) return;
@@ -120,6 +131,7 @@ export function useCheckinForm(editId, preset) {
       set((cur) => ({ existingPhotos: cur.existingPhotos.filter((p) => p.id !== id) }));
     },
     lounges,
+    defaultVisibility,
     loading,
     presetPending,
     loadError

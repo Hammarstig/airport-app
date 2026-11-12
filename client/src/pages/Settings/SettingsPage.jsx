@@ -10,6 +10,12 @@ import { IconLogout } from '../../assets/icons.jsx';
 import { ProfileForm } from './ProfileForm.jsx';
 import { DangerZone } from './DangerZone.jsx';
 import { OfflineQueueStatus } from '../../components/OfflineQueueStatus.jsx';
+import { FollowRequests } from '../../components/FollowRequests.jsx';
+import { PrivacySection, useSettings } from './PrivacySection.jsx';
+import { PushSection } from './PushSection.jsx';
+import { PasswordForm } from './PasswordForm.jsx';
+import { SessionsSection } from './SessionsSection.jsx';
+import { BlocksSection } from './BlocksSection.jsx';
 
 function Section({ id, title, children }) {
   return (
@@ -30,6 +36,7 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const [theme, setThemeState] = useState(getTheme);
   const toast = useToast();
+  const settings = useSettings();
 
   return (
     <div className="page">
@@ -42,6 +49,25 @@ export default function SettingsPage() {
             Inloggad som <Link to={`/u/${user.username}`}>@{user.username}</Link>
           </p>
           <ProfileForm />
+        </Section>
+
+        <FollowRequests />
+
+        <Section id="set-privacy" title="Integritet">
+          <PrivacySection settings={settings} />
+        </Section>
+
+        <Section id="set-push" title="Notiser">
+          <PushSection settings={settings} />
+        </Section>
+
+        <Section id="set-security" title="Lösenord och enheter">
+          <PasswordForm />
+          <SessionsSection />
+        </Section>
+
+        <Section id="set-blocks" title="Blockerade">
+          <BlocksSection />
         </Section>
 
         <Section id="set-theme" title="Utseende">
@@ -79,6 +105,7 @@ export default function SettingsPage() {
 
         <Section id="set-about" title="Om Gatelog">
           <Link to="/about">Om appen, datakällor och licenser</Link>
+          {user.isModerator && <Link to="/moderation">Modereringskö</Link>}
         </Section>
 
         <Section id="set-session" title="Session">
@@ -86,8 +113,8 @@ export default function SettingsPage() {
             <button
               type="button"
               className="btn btn--block"
-              onClick={() => {
-                logout();
+              onClick={async () => {
+                await logout();
                 navigate('/', { replace: true });
               }}
             >

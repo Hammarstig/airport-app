@@ -6,7 +6,7 @@ import { useToast } from '../../components/Toast.jsx';
 
 /** Radera konto: kräver lösenordet. */
 export function DangerZone() {
-  const { logout } = useAuth();
+  const { clear } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -18,11 +18,11 @@ export function DangerZone() {
     setBusy(true);
     try {
       await api.deleteMe(password);
-      logout();
+      clear();
       toast.show('Ditt konto och alla dina check-ins är raderade.');
       navigate('/', { replace: true });
     } catch (err) {
-      toast.error(err.status === 401 ? 'Fel lösenord.' : err);
+      toast.error(err.status === 401 || err.status === 403 ? 'Fel lösenord.' : err);
       setBusy(false);
     }
   };

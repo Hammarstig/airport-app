@@ -3,7 +3,6 @@ import { api } from '../../lib/api.js';
 import { useAsync } from '../../hooks/useAsync.js';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
 import { CheckinCard } from '../../components/CheckinCard.jsx';
-import { TravelDetailList } from '../../components/TravelDetails.jsx';
 import { Comments } from '../../components/Comments.jsx';
 import { PageSkeleton } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ui.jsx';
@@ -37,7 +36,6 @@ export default function CheckinDetailPage() {
   return (
     <div className="page stack stack--lg">
       <CheckinCard checkin={c} linkComments={false} onDelete={() => navigate(-1)} />
-      <TravelDetailList checkin={c} />
       <Comments checkinId={c.id} />
     </div>
   );

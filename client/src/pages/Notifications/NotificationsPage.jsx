@@ -8,11 +8,23 @@ import { setUnread } from '../../hooks/useUnread.js';
 import { timeAgo } from '../../lib/format.js';
 import { Avatar, EmptyState, ErrorState } from '../../components/ui.jsx';
 import { SkeletonRows } from '../../components/Skeleton.jsx';
-import { IconBadge, IconBell, IconComment, IconHeart, IconHome, IconUsers } from '../../assets/icons.jsx';
+import { IconBadge, IconBell, IconComment, IconHeart, IconHome, IconTrophy, IconUsers } from '../../assets/icons.jsx';
+import { FollowRequests } from '../../components/FollowRequests.jsx';
+import { badgeUrl } from '../../components/Badges.jsx';
 
-const TYPE_ICON = { follow: IconUsers, comment: IconComment, like: IconHeart, badge: IconBadge, home_visit: IconHome };
+const TYPE_ICON = {
+  follow: IconUsers,
+  follow_request: IconUsers,
+  follow_accepted: IconUsers,
+  comment: IconComment,
+  like: IconHeart,
+  badge: IconBadge,
+  home_visit: IconHome,
+  overtaken: IconTrophy
+};
 
 function target(n) {
+  if (n.url) return n.url;
   if (n.checkinId) return `/c/${n.checkinId}`;
   if (n.type === 'follow' && n.actor) return `/u/${n.actor.username}`;
   if (n.type === 'badge') return null;
@@ -20,15 +32,43 @@ function target(n) {
   return null;
 }
 
-function Item({ n, me }) {
+function Media({ n }) {
   const Icon = TYPE_ICON[n.type] || IconBell;
+  const badge = n.badges?.[0] || n.badge;
+  return (
+    <span className="notif-item__media" aria-hidden="true">
+      {n.actor ? (
+        <Avatar user={n.actor} />
+      ) : badge && badgeUrl(badge) ? (
+        <img src={badgeUrl(badge)} alt="" width={44} height={44} />
+      ) : (
+        <Icon size={24} />
+      )}
+      <span className={`notif-item__type notif-item__type--${n.type}`}>
+        <Icon size={12} />
+      </span>
+    </span>
+  );
+}
+
+function Item({ n, me }) {
   const to = target(n) || (n.type === 'badge' ? `/u/${me}?tab=badges` : null);
+  const many = n.badges && n.badges.length > 1;
   const body = (
     <>
-      {n.actor ? <Avatar user={n.actor} /> : <Icon size={24} aria-hidden="true" />}
+      <Media n={n} />
       <span className="notif-item__text">
+        {!n.read && <span className="visually-hidden">Oläst: </span>}
         {n.text}
-        {!n.read && <span className="visually-hidden"> (oläst)</span>}
+        {many && (
+          <span className="notif-badges" aria-label={n.badges.map((b) => b.name).join(', ')}>
+            {n.badges
+              .slice(0, 5)
+              .map((b) =>
+                badgeUrl(b) ? <img key={`${b.id}-${b.tier}`} src={badgeUrl(b)} alt="" width={24} height={24} /> : null
+              )}
+          </span>
+        )}
       </span>
       <time className="notif-item__time" dateTime={n.createdAt}>
         {timeAgo(n.createdAt)}
@@ -68,6 +108,7 @@ export default function NotificationsPage() {
       <header className="page__header">
         <h1 className="page__title">Notiser</h1>
       </header>
+      <FollowRequests />
       {paged.error && !paged.items.length && <ErrorState error={paged.error} onRetry={paged.reload} />}
       {paged.loading && !paged.items.length && <SkeletonRows count={5} />}
       {!paged.loading && !paged.error && !paged.items.length && (

@@ -3,13 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useToast } from './Toast.jsx';
+import { VisibilityChip } from './VisibilityPicker.jsx';
 import { CLASS_LABEL, SUB_RATINGS, formatDate, formatRating, timeAgo } from '../lib/format.js';
+import { ReportDialog } from './ReportDialog.jsx';
 import { Avatar, IataTag, KindChip, Stars } from './ui.jsx';
 import { Lightbox } from './Lightbox.jsx';
 import { ShareButton } from './ShareButton.jsx';
 import { IconComment, IconHeart } from '../assets/icons.jsx';
 
 const MAX_SUBS = 3;
+const timeFmt = new Intl.DateTimeFormat('sv-SE', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+const formatPublish = (iso) => timeFmt.format(new Date(iso));
 
 function travelLine(c) {
   return [c.flightNumber, c.airline?.name, c.travelClass && CLASS_LABEL[c.travelClass], c.lounge && c.lounge.name]
@@ -60,6 +64,7 @@ function CheckinCardInner({ checkin: c, onDelete, hideAirport = false, hideUser 
   const { user } = useAuth();
   const toast = useToast();
   const [photoIdx, setPhotoIdx] = useState(null);
+  const [reporting, setReporting] = useState(false);
   const isMine = user && c.user && user.username === c.user.username;
   const photos = c.photos || [];
   const who = c.user?.displayName || c.user?.username;
@@ -106,6 +111,10 @@ function CheckinCardInner({ checkin: c, onDelete, hideAirport = false, hideUser 
               {c.visitedOn === c.createdAt?.slice(0, 10) ? timeAgo(c.createdAt) : formatDate(c.visitedOn)}
             </time>
             {c.editedAt && <span> · redigerad</span>}
+            {isMine && <VisibilityChip visibility={c.visibility} />}
+            {isMine && c.publishAt && new Date(c.publishAt) > new Date() && (
+              <span> · syns för andra {formatPublish(c.publishAt)}</span>
+            )}
           </div>
         </div>
         {!hideAirport && <IataTag iata={c.airport.iata} />}
@@ -186,6 +195,12 @@ function CheckinCardInner({ checkin: c, onDelete, hideAirport = false, hideUser 
           })}
         />
         <span className="spacer" />
+        {user && !isMine && (
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setReporting(true)}>
+            Rapportera
+          </button>
+        )}
+        {reporting && <ReportDialog type="checkin" target={c.id} onClose={() => setReporting(false)} />}
         {isMine && (
           <>
             <Link to={`/checkin/${c.id}/edit`} className="btn btn--ghost btn--sm">

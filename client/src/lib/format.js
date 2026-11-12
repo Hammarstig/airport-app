@@ -180,3 +180,5 @@ export function timeAgo(iso) {
   if (Math.abs(s) < 7 * 86400) return rtf.format(Math.round(s / 86400), 'day');
   return formatDate(iso);
 }
+
+export const VISIBILITY_LABEL = { public: 'Alla', friends: 'Följare', private: 'Bara jag' };

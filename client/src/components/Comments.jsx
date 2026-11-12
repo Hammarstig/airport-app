@@ -7,6 +7,7 @@ import { timeAgo } from '../lib/format.js';
 import { useToast } from './Toast.jsx';
 import { Avatar, ErrorState } from './ui.jsx';
 import { SkeletonRows } from './Skeleton.jsx';
+import { ReportDialog } from './ReportDialog.jsx';
 import { IconComment as IconSend } from '../assets/icons.jsx';
 
 const MAX = 500;
@@ -15,6 +16,7 @@ function CommentItem({ c, onChanged, onDeleted }) {
   const { user } = useAuth();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [text, setText] = useState(c.body);
   const mine = user && user.username === c.user.username;
 
@@ -39,6 +41,7 @@ function CommentItem({ c, onChanged, onDeleted }) {
 
   return (
     <li className={`comment${mine ? ' comment--mine' : ''}`}>
+      {reporting && <ReportDialog type="comment" target={c.id} onClose={() => setReporting(false)} />}
       <Avatar user={c.user} size="sm" />
       <div className="comment__body">
         <div className="comment__meta">
@@ -75,8 +78,13 @@ function CommentItem({ c, onChanged, onDeleted }) {
         ) : (
           <p className="comment__text">{c.body}</p>
         )}
-        {!editing && (mine || c.canDelete) && (
+        {!editing && user && (
           <div className="comment__actions">
+            {!mine && (
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setReporting(true)}>
+                Rapportera
+              </button>
+            )}
             {mine && (
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditing(true)}>
                 Redigera

@@ -7,7 +7,7 @@ import { usePaged } from '../../hooks/usePaged.js';
 import { CheckinList } from '../../components/CheckinList.jsx';
 import { PageSkeleton } from '../../components/Skeleton.jsx';
 import { EmptyState, ErrorState, Tabs } from '../../components/ui.jsx';
-import { IconPlane } from '../../assets/icons.jsx';
+import { IconLock, IconPlane } from '../../assets/icons.jsx';
 import NotFoundPage from '../NotFound/NotFoundPage.jsx';
 import { ProfileHeader } from './ProfileHeader.jsx';
 import { AirportsTab } from './AirportsTab.jsx';
@@ -56,36 +56,56 @@ export default function ProfilePage() {
       <ProfileHeader
         profile={profile}
         isMe={isMe}
-        onFollowChange={(r) => setData((p) => ({ ...p, followers: r.followers, followedByMe: r.following }))}
+        me={user?.username}
+        onFollowChange={(r) =>
+          setData((p) => ({
+            ...p,
+            followers: r.followers ?? p.followers,
+            followedByMe: r.following,
+            followRequested: r.requested
+          }))
+        }
       />
-      <div className="mt-4">
-        <Tabs
-          label="Profilflikar"
-          value={tab}
-          onChange={setTab}
-          tabs={[
-            { value: 'airports', label: isMe ? 'Mina flygplatser' : 'Flygplatser' },
-            { value: 'checkins', label: 'Check-ins' },
-            { value: 'badges', label: 'Märken' },
-            { value: 'map', label: 'Karta' },
-            { value: 'wishlist', label: 'Önskelista' }
-          ]}
-        />
-      </div>
-      <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="tabpanel">
-        {tab === 'airports' && <AirportsTab username={username} isMe={isMe} />}
-        {tab === 'checkins' && (
-          <CheckinList
-            paged={paged}
-            hideUser
-            onDeleteItem={isMe ? () => reload() : undefined}
-            empty={<EmptyState icon={IconPlane} title="Inga check-ins ännu" />}
-          />
-        )}
-        {tab === 'badges' && <BadgesTab username={username} />}
-        {tab === 'map' && <MapTab username={username} />}
-        {tab === 'wishlist' && <WishlistTab username={username} isMe={isMe} />}
-      </div>
+      {profile.canView === false ? (
+        <EmptyState icon={IconLock} title="Privat profil">
+          <p className="muted">
+            {profile.followRequested
+              ? 'Din förfrågan väntar på godkännande.'
+              : `Följ @${profile.username} för att se check-ins, karta och märken.`}
+          </p>
+        </EmptyState>
+      ) : (
+        <>
+          <div className="mt-4">
+            <Tabs
+              label="Profilflikar"
+              value={tab}
+              onChange={setTab}
+              tabs={[
+                { value: 'airports', label: isMe ? 'Mina flygplatser' : 'Flygplatser' },
+                { value: 'checkins', label: 'Check-ins' },
+                { value: 'badges', label: 'Märken' },
+                { value: 'map', label: 'Karta' },
+                { value: 'wishlist', label: 'Önskelista' }
+              ]}
+            />
+          </div>
+          <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="tabpanel">
+            {tab === 'airports' && <AirportsTab username={username} isMe={isMe} />}
+            {tab === 'checkins' && (
+              <CheckinList
+                paged={paged}
+                hideUser
+                onDeleteItem={isMe ? () => reload() : undefined}
+                empty={<EmptyState icon={IconPlane} title="Inga check-ins ännu" />}
+              />
+            )}
+            {tab === 'badges' && <BadgesTab username={username} />}
+            {tab === 'map' && <MapTab username={username} />}
+            {tab === 'wishlist' && <WishlistTab username={username} isMe={isMe} />}
+          </div>
+        </>
+      )}
     </div>
   );
 }

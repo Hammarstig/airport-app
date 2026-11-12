@@ -13,6 +13,8 @@ export default defineConfig({
   preview: { proxy },
   build: {
     target: 'es2020',
+    // Märkes-SVG:er ska inte bäddas in i JS (72 bilder skulle annars bli en 230 kB-chunk).
+    assetsInlineLimit: (file) => (file.includes('/assets/badges/') ? false : undefined),
     rollupOptions: {
       output: {
         manualChunks(id) {

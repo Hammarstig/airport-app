@@ -20,7 +20,8 @@ export function applyTheme(theme = getTheme()) {
   else root.setAttribute('data-theme', theme);
   const metas = document.querySelectorAll('meta[name="theme-color"]');
   metas.forEach((m) => {
-    if (theme === 'system') m.setAttribute('content', m.media.includes('dark') ? COLORS.dark : COLORS.light);
+    if (theme === 'system')
+      m.setAttribute('content', (m.getAttribute('media') || '').includes('dark') ? COLORS.dark : COLORS.light);
     else m.setAttribute('content', COLORS[theme]);
   });
 }

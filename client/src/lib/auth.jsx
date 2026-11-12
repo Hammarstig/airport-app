@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, getToken, onUnauthorized, setToken } from './api.js';
+import { api, getToken, onRefreshed, onUnauthorized, setToken } from './api.js';
 import { load, save } from './storage.js';
 
 const USER_KEY = 'gatelog.user';
@@ -21,12 +21,24 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  const logout = useCallback(() => {
+  // Lokal utloggning (t.ex. när sessionen återkallats på servern).
+  const clear = useCallback(() => {
     setToken(null);
     setUser(null);
   }, [setUser]);
 
-  useEffect(() => onUnauthorized(logout), [logout]);
+  /** Loggar ut: återkallar sessionen på servern (om nätet finns) och rensar lokalt. */
+  const logout = useCallback(async () => {
+    try {
+      await api.logout();
+    } catch (e) {
+      if (e.status === undefined) console.warn('Utloggning på servern misslyckades (offline):', e.message);
+    }
+    clear();
+  }, [clear]);
+
+  useEffect(() => onUnauthorized(clear), [clear]);
+  useEffect(() => onRefreshed((u) => u && setUser(u)), [setUser]);
 
   useEffect(() => {
     if (!getToken()) return;
@@ -65,8 +77,8 @@ export function AuthProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ user, ready, login, register, logout, setUser }),
-    [user, ready, login, register, logout, setUser]
+    () => ({ user, ready, login, register, logout, clear, setUser }),
+    [user, ready, login, register, logout, clear, setUser]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

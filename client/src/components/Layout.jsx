@@ -1,6 +1,5 @@
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
-import { AirportAutocomplete } from './AirportAutocomplete.jsx';
 import { NotificationBell } from './NotificationBell.jsx';
 import { OfflineBanner } from './OfflineBanner.jsx';
 import logoUrl from '../assets/logo.svg';
@@ -17,7 +16,7 @@ import {
 function navItems(user) {
   return [
     { to: '/', label: 'Flöde', icon: IconHome, end: true },
-    { to: '/search', label: 'Sök', icon: IconSearch, also: ['/explore', '/country', '/top'] },
+    { to: '/search', label: 'Utforska', icon: IconSearch, also: ['/explore', '/country', '/top'] },
     { to: '/checkin', label: 'Checka in', icon: IconPlus, primary: true },
     { to: '/leaderboard', label: 'Topplistor', icon: IconTrophy },
     user
@@ -26,14 +25,25 @@ function navItems(user) {
   ];
 }
 
-// Sidor som nås från menyn. Övriga sidor får en tillbaka-knapp i toppfältet (viktigt i installerad PWA).
-const ROOTS = new Set(['/', '/search', '/checkin', '/leaderboard', '/login', '/register']);
+// Rotsidor (menyns mål, notiser och sammanfattningen) saknar tillbaka-pil; undersidor har den
+// (viktigt i installerad PWA där webbläsarens bakåtknapp saknas).
+const ROOTS = new Set([
+  '/',
+  '/search',
+  '/explore',
+  '/checkin',
+  '/checkin/done',
+  '/leaderboard',
+  '/login',
+  '/register',
+  '/notifications'
+]);
 
-function BackButton() {
+function BackButton({ me }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const canGoBack = typeof window !== 'undefined' && (window.history.state?.idx ?? 0) > 0;
-  if (ROOTS.has(pathname)) return null;
+  if (ROOTS.has(pathname) || (me && pathname === `/u/${me}`)) return null;
   return (
     <button
       type="button"
@@ -50,7 +60,6 @@ export function Layout() {
   const { user } = useAuth();
   const items = navItems(user);
   const location = useLocation();
-  const navigate = useNavigate();
   const isActive = (it, active) => active || (it.also || []).some((p) => location.pathname.startsWith(p));
 
   return (
@@ -59,22 +68,11 @@ export function Layout() {
         Hoppa till innehåll
       </a>
       <header className="topbar">
-        <BackButton />
+        <BackButton me={user?.username} />
         <Link to="/" className="topbar__brand" aria-label="Gatelog startsida">
           <img src={logoUrl} alt="Gatelog" height={28} />
         </Link>
         <nav className="topbar__nav" aria-label="Huvudmeny">
-          <div className="topbar__search" role="search">
-            <AirportAutocomplete
-              key={location.pathname}
-              id="topbar-search"
-              label="Sök flygplats"
-              placeholder="Stad, flygplats eller IATA"
-              hideLabel
-              value={null}
-              onSelect={(a) => a && navigate(`/airport/${a.iata}`)}
-            />
-          </div>
           {items.map((it) => (
             <NavLink
               key={it.to}
@@ -89,9 +87,6 @@ export function Layout() {
               {it.label}
             </NavLink>
           ))}
-          <NavLink to="/explore" className={({ isActive: a }) => `topbar__link${a ? ' topbar__link--active' : ''}`}>
-            Utforska
-          </NavLink>
         </nav>
         {user && (
           <div className="topbar__actions">

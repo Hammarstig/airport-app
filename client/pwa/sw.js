@@ -69,3 +69,34 @@ self.addEventListener('fetch', (event) => {
     )
   );
 });
+
+// Web Push: visa notisen och öppna rätt sida vid tryck.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data && event.data.text() };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Gatelog', {
+      body: data.body || '',
+      tag: data.tag,
+      data: { url: data.url || '/notifications' },
+      icon: '/icon-192.png',
+      badge: '/icon-monochrome-512.png'
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || '/notifications', self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => c.url.startsWith(self.location.origin));
+      if (open) return open.navigate(url).then((c) => (c || open).focus());
+      return self.clients.openWindow(url);
+    })
+  );
+});

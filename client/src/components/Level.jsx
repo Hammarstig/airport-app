@@ -38,12 +38,12 @@ export function LevelBar({ info, compact = false }) {
 
 /** Veckostreak: flamma + "3 veckor i rad". */
 export function StreakChip({ streak, large = false }) {
-  if (!streak) return null;
-  const n = streak.current || 0;
-  const cold = n === 0;
+  // Ingen streak visas vid 0 (de flesta flyger inte varje vecka); en bruten streak syns inte som misslyckande.
+  if (!streak || !streak.current) return null;
+  const n = streak.current;
   return (
     <span
-      className={`streak${streak.thisWeek ? ' streak--active' : ''}${cold ? ' streak--cold' : ''}${large ? ' streak--lg' : ''}`}
+      className={`streak${streak.thisWeek ? ' streak--active' : ''}${large ? ' streak--lg' : ''}`}
       title={`Längsta streak: ${streak.longest} veckor`}
     >
       <IconFlame size={large ? 22 : 16} aria-hidden="true" />

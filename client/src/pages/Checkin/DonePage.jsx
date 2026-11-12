@@ -6,6 +6,8 @@ import { BadgeIcon, TIER_LABEL } from '../../components/Badges.jsx';
 import { LevelBar, StreakChip } from '../../components/Level.jsx';
 import { ShareButton } from '../../components/ShareButton.jsx';
 import { StatRow } from '../../components/ui.jsx';
+import { RatePrompt } from './RatePrompt.jsx';
+import { PushPrompt } from '../../components/PushPrompt.jsx';
 import { IconTransfer } from '../../assets/icons.jsx';
 
 const ordinal = (n) => `${n}:${[1, 2].includes(n % 10) && ![11, 12].includes(n % 100) ? 'a' : 'e'}`;
@@ -86,6 +88,9 @@ export default function DonePage() {
         </p>
       )}
 
+      {c.rating == null && <RatePrompt checkin={c} />}
+      <PushPrompt />
+
       <div className="checkin-done__panel">
         <LevelBar info={c.levelInfo} compact />
         {c.milestones && <StreakChip streak={c.milestones.streak} />}
@@ -119,7 +124,7 @@ export default function DonePage() {
         <Link to={next} className="btn btn--block">
           <IconTransfer size={18} aria-hidden="true" /> Lägg till anslutning
         </Link>
-        <Link to="/" className="btn btn--ghost btn--block">
+        <Link to="/" className="btn btn--ghost">
           Klar
         </Link>
         <p className="text-center text-sm">

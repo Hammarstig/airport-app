@@ -20,15 +20,59 @@ export function getToken() {
   return t;
 }
 
-export function setToken(token) {
+function storeToken(token) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
     /* lagring blockerad - sessionen gäller bara denna sidvisning */
   }
+}
+
+/** Byter inloggning (eller loggar ut med null): ny token och tom cache. */
+export function setToken(token) {
+  storeToken(token);
   cacheClear();
   if (!token) forgetRecent();
+}
+
+const refreshListeners = new Set();
+/** Anropas med användaren när sessionen förnyats i bakgrunden. */
+export function onRefreshed(fn) {
+  refreshListeners.add(fn);
+  return () => refreshListeners.delete(fn);
+}
+
+let refreshing = null;
+/**
+ * Förnyar access-token med refresh-cookien (HttpOnly, sätts av servern). Ett anrop i taget;
+ * samtidiga förfrågningar väntar på samma förnyelse. Kastar med status 401 om sessionen är slut.
+ */
+export function refreshSession() {
+  refreshing ||= fetch('/api/auth/refresh', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' }
+  })
+    .then(async (r) => {
+      if (!r.ok) {
+        const e = new Error('Sessionen har gått ut. Logga in igen.');
+        e.status = r.status;
+        throw e;
+      }
+      const d = await r.json();
+      storeToken(d.token);
+      refreshListeners.forEach((fn) => fn(d.user));
+      return d.token;
+    })
+    .catch((e) => {
+      if (e.status === undefined) throw new Error('Kunde inte nå servern. Kontrollera anslutningen.');
+      throw e;
+    })
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
 }
 
 let unauthorizedHandler = null;
@@ -53,7 +97,29 @@ function qs(params = {}) {
  * Gör ett API-anrop. invalidate: lista med sökvägsprefix (utan /api) vars cachade GET-svar
  * ska slängas efter ett lyckat skrivande anrop. Utan lista töms inget.
  */
-export async function request(path, { method = 'GET', body, params, signal, invalidate, logoutOn401 = true } = {}) {
+export async function request(path, opts = {}) {
+  try {
+    return await send(path, opts);
+  } catch (err) {
+    // Utgången access-token: förnya sessionen en gång och försök igen. Återkallad session eller
+    // misslyckad förnyelse loggar ut (utom för anrop där 401 betyder något annat).
+    const { logoutOn401 = true } = opts;
+    if (err.status !== 401 || !err.hadToken || path.startsWith('/auth/')) throw err;
+    if (err.code !== 'session_revoked') {
+      try {
+        await refreshSession();
+        return await send(path, opts);
+      } catch (e) {
+        // Nätverksfel under förnyelsen: behåll inloggningen (offline). Allt annat avslutar sessionen.
+        if (e.status === undefined) throw e;
+      }
+    }
+    if (logoutOn401 && unauthorizedHandler) unauthorizedHandler();
+    throw err;
+  }
+}
+
+async function send(path, { method = 'GET', body, params, signal, invalidate } = {}) {
   const url = `/api${path}${qs(params)}`;
   const headers = { Accept: 'application/json' };
   const token = getToken();
@@ -67,6 +133,7 @@ export async function request(path, { method = 'GET', body, params, signal, inva
       method,
       headers,
       body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
+      credentials: 'same-origin',
       signal
     });
   } catch (err) {
@@ -88,8 +155,9 @@ export async function request(path, { method = 'GET', body, params, signal, inva
   if (!res.ok) {
     const err = new Error((data && data.error) || `Något gick fel (${res.status})`);
     err.status = res.status;
-    if (res.status === 401 && logoutOn401 && token && !path.startsWith('/auth/') && unauthorizedHandler)
-      unauthorizedHandler();
+    err.code = data && data.code;
+    err.allowed = data && data.allowed;
+    err.hadToken = !!token;
     throw err;
   }
   if (method === 'GET') {
@@ -140,7 +208,14 @@ const GETS = {
   unreadCount: () => ['/notifications/unread-count'],
   userRankings: (params) => ['/rankings/users', params],
   statsCard: (u, year) => [`/users/${enc(u)}/card`, { year }],
-  attributions: () => ['/attributions']
+  attributions: () => ['/attributions'],
+  // v3
+  settings: () => ['/me/settings'],
+  sessions: () => ['/me/sessions'],
+  followRequests: () => ['/me/follow-requests'],
+  blocks: () => ['/me/blocks'],
+  pushKey: () => ['/push/public-key'],
+  moderationReports: (status = 'open') => ['/moderation/reports', { status }]
 };
 
 export const api = { peek: {} };
@@ -167,9 +242,23 @@ Object.assign(api, {
   register: (body) => request('/auth/register', { method: 'POST', body }),
   login: (body) => request('/auth/login', { method: 'POST', body }),
   updateMe: (body) => write('PATCH', '/me', body, [...ME, '/leaderboard', '/feed']),
-  // 401 betyder här fel lösenord, inte utgången session (BUG-09).
+  // Fel lösenord ger 403 i v3 (401 i v2); logga aldrig ut på det här anropet (BUG-09).
   deleteMe: (password) =>
     request('/me', { method: 'DELETE', body: { password }, invalidate: CONTENT, logoutOn401: false }),
+  logout: () => request('/auth/logout', { method: 'POST' }),
+  logoutAll: () => request('/auth/logout-all', { method: 'POST' }),
+  revokeSession: (id) => write('DELETE', `/me/sessions/${enc(id)}`, undefined, ['/me/sessions']),
+  changePassword: (currentPassword, newPassword) =>
+    request('/me/password', { method: 'POST', body: { currentPassword, newPassword }, logoutOn401: false }),
+  updateSettings: (body) => write('PATCH', '/me/settings', body, ['/me/settings', ...CONTENT]),
+  acceptFollow: (u) => write('POST', `/me/follow-requests/${enc(u)}`, undefined, ['/me/follow-requests', '/users']),
+  declineFollow: (u) => write('DELETE', `/me/follow-requests/${enc(u)}`, undefined, ['/me/follow-requests']),
+  block: (u) => write('POST', `/users/${enc(u)}/block`, undefined, ['/me/blocks', ...CONTENT]),
+  unblock: (u) => write('DELETE', `/users/${enc(u)}/block`, undefined, ['/me/blocks', ...CONTENT]),
+  report: (body) => request('/reports', { method: 'POST', body }),
+  moderate: (id, action) => write('POST', `/moderation/reports/${enc(id)}`, { action }, ['/moderation', ...CONTENT]),
+  pushSubscribe: (sub) => request('/push/subscriptions', { method: 'POST', body: sub }),
+  pushUnsubscribe: (endpoint) => request('/push/subscriptions', { method: 'DELETE', body: { endpoint } }),
   follow: (u) => write('POST', `/users/${enc(u)}/follow`, undefined, ['/users', '/feed', '/rankings', '/leaderboard']),
   unfollow: (u) =>
     write('DELETE', `/users/${enc(u)}/follow`, undefined, ['/users', '/feed', '/rankings', '/leaderboard']),

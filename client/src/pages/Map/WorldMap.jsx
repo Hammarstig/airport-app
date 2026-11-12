@@ -7,7 +7,7 @@ import { ZoomableSvg } from './ZoomableSvg.jsx';
 const W = 960;
 const H = 500;
 
-export function WorldMap({ username, countries }) {
+export function WorldMap({ username, countries, airports }) {
   const navigate = useNavigate();
   const [features, setFeatures] = useState(null);
   const [tip, setTip] = useState(null);
@@ -22,17 +22,34 @@ export function WorldMap({ username, countries }) {
 
   const byCode = useMemo(() => Object.fromEntries((countries || []).map((c) => [c.code, c])), [countries]);
 
-  const paths = useMemo(() => {
-    if (!features) return [];
+  const geo = useMemo(() => {
+    if (!features) return null;
     const proj = geoNaturalEarth1().fitSize([W, H], { type: 'FeatureCollection', features });
     const path = geoPath(proj);
-    return features.map((f, i) => ({
+    const paths = features.map((f, i) => ({
       key: `${f.id ?? 'x'}-${i}`,
       d: path(f),
       code: f.alpha2,
       name: f.properties.name
     }));
-  }, [features]);
+    // Startvy: rutan runt besökta länder (Ryssland/USA m.fl. kan ge en stor ruta, därför bara om den är mindre än världen).
+    const visited = features.filter((f) => f.alpha2 && byCode[f.alpha2]?.visited);
+    let focus = null;
+    if (visited.length) {
+      const b = path.bounds({ type: 'FeatureCollection', features: visited });
+      const pad = 12;
+      focus = [
+        [Math.max(0, b[0][0] - pad), Math.max(0, b[0][1] - pad)],
+        [Math.min(W, b[1][0] + pad), Math.min(H, b[1][1] + pad)]
+      ];
+      if (focus[1][0] - focus[0][0] > W * 0.8 && focus[1][1] - focus[0][1] > H * 0.8) focus = null;
+    }
+    const dots = (airports || [])
+      .map((a) => ({ a, xy: a.lat != null && a.lon != null ? proj([a.lon, a.lat]) : null }))
+      .filter((d) => d.xy);
+    return { paths, focus, dots };
+  }, [features, byCode, airports]);
+  const paths = geo ? geo.paths : [];
 
   const showTip = (e, p) => {
     const box = e.currentTarget.ownerSVGElement.parentElement.getBoundingClientRect();
@@ -49,9 +66,10 @@ export function WorldMap({ username, countries }) {
           maxZoom={10}
           label="Världskarta med besökta länder"
           onBackgroundClick={() => setTip(null)}
+          focus={geo.focus}
         >
-          {() =>
-            paths.map((p) => {
+          {(k) => [
+            ...paths.map((p) => {
               const c = p.code && byCode[p.code];
               const step = c ? coverageStep(c.visited, c.pct) : 0;
               return (
@@ -65,8 +83,18 @@ export function WorldMap({ username, countries }) {
                   onClick={() => c && navigate(`/u/${username}/map/${p.code}${window.location.search}`)}
                 />
               );
-            })
-          }
+            }),
+            ...geo.dots.map(({ a, xy }) => (
+              <circle
+                key={`d-${a.iata}`}
+                cx={xy[0]}
+                cy={xy[1]}
+                r={3 / Math.sqrt(k)}
+                className="map__dot map__dot--visited"
+                aria-hidden="true"
+              />
+            ))
+          ]}
         </ZoomableSvg>
       )}
       {tip && (

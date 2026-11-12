@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useToast } from '../../components/Toast.jsx';
+import { api } from '../../lib/api.js';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
-import { KINDS, SUB_RATINGS, formatDate, placeLine, todayIso } from '../../lib/format.js';
+import { VisibilityPicker } from '../../components/VisibilityPicker.jsx';
+import { KINDS, SUB_RATINGS, VISIBILITY_LABEL, formatDate, placeLine, todayIso } from '../../lib/format.js';
 import { AirportAutocomplete } from '../../components/AirportAutocomplete.jsx';
 import { StarsInput } from '../../components/StarsInput.jsx';
 import { PhotoPicker } from '../../components/PhotoPicker.jsx';
@@ -13,6 +15,7 @@ import { QuickPick } from './QuickPick.jsx';
 import { Disclosure } from './Disclosure.jsx';
 import { MAX_COMMENT, useCheckinForm, validate } from './useCheckinForm.js';
 import { saveEdit, submitCheckin } from './submitCheckin.js';
+import { loadOfflineList, loaders } from '../../routes.js';
 
 const KIND_HINT = {
   departure: 'Du flög härifrån.',
@@ -38,6 +41,27 @@ function SelectedAirport({ airport, onChange }) {
   );
 }
 
+/** Flygplatsen går inte att byta på en befintlig check-in: erbjud radera och checka in på nytt. */
+function WrongAirport({ id, navigate, toast }) {
+  const redo = async () => {
+    if (!window.confirm('Radera den här check-in:en och börja om med en annan flygplats?')) return;
+    try {
+      await api.deleteCheckin(id);
+      navigate('/checkin', { replace: true });
+    } catch (e) {
+      toast.error(e);
+    }
+  };
+  return (
+    <p className="field__hint mt-0">
+      Fel flygplats?{' '}
+      <button type="button" className="btn btn--ghost btn--sm" onClick={redo}>
+        Radera och checka in igen
+      </button>
+    </p>
+  );
+}
+
 export default function CheckinPage() {
   const { id: editId } = useParams();
   const [params] = useSearchParams();
@@ -49,6 +73,13 @@ export default function CheckinPage() {
   const form = useCheckinForm(editId, preset);
   const { f, set, setTravel } = form;
   const [errors, setErrors] = useState({});
+
+  // Sammanfattningen och offlinelistan hämtas när check-in-sidan öppnas, så att check-in
+  // offline aldrig ger en sida som inte går att ladda (BUG-11, BUG-10).
+  useEffect(() => {
+    loaders.done().catch(() => {});
+    loadOfflineList().catch(() => {});
+  }, []);
   const [saving, setSaving] = useState(null);
 
   if (form.loading) return <PageSkeleton />;
@@ -125,7 +156,10 @@ export default function CheckinPage() {
             />
           </div>
         ) : (
-          <SelectedAirport airport={f.airport} onChange={editing ? null : () => set({ airport: null })} />
+          <>
+            <SelectedAirport airport={f.airport} onChange={editing ? null : () => set({ airport: null })} />
+            {editing && <WrongAirport id={editId} navigate={navigate} toast={toast} />}
+          </>
         )}
 
         {
@@ -222,6 +256,17 @@ export default function CheckinPage() {
                   existing={f.existingPhotos}
                   onRemoveExisting={form.removeExisting}
                 />
+              </Disclosure>
+
+              <Disclosure title="Vem ser den" summary={VISIBILITY_LABEL[f.visibility || form.defaultVisibility]}>
+                <VisibilityPicker
+                  label="Vem ser check-in:en"
+                  value={f.visibility || form.defaultVisibility}
+                  onChange={(visibility) => set({ visibility })}
+                />
+                <span className="field__hint">
+                  Standard och fördröjning ställer du in under Inställningar, Integritet.
+                </span>
               </Disclosure>
 
               <Disclosure

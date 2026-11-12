@@ -3,10 +3,12 @@ import { Avatar, StatRow } from '../../components/ui.jsx';
 import { FollowButton } from '../../components/FollowButton.jsx';
 import { LevelBar, StreakChip } from '../../components/Level.jsx';
 import { ShareButton } from '../../components/ShareButton.jsx';
-import { IconSettings } from '../../assets/icons.jsx';
+import { IconMap, IconSettings } from '../../assets/icons.jsx';
+import { ProfileActions } from './ProfileActions.jsx';
 
-export function ProfileHeader({ profile: p, isMe, onFollowChange }) {
+export function ProfileHeader({ profile: p, isMe, me, onFollowChange }) {
   const st = p.stats || {};
+  const hidden = p.canView === false;
   const name = p.displayName || p.username;
   return (
     <header className="stack">
@@ -40,7 +42,20 @@ export function ProfileHeader({ profile: p, isMe, onFollowChange }) {
             <IconSettings size={18} aria-hidden="true" /> Redigera profil
           </Link>
         ) : (
-          <FollowButton username={p.username} initial={p.followedByMe} onChange={onFollowChange} />
+          <>
+            <FollowButton
+              username={p.username}
+              initial={p.followedByMe}
+              requested={p.followRequested}
+              onChange={onFollowChange}
+            />
+            {me && <ProfileActions username={p.username} />}
+          </>
+        )}
+        {!hidden && (
+          <Link to={`/u/${p.username}/map`} className="btn btn--ghost btn--sm">
+            <IconMap size={18} aria-hidden="true" /> Karta
+          </Link>
         )}
         <ShareButton
           getData={() => ({
@@ -50,17 +65,19 @@ export function ProfileHeader({ profile: p, isMe, onFollowChange }) {
           })}
         />
       </div>
-      <LevelBar info={p.levelInfo} />
-      <StreakChip streak={p.streak} />
-      <StatRow
-        label="Statistik"
-        items={[
-          [st.uniqueAirports ?? 0, 'Flygplatser'],
-          [st.countries ?? 0, 'Länder'],
-          [st.continents ?? 0, 'Kontinenter'],
-          [st.totalCheckins ?? 0, 'Check-ins']
-        ]}
-      />
+      {!hidden && <LevelBar info={p.levelInfo} />}
+      {!hidden && <StreakChip streak={p.streak} />}
+      {!hidden && (
+        <StatRow
+          label="Statistik"
+          items={[
+            [st.uniqueAirports ?? 0, 'Flygplatser'],
+            [st.countries ?? 0, 'Länder'],
+            [st.continents ?? 0, 'Kontinenter'],
+            [st.totalCheckins ?? 0, 'Check-ins']
+          ]}
+        />
+      )}
     </header>
   );
 }

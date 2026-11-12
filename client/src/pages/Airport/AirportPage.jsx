@@ -8,7 +8,8 @@ import { continentName, countryName, formatRating } from '../../lib/format.js';
 import { CheckinList } from '../../components/CheckinList.jsx';
 import { SubRatingBars } from '../../components/SubRatingBars.jsx';
 import { LoungeSection } from '../../components/Lounges.jsx';
-import { PageSkeleton } from '../../components/Skeleton.jsx';
+import { PageSkeleton, SkeletonList } from '../../components/Skeleton.jsx';
+import { Deferred } from '../../components/Deferred.jsx';
 import { EmptyState, ErrorState, Stars, StatRow } from '../../components/ui.jsx';
 import { IconMapPin, IconPlane, IconPlus } from '../../assets/icons.jsx';
 import NotFoundPage from '../NotFound/NotFoundPage.jsx';
@@ -97,57 +98,59 @@ export default function AirportPage() {
         <FriendsVisited friends={airport.friendsVisited} />
       </section>
 
-      <section className="section" aria-labelledby="sub-title">
-        <h2 className="section__title" id="sub-title">
-          Delbetyg
-        </h2>
-        <div className="card">
-          <div className="card__body">
-            <SubRatingBars averages={s.subAverages} />
+      <Deferred fallback={<SkeletonList count={2} />}>
+        <section className="section" aria-labelledby="sub-title">
+          <h2 className="section__title" id="sub-title">
+            Delbetyg
+          </h2>
+          <div className="card">
+            <div className="card__body">
+              <SubRatingBars averages={s.subAverages} />
+            </div>
           </div>
+        </section>
+
+        <section className="section" aria-labelledby="photos-title">
+          <h2 className="section__title" id="photos-title">
+            Foton
+          </h2>
+          <PhotoGallery photos={airport.photos} iata={airport.iata} />
+        </section>
+
+        <LoungeSection iata={airport.iata} lounges={lounges} setLounges={setLounges} />
+
+        <div className="grid grid--2">
+          <section className="section" aria-labelledby="airlines-title">
+            <h2 className="section__title" id="airlines-title">
+              Populära flygbolag
+            </h2>
+            <TopAirlines list={s.topAirlines} />
+          </section>
+          <section className="section" aria-labelledby="class-title">
+            <h2 className="section__title" id="class-title">
+              Reseklasser
+            </h2>
+            <ClassMix mix={s.classMix} />
+          </section>
         </div>
-      </section>
 
-      <section className="section" aria-labelledby="photos-title">
-        <h2 className="section__title" id="photos-title">
-          Foton
-        </h2>
-        <PhotoGallery photos={airport.photos} iata={airport.iata} />
-      </section>
-
-      <LoungeSection iata={airport.iata} lounges={lounges} setLounges={setLounges} />
-
-      <div className="grid grid--2">
-        <section className="section" aria-labelledby="airlines-title">
-          <h2 className="section__title" id="airlines-title">
-            Populära flygbolag
+        <section className="section" aria-labelledby="checkins-title">
+          <h2 className="section__title" id="checkins-title">
+            Check-ins
           </h2>
-          <TopAirlines list={s.topAirlines} />
+          <CheckinList
+            paged={paged}
+            hideAirport
+            empty={
+              <EmptyState icon={IconPlane} title={`Ingen har checkat in på ${airport.iata} ännu`}>
+                <Link to={`/checkin?iata=${airport.iata}`} className="btn btn--primary btn--sm">
+                  Bli först
+                </Link>
+              </EmptyState>
+            }
+          />
         </section>
-        <section className="section" aria-labelledby="class-title">
-          <h2 className="section__title" id="class-title">
-            Reseklasser
-          </h2>
-          <ClassMix mix={s.classMix} />
-        </section>
-      </div>
-
-      <section className="section" aria-labelledby="checkins-title">
-        <h2 className="section__title" id="checkins-title">
-          Check-ins
-        </h2>
-        <CheckinList
-          paged={paged}
-          hideAirport
-          empty={
-            <EmptyState icon={IconPlane} title={`Ingen har checkat in på ${airport.iata} ännu`}>
-              <Link to={`/checkin?iata=${airport.iata}`} className="btn btn--primary btn--sm">
-                Bli först
-              </Link>
-            </EmptyState>
-          }
-        />
-      </section>
+      </Deferred>
     </div>
   );
 }

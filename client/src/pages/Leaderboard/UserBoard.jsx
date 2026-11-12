@@ -24,6 +24,7 @@ const PERIODS = [
   { value: 'year', label: 'År' },
   { value: 'all', label: 'Alltid' }
 ];
+const PERIOD_TEXT = { week: 'denna vecka', month: 'denna månad', year: 'i år' };
 const SCOPES = [
   { value: 'global', label: 'Världen' },
   { value: 'friends', label: 'Vänner' },
@@ -166,6 +167,22 @@ export function UserBoard() {
         <ol className="list" aria-label="Din placering">
           <RankRow row={meRow} unit={m.unit} me pinned />
         </ol>
+      )}
+      {user && data && !data.me && (
+        // Utan värde för perioden: visa ändå en egen rad med uppmaning, så att det finns något att klättra från.
+        <ul className="list" aria-label="Din placering">
+          <li className="list__item list__item--me list__item--pinned" aria-current="true">
+            <span className="rank">-</span>
+            <span className="flex-1 min-w-0">
+              <strong>Du</strong> - 0 {m.unit}
+              {period === 'all' ? '' : ` ${PERIOD_TEXT[period]}`}
+              <span className="block muted text-sm">Checka in för att komma med på listan.</span>
+            </span>
+            <Link to="/checkin" className="btn btn--primary btn--sm">
+              Checka in
+            </Link>
+          </li>
+        </ul>
       )}
     </div>
   );

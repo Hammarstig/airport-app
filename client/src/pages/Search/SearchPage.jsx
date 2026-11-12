@@ -27,7 +27,7 @@ const PLACEHOLDER = {
 };
 
 export default function SearchPage() {
-  useDocumentTitle('Sök');
+  useDocumentTitle('Utforska');
   const qs = useQueryState();
   const navigate = useNavigate();
   const tab = TABS.some((t) => t.value === qs.get('tab')) ? qs.get('tab') : 'airports';
@@ -61,8 +61,10 @@ export default function SearchPage() {
   return (
     <div className="page">
       <header className="page__header">
-        <h1 className="page__title">Sök</h1>
-        <p className="page__subtitle">Flygplatser, recensioner, lounger och resenärer.</p>
+        <h1 className="page__title">Utforska</h1>
+        <p className="page__subtitle">
+          Sök flygplatser, recensioner, lounger och resenärer, eller bläddra bland länder och kategorier.
+        </p>
       </header>
 
       <form role="search" onSubmit={onSubmit} className="stack">

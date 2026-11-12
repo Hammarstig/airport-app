@@ -1,33 +1,34 @@
-import { Suspense, lazy, useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { Layout, RequireAuth } from './components/Layout.jsx';
 import { PageSkeleton } from './components/Skeleton.jsx';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary.jsx';
 import FeedPage from './pages/Feed/FeedPage.jsx';
+import { loadOfflineList, loaders, pages } from './routes.js';
+import { afterLoadIdle, installLinkPrefetch, isStandalone, preloadNavChunks } from './lib/prefetch.js';
 
-// Startsidan (flödet) laddas direkt, övriga sidor delas upp per route.
-const loadCheckin = () => import('./pages/Checkin/CheckinPage.jsx');
-const loadDone = () => import('./pages/Checkin/DonePage.jsx');
-const loadOfflineList = () => import('./data/airports-offline.json');
-const CheckinPage = lazy(loadCheckin);
-const DonePage = lazy(loadDone);
-const SettingsPage = lazy(() => import('./pages/Settings/SettingsPage.jsx'));
-const NotificationsPage = lazy(() => import('./pages/Notifications/NotificationsPage.jsx'));
-const FollowPage = lazy(() => import('./pages/Profile/FollowPage.jsx'));
-const CheckinDetailPage = lazy(() => import('./pages/CheckinDetail/CheckinDetailPage.jsx'));
-const AboutPage = lazy(() => import('./pages/About/AboutPage.jsx'));
-const AirportPage = lazy(() => import('./pages/Airport/AirportPage.jsx'));
-const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage.jsx'));
-const MapPage = lazy(() => import('./pages/Map/MapPage.jsx'));
-const LeaderboardPage = lazy(() => import('./pages/Leaderboard/LeaderboardPage.jsx'));
-const SearchPage = lazy(() => import('./pages/Search/SearchPage.jsx'));
-const ExplorePage = lazy(() => import('./pages/Explore/ExplorePage.jsx'));
-const CountryPage = lazy(() => import('./pages/Country/CountryPage.jsx'));
-const TopPage = lazy(() => import('./pages/Top/TopPage.jsx'));
-const LoungePage = lazy(() => import('./pages/Lounge/LoungePage.jsx'));
-const LoginPage = lazy(() => import('./pages/Auth/LoginPage.jsx'));
-const RegisterPage = lazy(() => import('./pages/Auth/RegisterPage.jsx'));
-const NotFoundPage = lazy(() => import('./pages/NotFound/NotFoundPage.jsx'));
+// Startsidan (flödet) laddas direkt, övriga sidor delas upp per route (se routes.js).
+const {
+  checkin: CheckinPage,
+  done: DonePage,
+  settings: SettingsPage,
+  notifications: NotificationsPage,
+  follow: FollowPage,
+  checkinDetail: CheckinDetailPage,
+  about: AboutPage,
+  airport: AirportPage,
+  profile: ProfilePage,
+  map: MapPage,
+  leaderboard: LeaderboardPage,
+  search: SearchPage,
+  country: CountryPage,
+  top: TopPage,
+  lounge: LoungePage,
+  login: LoginPage,
+  register: RegisterPage,
+  moderation: ModerationPage,
+  notFound: NotFoundPage
+} = pages;
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -38,22 +39,23 @@ function ScrollToTop() {
 }
 
 /**
- * Förladda koden för check-in-flödet när webbläsaren är ledig efter första renderingen, så att
- * check-in och sammanfattningen fungerar offline även innan service workern har cachat (BUG-11).
+ * Efter load och när webbläsaren är ledig: förhämta menyns sidor, och länkförhämtning vid
+ * hover/tryck. Offlinelistan förladdas bara i installerad app (check-in-sidan laddar den själv).
+ * Inget av detta konkurrerar med första laddningen.
  */
-function usePreloadCritical() {
-  useEffect(() => {
-    const run = () =>
-      Promise.all([loadCheckin(), loadDone(), loadOfflineList()]).catch((e) =>
-        console.warn('Förladdning misslyckades:', e.message)
-      );
-    if ('requestIdleCallback' in window) {
-      const id = window.requestIdleCallback(run, { timeout: 3000 });
-      return () => window.cancelIdleCallback(id);
-    }
-    const t = setTimeout(run, 1500);
-    return () => clearTimeout(t);
-  }, []);
+function usePrefetch() {
+  useEffect(() => installLinkPrefetch(), []);
+  useEffect(
+    () =>
+      afterLoadIdle(() => {
+        preloadNavChunks();
+        if (isStandalone()) {
+          loaders.done().catch(() => {});
+          loadOfflineList().catch(() => {});
+        }
+      }),
+    []
+  );
 }
 
 function Page({ children }) {
@@ -69,7 +71,7 @@ const s = (el) => <Page>{el}</Page>;
 const auth = (el) => s(<RequireAuth>{el}</RequireAuth>);
 
 export function App() {
-  usePreloadCritical();
+  usePrefetch();
   return (
     <>
       <ScrollToTop />
@@ -85,13 +87,14 @@ export function App() {
           <Route path="u/:username/followers" element={s(<FollowPage list="followers" />)} />
           <Route path="u/:username/following" element={s(<FollowPage list="following" />)} />
           <Route path="about" element={s(<AboutPage />)} />
+          <Route path="moderation" element={auth(<ModerationPage />)} />
           <Route path="airport/:iata" element={s(<AirportPage />)} />
           <Route path="u/:username" element={s(<ProfilePage />)} />
           <Route path="u/:username/map" element={s(<MapPage />)} />
           <Route path="u/:username/map/:country" element={s(<MapPage />)} />
           <Route path="leaderboard" element={s(<LeaderboardPage />)} />
           <Route path="search" element={s(<SearchPage />)} />
-          <Route path="explore" element={s(<ExplorePage />)} />
+          <Route path="explore" element={s(<SearchPage />)} />
           <Route path="country/:code" element={s(<CountryPage />)} />
           <Route path="top/:category" element={s(<TopPage />)} />
           <Route path="lounge/:id" element={s(<LoungePage />)} />

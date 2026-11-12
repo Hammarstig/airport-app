@@ -1,3 +1,4 @@
+import { startTransition, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatRating, hueFor, initials, ratingTone, KIND_LABEL } from '../lib/format.js';
 import { IconArrival, IconDeparture, IconTransfer, IconClock, IconPlane } from '../assets/icons.jsx';
@@ -34,10 +35,9 @@ export function Avatar({ user, size }) {
     <span
       className={`avatar${size ? ` avatar--${size}` : ''}`}
       style={{ '--hue': hueFor(user?.username || name) }}
+      data-initials={initials(name)}
       aria-hidden="true"
-    >
-      {initials(name)}
-    </span>
+    />
   );
 }
 
@@ -113,14 +113,26 @@ export function Stat({ value, label }) {
   );
 }
 
+/**
+ * Flikrad. Vald flik markeras direkt (synlig respons inom samma bildruta), medan bytet av innehåll
+ * körs som en transition så att tunga listor inte blockerar interaktionen.
+ */
 export function Tabs({ tabs, value, onChange, label }) {
+  const [shown, setShown] = useState(null);
+  const current = shown ?? value;
+  useEffect(() => setShown(null), [value]);
+  const select = (v) => {
+    setShown(v);
+    // Låt webbläsaren rita den valda fliken först, byt sedan innehåll som en transition.
+    requestAnimationFrame(() => setTimeout(() => startTransition(() => onChange(v)), 0));
+  };
   const onKey = (e, i) => {
     let next = null;
     if (e.key === 'ArrowRight') next = (i + 1) % tabs.length;
     if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
     if (next !== null) {
       e.preventDefault();
-      onChange(tabs[next].value);
+      select(tabs[next].value);
       const el = e.currentTarget.parentElement.children[next];
       el && el.focus();
     }
@@ -128,7 +140,7 @@ export function Tabs({ tabs, value, onChange, label }) {
   return (
     <div className="tabs" role="tablist" aria-label={label}>
       {tabs.map((t, i) => {
-        const active = t.value === value;
+        const active = t.value === current;
         return (
           <button
             key={t.value}
@@ -138,7 +150,7 @@ export function Tabs({ tabs, value, onChange, label }) {
             aria-selected={active}
             tabIndex={active ? 0 : -1}
             className={`tab${active ? ' tab--active' : ''}`}
-            onClick={() => onChange(t.value)}
+            onClick={() => select(t.value)}
             onKeyDown={(e) => onKey(e, i)}
           >
             {t.label}
