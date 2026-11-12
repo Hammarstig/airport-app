@@ -1,24 +1,28 @@
 import jwt from 'jsonwebtoken';
 import { HttpError } from './util.js';
 
-export function signToken(secret, user) {
-  return jwt.sign({ sub: String(user.id), username: user.username }, secret, { expiresIn: '30d', algorithm: 'HS256' });
-}
-
-/** Sätter req.user = {id, username} om giltig token finns. Ogiltig token ignoreras (anonym). */
+/**
+ * Sätter req.user = { id, username, sid } om access-token är giltig och sessionen aktiv.
+ * Annars är anropet anonymt och req.authError anger varför (token_expired, session_revoked).
+ */
 export function optionalAuth(secret, db) {
-  const findUser = db.prepare('SELECT id, username FROM users WHERE id = ?');
+  const findSession = db.prepare(`SELECT s.user_id, s.revoked_at, s.expires_at, u.username
+    FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?`);
   return (req, _res, next) => {
     req.user = null;
-    const hdr = req.get('authorization') || '';
-    const m = /^Bearer\s+(.+)$/i.exec(hdr);
+    req.authError = null;
+    const m = /^Bearer\s+(.+)$/i.exec(req.get('authorization') || '');
     if (m) {
       try {
         const payload = jwt.verify(m[1].trim(), secret, { algorithms: ['HS256'] });
-        const u = findUser.get(Number(payload.sub));
-        if (u) req.user = { id: u.id, username: u.username };
-      } catch {
-        /* ogiltig/utgången token -> anonym */
+        const s = typeof payload.sid === 'string' ? findSession.get(payload.sid) : null;
+        if (s && !s.revoked_at && s.expires_at > new Date().toISOString() && String(s.user_id) === payload.sub) {
+          req.user = { id: s.user_id, username: s.username, sid: payload.sid };
+        } else {
+          req.authError = 'session_revoked';
+        }
+      } catch (e) {
+        req.authError = e?.name === 'TokenExpiredError' ? 'token_expired' : 'invalid_token';
       }
     }
     next();
@@ -26,7 +30,10 @@ export function optionalAuth(secret, db) {
 }
 
 export function requireAuth(req, _res, next) {
-  if (!req.user) return next(new HttpError(401, 'Inloggning krävs'));
+  if (!req.user) {
+    return next(new HttpError(401, req.authError === 'token_expired' ? 'Inloggningen har gått ut' : 'Inloggning krävs',
+      req.authError ? { code: req.authError } : {}));
+  }
   next();
 }
 

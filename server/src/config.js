@@ -32,6 +32,15 @@ export function loadConfig(env = process.env) {
     corsOrigin: env.CORS_ORIGIN || null,
     // Topplistor för perioder (vecka/månad/år) cachas en kort stund; tid i ms.
     rankingCacheMs: env.RANKING_CACHE_MS !== undefined ? Math.max(0, Number(env.RANKING_CACHE_MS) || 0) : (test ? 0 : 30_000),
+    // Moderatorer (användarnamn, kommaseparerade) som får hantera rapporter.
+    moderators: (env.MODERATORS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean),
+    // Web Push (VAPID). Saknas nycklarna genereras de i utveckling till data/vapid.json; i produktion är push avstängt.
+    vapid: {
+      publicKey: env.VAPID_PUBLIC_KEY || null,
+      privateKey: env.VAPID_PRIVATE_KEY || null,
+      subject: env.VAPID_SUBJECT || 'mailto:admin@gatelog.invalid',
+      file: resolve(here, '../data/vapid.json'),
+    },
     logRequests: env.LOG_REQUESTS ? env.LOG_REQUESTS !== '0' : !test,
     authRateLimit: { windowMs: num(env.AUTH_RATE_WINDOW_MS, 15 * MIN), max: num(env.AUTH_RATE_MAX, test ? 100000 : 100) },
     writeRateLimits: {

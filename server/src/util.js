@@ -1,10 +1,14 @@
 // Gemensamma hjälpfunktioner: fel, validering, mappning av rader till API-objekt.
 
 export class HttpError extends Error {
-  constructor(status, message) {
+  /** @param {number} status @param {string} message @param {object} [extra] fält som läggs till i felsvaret (t.ex. code) */
+  constructor(status, message, extra = {}) {
     super(message);
     this.status = status;
+    this.extra = extra;
   }
+  set code(v) { this.extra = { ...this.extra, code: v }; }
+  get code() { return this.extra?.code; }
 }
 export const bad = (msg) => new HttpError(400, msg);
 export const notFound = (msg = 'Hittades inte') => new HttpError(404, msg);
@@ -18,6 +22,18 @@ export const h = (fn) => (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * Uppräknad frågeparameter: saknas den ges `def`, okänt värde ger 400 med listan över giltiga värden.
+ */
+export function enumParam(query, name, allowed, def) {
+  const v = query[name];
+  if (v === undefined || v === '') return def;
+  if (typeof v !== 'string' || !allowed.includes(v)) {
+    throw new HttpError(400, `${name} måste vara en av ${allowed.join(', ')}`, { allowed });
+  }
+  return v;
+}
 
 export function round2(x) {
   return x == null ? null : Math.round(x * 100) / 100;
@@ -138,7 +154,8 @@ export function airportFrom(row, p = '') {
 }
 
 export const USER_COLS = (t, p) =>
-  `${t}.username AS ${p}username, ${t}.display_name AS ${p}display_name, ${t}.home_iata AS ${p}home_iata,
+  `${t}.username AS ${p}username, ${t}.display_name AS ${p}display_name,
+   CASE WHEN ${t}.hide_home = 1 THEN NULL ELSE ${t}.home_iata END AS ${p}home_iata,
    IFNULL((SELECT us.level FROM user_stats us WHERE us.user_id = ${t}.id), 1) AS ${p}level`;
 
 export function userFrom(row, p = '') {
@@ -196,7 +213,7 @@ export function loungeFrom(row) {
 export const CHECKIN_SELECT = `
   SELECT c.id, c.visited_on, c.kind, c.rating, c.r_security, c.r_cleanliness, c.r_food, c.r_wifi,
          c.r_transfer, c.r_lounges, c.comment, c.created_at, c.user_id,
-         c.travel_class, c.flight_number, c.edited_at, al.iata AS al_iata, al.name AS al_name,
+         c.travel_class, c.flight_number, c.edited_at, c.visibility, IFNULL(c.publish_at, c.created_at) AS publish_at, al.iata AS al_iata, al.name AS al_name,
          lo.id AS lo_id, lo.name AS lo_name, lo.terminal AS lo_terminal,
          ${USER_COLS('u', 'u_')}, ${AIRPORT_COLS('a', 'a_')},
          (SELECT COUNT(*) FROM likes l WHERE l.checkin_id = c.id) AS like_count,
@@ -223,6 +240,8 @@ export function checkinFrom(row) {
     commentCount: row.comment_count ?? 0,
     createdAt: row.created_at,
     editedAt: row.edited_at ?? null,
+    visibility: row.visibility ?? 'public',
+    publishAt: row.publish_at ?? row.created_at,
     airline: row.al_iata ? { iata: row.al_iata, name: row.al_name } : null,
     travelClass: row.travel_class ?? null,
     lounge: row.lo_id ? { id: row.lo_id, name: row.lo_name, terminal: row.lo_terminal ?? null } : null,

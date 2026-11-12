@@ -1,3 +1,4 @@
 data/uploads/
 data/*.db
 data/*.db-*
+data/vapid.json
