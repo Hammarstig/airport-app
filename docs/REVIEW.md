@@ -232,7 +232,6 @@ Backend är fortfarande utmärkt (p95 under 30 ms vid 300 000 check-ins). Klient
 - Ingen LICENSE i roten (påpekat i runda 2).
 - `docs/TEST-REPORT.md` är från runda 2 (2026-11-07) och nämner BUG-09/10/11 som öppna. Test-agenten arbetar parallellt, men dokumentationen i HEAD motsäger koden.
 - Död fil `server/src/db.js`.
-- `tests/e2e/v3.spec.js.wip` ligger i repot med filändelse som inte körs.
 
 **Åtgärder för 9+**
 1. Lägg till LICENSE (eller "All rights reserved" uttryckligen). Ägare: Bygg.
