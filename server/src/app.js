@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { openDb } from './db/index.js';
 import { loadConfig, resolveSecret } from './config.js';
 import { optionalAuth, rateLimit } from './auth.js';
@@ -21,6 +21,9 @@ import accountRoutes from './routes/account.js';
 import photoRoutes, { photoStore, uploadsStatic } from './routes/photos.js';
 import pushRoutes from './routes/push.js';
 import inviteRoutes from './routes/invites.js';
+import importRoutes from './routes/imports.js';
+import cardRoutes from './routes/cards.js';
+import { ogMeta, injectHead } from './og.js';
 import { createPushService, resolveVapid } from './push.js';
 import { setPushService } from './notify.js';
 
@@ -118,7 +121,9 @@ export function createApp(opts = {}) {
     next();
   });
   app.use('/uploads', uploadsStatic(photos.uploadDir));
-  app.use(express.json({ limit: '50kb' }));
+  // JSON-gräns 50 kB, utom för import av resehistorik som har egen parser (1 MB).
+  const json = express.json({ limit: '50kb' });
+  app.use((req, res, next) => (req.path === '/api/me/imports' ? next() : json(req, res, next)));
   app.use('/api', optionalAuth(secret, database));
 
   app.use('/api/auth', rateLimit({ ...(opts.authRateLimit ?? cfg.authRateLimit), name: 'auth' }));
@@ -141,8 +146,8 @@ export function createApp(opts = {}) {
   app.locals.push = push;
 
   const ctx = { db: database, secret, photos, limiters, config: cfg, push };
-  for (const routes of [authRoutes, airportRoutes, loungeRoutes, checkinRoutes, userRoutes, searchRoutes,
-    exploreRoutes, mapRoutes, rankingRoutes, socialRoutes, accountRoutes, photoRoutes, pushRoutes, inviteRoutes]) {
+  for (const routes of [cardRoutes, authRoutes, airportRoutes, loungeRoutes, checkinRoutes, userRoutes, searchRoutes,
+    exploreRoutes, mapRoutes, rankingRoutes, socialRoutes, accountRoutes, photoRoutes, pushRoutes, inviteRoutes, importRoutes]) {
     app.use('/api', routes(ctx));
   }
 
@@ -152,10 +157,16 @@ export function createApp(opts = {}) {
     // Hashade byggfiler och typsnitt ändras aldrig under samma namn.
     app.use(['/assets', '/fonts'], express.static(staticDir, { index: false, maxAge: '1y', immutable: true, fallthrough: true }));
     app.use(express.static(staticDir, { index: false, maxAge: '1h' }));
+    // SPA-fallback. Delade sidor (/c/:id, /u/:username, /airport/:iata) får Open Graph-taggar i <head>.
+    let indexHtml = null;
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
-      res.set('Cache-Control', 'no-cache');
-      res.sendFile('index.html', { root: staticDir });
+      indexHtml ??= readFileSync(`${staticDir}/index.html`, 'utf8');
+      const base = cfg.publicUrl ?? `${req.protocol}://${req.get('host')}`;
+      let meta = null;
+      try { meta = ogMeta(database, req.path); } catch { meta = null; }
+      res.set({ 'Cache-Control': 'no-cache', 'Content-Type': 'text/html; charset=utf-8' });
+      res.send(injectHead(indexHtml, meta, base, req.path));
     });
   }
 

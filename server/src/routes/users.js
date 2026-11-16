@@ -169,6 +169,58 @@ export default function userRoutes({ db }) {
     res.json(cardData(u, req.query.year, req.user?.id));
   }));
 
+  // Årsöversikt ("Ditt 2026"): statistikkortet för året plus månader, nya länder och höjdpunkter.
+  r.get('/users/:username/year/:year', h((req, res) => {
+    const u = userOr404(req.params.username);
+    requireProfileAccess(db, req.user?.id, u);
+    const year = Number(req.params.year);
+    if (!Number.isInteger(year) || year < 1900 || year > 2100) throw bad('year måste vara ett årtal');
+    const card = cardData(u, String(year), req.user?.id);
+    const vis = checkinVisible(req.user?.id);
+    const from = `${year}-01-01`;
+    const to = `${year}-12-31`;
+    const vc = `FROM checkins c JOIN users u ON u.id = c.user_id JOIN airports a ON a.iata = c.iata
+      WHERE c.user_id = ? AND ${vis.sql}`;
+    const p = [u.id, ...vis.params];
+    const firstVisits = db.prepare(`SELECT c.iata, a.country, MIN(c.visited_on) AS first ${vc} GROUP BY c.iata`).all(...p);
+    const months = Array.from({ length: 12 }, (_, i) => ({ month: `${year}-${String(i + 1).padStart(2, '0')}`, checkins: 0, newAirports: 0 }));
+    for (const row of db.prepare(`SELECT substr(c.visited_on, 1, 7) AS m, COUNT(*) AS n ${vc} AND c.visited_on BETWEEN ? AND ? GROUP BY m`)
+      .all(...p, from, to)) months[Number(row.m.slice(5)) - 1].checkins = row.n;
+    const countryFirst = new Map();
+    for (const f of firstVisits) {
+      if (f.first >= from && f.first <= to) months[Number(f.first.slice(5, 7)) - 1].newAirports++;
+      if (f.country && (!countryFirst.has(f.country) || f.first < countryFirst.get(f.country))) countryFirst.set(f.country, f.first);
+    }
+    const newCountries = [...countryFirst].filter(([, d]) => d >= from && d <= to).sort((a, b) => (a[1] < b[1] ? -1 : 1))
+      .map(([code, firstVisit]) => ({ code, name: countryNameSv(code), firstVisit }));
+    const edge = (dir) => db.prepare(`SELECT ${AIRPORT_COLS('a', '')}, c.visited_on ${vc} AND c.visited_on BETWEEN ? AND ?
+      ORDER BY c.visited_on ${dir}, c.id ${dir} LIMIT 1`).get(...p, from, to);
+    const first = edge('ASC');
+    const last = edge('DESC');
+    const fav = db.prepare(`SELECT ${AIRPORT_COLS('a', '')}, AVG(c.rating) AS avg_rating, COUNT(*) AS n ${vc}
+      AND c.visited_on BETWEEN ? AND ? AND c.rating IS NOT NULL GROUP BY c.iata ORDER BY avg_rating DESC, n DESC, a.iata LIMIT 1`)
+      .get(...p, from, to);
+    const badges = getBadges(db, u.id);
+    const badgesEarned = [];
+    for (const b of badges) {
+      for (const t of b.tiers) {
+        if (t.earnedAt && t.earnedAt.startsWith(String(year))) badgesEarned.push({ id: b.id, name: b.name, tier: t.tier, earnedAt: t.earnedAt });
+      }
+    }
+    const challengesCompleted = db.prepare("SELECT COUNT(*) AS n FROM user_challenges WHERE user_id = ? AND month LIKE ?")
+      .get(u.id, `${year}-%`).n;
+    res.json({
+      ...card,
+      months,
+      newCountries,
+      firstCheckin: first ? { airport: airportFrom(first), visitedOn: first.visited_on } : null,
+      lastCheckin: last ? { airport: airportFrom(last), visitedOn: last.visited_on } : null,
+      favoriteAirport: fav ? { airport: airportFrom(fav), avgRating: round2(fav.avg_rating), checkins: fav.n } : null,
+      badgesEarned: badgesEarned.sort((a, b) => (a.earnedAt < b.earnedAt ? -1 : 1)),
+      challengesCompleted,
+    });
+  }));
+
   r.get('/users/:username/card.svg', h((req, res) => {
     const u = userOr404(req.params.username);
     requireProfileAccess(db, req.user?.id, u);

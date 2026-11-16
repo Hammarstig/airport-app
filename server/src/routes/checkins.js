@@ -280,7 +280,8 @@ export default function checkinRoutes({ db, photos, limiters }) {
     const iata = normIata(req.query.iata) || null;
     if (iata && !/^[A-Z]{3}$/.test(iata)) throw bad('iata måste vara en IATA-kod med tre bokstäver');
     const vis = checkinVisible(req.user?.id);
-    const where = ['(? IS NULL OR c.iata = ?)', vis.sql];
+    // Importerad historik visas inte i flöden (den skulle annars dränka vänflödet).
+    const where = ["c.source <> 'import'", '(? IS NULL OR c.iata = ?)', vis.sql];
     const params = [iata, iata, ...vis.params];
     if (scope === 'mine') {
       where.push('c.user_id = ?');

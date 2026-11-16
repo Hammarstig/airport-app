@@ -213,7 +213,7 @@ export function loungeFrom(row) {
 export const CHECKIN_SELECT = `
   SELECT c.id, c.visited_on, c.kind, c.rating, c.r_security, c.r_cleanliness, c.r_food, c.r_wifi,
          c.r_transfer, c.r_lounges, c.comment, c.created_at, c.user_id,
-         c.travel_class, c.flight_number, c.edited_at, c.visibility, IFNULL(c.publish_at, c.created_at) AS publish_at, al.iata AS al_iata, al.name AS al_name,
+         c.travel_class, c.flight_number, c.edited_at, c.visibility, c.source, IFNULL(c.publish_at, c.created_at) AS publish_at, al.iata AS al_iata, al.name AS al_name,
          lo.id AS lo_id, lo.name AS lo_name, lo.terminal AS lo_terminal,
          ${USER_COLS('u', 'u_')}, ${AIRPORT_COLS('a', 'a_')},
          (SELECT COUNT(*) FROM likes l WHERE l.checkin_id = c.id) AS like_count,
@@ -241,6 +241,7 @@ export function checkinFrom(row) {
     createdAt: row.created_at,
     editedAt: row.edited_at ?? null,
     visibility: row.visibility ?? 'public',
+    source: row.source ?? 'app',
     publishAt: row.publish_at ?? row.created_at,
     airline: row.al_iata ? { iata: row.al_iata, name: row.al_name } : null,
     travelClass: row.travel_class ?? null,
