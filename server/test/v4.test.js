@@ -353,3 +353,24 @@ describe('stammisar, utmaningar, import, delning och årsöversikt', () => {
     assert.equal((await s.api('GET', `/api/users/utmanare/year/${year}`)).status, 403, 'privat profil');
   });
 });
+
+describe('id återanvänds inte (BUG-12)', () => {
+  test('raderad check-in och kommentar får inte sitt id återanvänt', async () => {
+    const s = await startServer();
+    try {
+      const a = await s.register('idett');
+      const b = await s.register('idtva');
+      const c1 = (await s.api('POST', '/api/checkins', { token: a, body: { ...ok, iata: 'GOT' } })).body;
+      const m1 = (await s.api('POST', `/api/checkins/${c1.id}/comments`, { token: a, body: { body: 'x' } })).body;
+      await s.api('DELETE', `/api/comments/${m1.id}`, { token: a });
+      await s.api('DELETE', `/api/checkins/${c1.id}`, { token: a });
+      const c2 = (await s.api('POST', '/api/checkins', { token: b, body: { ...ok, iata: 'ARN' } })).body;
+      const m2 = (await s.api('POST', `/api/checkins/${c2.id}/comments`, { token: b, body: { body: 'y' } })).body;
+      assert.ok(c2.id > c1.id);
+      assert.ok(m2.id > m1.id);
+      assert.equal((await s.api('GET', `/api/checkins/${c1.id}`)).status, 404);
+    } finally {
+      s.close();
+    }
+  });
+});

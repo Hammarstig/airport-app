@@ -26,10 +26,21 @@ export const SCHEMA_VERSION = MIGRATIONS.length;
 function migrate(db, opts) {
   const current = db.prepare('PRAGMA user_version').get().user_version;
   for (let v = current; v < MIGRATIONS.length; v++) {
-    transaction(db, () => {
-      MIGRATIONS[v](db, opts);
-      db.exec(`PRAGMA user_version = ${v + 1}`);
-    });
+    const m = MIGRATIONS[v];
+    // Ombyggnad av tabeller kräver att främmande nycklar är av (går inte att ändra inne i en transaktion).
+    if (m.noForeignKeys) db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      transaction(db, () => {
+        m(db, opts);
+        if (m.noForeignKeys) {
+          const broken = db.prepare('PRAGMA foreign_key_check').all();
+          if (broken.length) throw new Error(`Migrering ${v + 1} bröt främmande nycklar: ${JSON.stringify(broken.slice(0, 3))}`);
+        }
+        db.exec(`PRAGMA user_version = ${v + 1}`);
+      });
+    } finally {
+      if (m.noForeignKeys) db.exec('PRAGMA foreign_keys = ON');
+    }
   }
 }
 

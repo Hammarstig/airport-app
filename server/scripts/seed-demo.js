@@ -6,6 +6,8 @@ import { openDb, transaction } from '../src/db/index.js';
 import { loadConfig } from '../src/config.js';
 import { syncBadges } from '../src/badges.js';
 import { notify, notifyHomeVisit } from '../src/notify.js';
+import { updateMayor } from '../src/regulars.js';
+import { syncChallenges } from '../src/challenges.js';
 
 const PASSWORD = 'demo1234';
 
@@ -194,7 +196,27 @@ export function seedDemo(db) {
     db.prepare("INSERT INTO follows (follower_id, followee_id, created_at, status) VALUES (?, ?, ?, 'pending')").run(ids.mads, ids.lena, stamp('2026-10-30'));
     notify(db, { userId: ids.lena, type: 'follow_request', actorId: ids.mads });
 
+    // Importerad historik (sarah, 2025) som om den kom från en CSV-export.
+    const batch = 'demo00import0001';
+    const insImp = db.prepare(`INSERT INTO checkins (user_id, iata, visited_on, kind, created_at, airline_iata, visibility, publish_at, source, import_batch)
+      VALUES (?, ?, ?, ?, ?, ?, 'public', ?, 'import', ?)`);
+    const impNow = new Date().toISOString();
+    for (const [iata, date, kind] of [['LHR', '2025-03-02', 'departure'], ['EDI', '2025-03-02', 'arrival'], ['EDI', '2025-03-06', 'departure'],
+      ['LHR', '2025-03-06', 'arrival'], ['LHR', '2025-12-22', 'departure'], ['ARN', '2025-12-22', 'arrival']]) {
+      insImp.run(ids.sarah, iata, date, kind, impNow, 'BA', impNow, batch);
+    }
+    db.prepare("INSERT INTO import_batches (id, user_id, format, rows, imported, created_at) VALUES (?, ?, 'flights', 3, 6, ?)")
+      .run(batch, ids.sarah, impNow);
+
+    // Inbjudan från oliver (kod som går att använda i demo: /register?ref=GATELGDEMX)
+    db.prepare(`INSERT OR REPLACE INTO invites (code, user_id, max_uses, created_at, expires_at) VALUES ('GATELGDEMX', ?, 100, ?, ?)`)
+      .run(ids.oliver, impNow, new Date(Date.now() + 90 * 86400_000).toISOString());
+
     for (const u of USERS) syncBadges(db, ids[u.username], { notify: true, groupKey: 'badge:seed' });
+    // Stammisar och månadsutmaningar räknas fram från demodata.
+    for (const { iata } of db.prepare('SELECT DISTINCT iata FROM checkins').all()) updateMayor(db, iata);
+    const month = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date()).slice(0, 7);
+    for (const u of USERS) syncChallenges(db, ids[u.username], month);
     db.prepare("UPDATE notifications SET read = 1 WHERE user_id = ? AND type = 'badge'").run(ids.oliver);
   });
   return { users: USERS.length, checkins: CHECKINS.length + STREAK.length };
