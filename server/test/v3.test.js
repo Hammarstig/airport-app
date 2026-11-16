@@ -348,6 +348,10 @@ describe('blockering, rapporter och moderering', () => {
     assert.deepEqual(open.body.map((x) => x.type), ['user'], 'båda rapporterna om kommentaren avslutades');
     const dis = await s.api('POST', `/api/moderation/reports/${ru.body.id}`, { token: t.moddo, body: { action: 'dismiss' } });
     assert.equal(dis.body.status, 'dismissed');
+    const log = await s.api('GET', '/api/moderation/log', { token: t.moddo });
+    assert.deepEqual(log.body.map((x) => [x.moderator, x.action, x.targetType]), [['moddo', 'dismiss', 'user'], ['moddo', 'remove_content', 'comment']]);
+    assert.equal(log.body[1].detail.body, 'Elak kommentar', 'raderat innehåll finns kvar i loggen');
+    assert.equal((await s.api('GET', '/api/moderation/log', { token: t.olle })).status, 403);
   });
 });
 

@@ -1,4 +1,4 @@
-# Gatelog API (v3)
+# Gatelog API (v4)
 
 Aktuell referens för alla vägar. Historik och brytande ändringar: [CHANGELOG.md](CHANGELOG.md).
 Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker varje väg.
@@ -48,7 +48,7 @@ Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker var
   "travelClass": "economy" | "premium_economy" | "business" | "first" | null,
   "lounge": { "id": 4, "name": "SAS Lounge", "terminal": null } | null,
   "flightNumber": "SK1421" | null, "photos": Photo[],
-  "visibility": "public" | "friends" | "private", "publishAt": "ISO",
+  "visibility": "public" | "friends" | "private", "publishAt": "ISO", "source": "app" | "import",
   "createdAt": "ISO", "editedAt": "ISO" | null }
 
 // Photo
@@ -78,10 +78,10 @@ Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker var
 ## Sessioner
 | Metod | Väg | Body | Svar |
 |---|---|---|---|
-| POST | /auth/register | `{ username, password, displayName?, homeIata? }` | 201 `{ token, user, expiresIn }` + cookie |
+| POST | /auth/register | `{ username, password, displayName?, homeIata?, privacy?, ref? }` | 201 `{ token, user, expiresIn, settings, invitedBy }` + cookie |
 | POST | /auth/login | `{ username, password }` | `{ token, user, expiresIn }` + cookie (401 vid fel) |
 | POST | /auth/refresh | - (cookie) | `{ token, user, expiresIn }`, roterar cookien |
-| POST | /auth/logout | - | 204, återkallar aktuell session och rensar cookien |
+| POST | /auth/logout | - | 204, återkallar den egna sessionen (från access-token, eller cookie vars hemlighet verifieras) och rensar cookien |
 | POST | /auth/logout-all | - (auth) | 204, återkallar alla sessioner |
 | GET | /me/sessions | - | `[{ id, createdAt, lastUsedAt, client, current }]` |
 | DELETE | /me/sessions/:id | - | 204 |
@@ -90,6 +90,8 @@ Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker var
 - `user` är UserSummary plus `isModerator`.
 - `token` är en access-token (JWT, HS256) som gäller i 15 minuter (`expiresIn: 900`) och bär sessionens id. Sessionen kontrolleras vid varje anrop, så utloggning och lösenordsbyte gäller direkt.
 - Cookien `gl_refresh` är `HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=30 dagar` och `Secure` i produktion. Varje refresh ger en ny cookie. Föregående token godtas i 30 sekunder (flera flikar); därefter återkallar en återanvänd token hela sessionen.
+- **Nya konton** får skyddade standardval: `publishDelayHours: 1` och `hideHomeAirport: true`. `privacy: { isPrivate?, defaultVisibility?, publishDelayHours?, hideHomeAirport?, notifyHomeVisits? }` ändrar dem direkt vid registrering; svaret visar resultatet i `settings`. `ref` är en inbjudningskod (se [Inbjudningar](#inbjudningar)); `invitedBy` är den inbjudandes användarnamn eller null.
+- **Misslyckade inloggningar** spärras per konto+IP (10 per 15 min) och per konto (50 per 15 min): 429 med `Retry-After`, även med rätt lösenord. Lyckad inloggning nollställer konto+IP-räknaren.
 - `username`: 3-20 tecken `[a-z0-9_]` (gemenas). Lösenord: 8-200 tecken, inte lika med användarnamnet och inte ett vanligt lösenord. 409 om användarnamnet är upptaget.
 
 ## Eget konto
@@ -108,7 +110,8 @@ Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker var
 { "isPrivate": false, "defaultVisibility": "public", "publishDelayHours": 0 | 1 | 24 | 168,
   "hideHomeAirport": false, "notifyHomeVisits": true,
   "push": { "follow": true, "follow_request": true, "follow_accepted": true, "comment": true,
-            "like": true, "badge": true, "home_visit": true, "overtaken": true } }
+            "like": true, "badge": true, "home_visit": true, "overtaken": true, "invite_accepted": true,
+            "mayor_gained": true, "mayor_lost": true, "challenge_completed": true } }
 ```
 Görs profilen publik godkänns väntande följförfrågningar.
 
@@ -117,7 +120,9 @@ Görs profilen publik godkänns väntande följförfrågningar.
 |---|---|---|
 | GET | /airports?q=&country=&continent=&type=&minRating=&visited=&sort=&limit=20&offset=0 | `[AirportSummary & { countryName, matchedOn, avgRating, ratingCount, checkins }]` |
 | GET | /airports/nearby?lat=&lon=&limit=10&radiusKm=500&scope=scheduled\|all | `[AirportSummary & { countryName, distanceKm }]` närmast först |
-| GET | /airports/:iata | AirportSummary & `{ countryName, stats, lounges: Lounge[], photos: Photo[] (12), onMyWishlist, myVisits, friendsVisited: UserSummary[] (10) }` |
+| GET | /airports/:iata | AirportSummary & `{ countryName, mayor, stats, lounges: Lounge[], photos: Photo[] (12), onMyWishlist, myVisits, friendsVisited: UserSummary[] (10) }` |
+| GET | /airports/:iata/regulars?days=60 | se [Stammisar](#stammisar-borgmästare) |
+| GET | /airports/:iata/card.svg | delningskort, se [Delning](#delning-och-open-graph) |
 | GET | /airports/:iata/checkins?limit&offset | `Checkin[]` efter `visitedOn`, nyast först |
 | GET | /airports/:iata/lounges | `Lounge[]` |
 | POST | /airports/:iata/lounges | `{ name, terminal? }` -> 201 Lounge (auth; 409 om namnet finns) |
@@ -137,7 +142,8 @@ Görs profilen publik godkänns väntande följförfrågningar.
 | DELETE | /checkins/:id | 204 (ägare; foton och kopplad loungerecension raderas) |
 | POST | /checkins/:id/like | `{ likes, likedByMe: true }` (auth, idempotent) |
 | DELETE | /checkins/:id/like | `{ likes, likedByMe: false }` |
-| GET | /feed?scope=global\|friends\|mine&iata=&limit&offset | `Checkin[]` efter `createdAt`, nyast först. `friends` = jag + godkända följningar (auth). |
+| GET | /feed?scope=global\|friends\|mine&iata=&limit&offset | `Checkin[]` efter `createdAt`, nyast först. `friends` = jag + godkända följningar (auth). Importerade check-ins visas inte. |
+| GET | /checkins/:id/card.svg | delningskort (bara publika check-ins) |
 
 **POST /checkins** body: `{ iata, visitedOn, kind, rating?, ratings?, comment?, visibility?, airlineIata?, travelClass?, flightNumber?, loungeId? | newLounge?: { name, terminal? }, loungeRating?, loungeComment? }`
 - `visitedOn` får inte vara i framtiden (senaste av dagens datum i UTC och Europe/Stockholm). `flightNumber` max 8 tecken `[A-Z0-9]`. `loungeId` måste ligga på samma flygplats; `newLounge` återanvänder en befintlig lounge med samma namn. `loungeRating` (1-5, halvsteg) kräver lounge och skapar en LoungeReview (med `loungeComment` eller check-in-kommentaren).
@@ -177,6 +183,10 @@ JPEG, PNG eller WEBP enligt magic bytes (annars 400), max 5 MB (413), max 4 per 
 | GET | /users/:u | Profil, se nedan |
 | GET | /users/:u/airports?sort=recent\|visits\|rating | `[{ airport, visits, lastVisit, myRating }]` (myRating = senaste totalbetyg) |
 | GET | /users/:u/checkins?limit&offset | `Checkin[]` efter `visitedOn` |
+| GET | /users/:u/challenges?month= | se [Månadsutmaningar](#månadsutmaningar) |
+| GET | /users/:u/mayorships | `[{ airport, checkins, since }]` |
+| GET | /users/:u/year/:year | se [Årsöversikt](#årsöversikt) |
+| GET | /me/suggestions?limit=10 | se [Vänförslag](#vänförslag) |
 | GET | /users/:u/followers?limit=50&offset=0 | `[UserSummary & { followedByMe }]` |
 | GET | /users/:u/following | som ovan |
 | POST | /users/:u/follow | `{ following, requested, followers }` (auth; 400 för sig själv, 403 vid blockering) |
@@ -209,7 +219,8 @@ JPEG, PNG eller WEBP enligt magic bytes (annars 400), max 5 MB (413), max 4 per 
 
 ```jsonc
 // Notification
-{ "id": 5, "type": "follow" | "follow_request" | "follow_accepted" | "comment" | "like" | "badge" | "home_visit" | "overtaken",
+{ "id": 5, "type": "follow" | "follow_request" | "follow_accepted" | "comment" | "like" | "badge" | "home_visit" | "overtaken"
+          | "invite_accepted" | "mayor_gained" | "mayor_lost" | "challenge_completed",
   "actor": UserSummary | null, "checkinId": 12 | null, "airport": { "iata", "name" } | null,
   "badge": { "id", "name", "tier" } | null, "badges": [{ "id", "name", "tier" }] | null,
   "groupKey": "badge:checkin:12", "url": "/c/12", "text": "anna gillade din check-in på GOT",
@@ -222,7 +233,7 @@ JPEG, PNG eller WEBP enligt magic bytes (annars 400), max 5 MB (413), max 4 per 
 - Push skickas efter commit om `push[type]` är på. Payload: `{ title: "Gatelog", body, url, tag (= groupKey), type, notificationId }`. VAPID-nycklar via `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` och `VAPID_SUBJECT` (i utveckling genereras `server/data/vapid.json`; i produktion utan nycklar är push avstängt). Prenumerationer som svarar 404/410, eller fallerar fem gånger, tas bort.
 
 ## Märken
-`GET /users/:u/badges` -> `Badge[]` (18 st). Nivåer sparas när de nås och tas inte tillbaka.
+`GET /users/:u/badges` -> `Badge[]` (23 st: 18 löpande och 5 säsongsmärken, se [Säsongsmärken](#säsongsmärken)). Nivåer sparas när de nås och tas inte tillbaka.
 ```jsonc
 { "id": "airports", "name": "Flygplatssamlare", "description": "...", "category": "explorer" | "traveller" | "social",
   "tier": null | "bronze" | "silver" | "gold" | "platinum", "tierLevel": 0,
@@ -307,7 +318,9 @@ Täckning räknas mot flygplatser med reguljärtrafik (4 008), `scope=all` mot a
 | GET | /moderation/reports?status=open\|resolved\|dismissed&limit&offset | `[{ id, type, target, reason, note, reporter, status, reportCount, createdAt }]` (moderator) |
 | POST | /moderation/reports/:id | `{ action: "dismiss" \| "resolve" \| "remove_content" }` -> rapporten (moderator). Avslutar alla öppna rapporter för samma mål; `remove_content` raderar kommentaren eller check-in:en. |
 
-Moderatorer anges med env `MODERATORS=användarnamn,...`.
+| GET | /moderation/log?limit=50&offset=0 | `[{ id, moderator, reportId, action, targetType, targetId, detail, createdAt }]` (moderator, nyast först) |
+
+Moderatorer anges med env `MODERATORS=användarnamn,...`. Varje åtgärd skrivs till revisionsloggen (vem, vad, när, vilket mål).
 
 ## Övrigt
 | Metod | Väg | Svar |
@@ -315,19 +328,7 @@ Moderatorer anges med env `MODERATORS=användarnamn,...`.
 | GET | /health | `{ ok: true, airports: 8799 }` |
 | GET | /attributions | `[{ name, url, license, licenseUrl, usage }]` (även `server/data/ATTRIBUTION.md`) |
 
-## Drift
-- Miljövariabler: se `server/.env.example` (läses endast i `server/src/config.js`). `JWT_SECRET` (minst 32 tecken) krävs när `NODE_ENV=production`, annars startar inte servern.
-- Databas: SQLite (`node:sqlite`), versionerad med `PRAGMA user_version` och numrerade migreringar i `server/src/db/migrations/`. Statistiktabeller hålls i synk av triggers i samma transaktion.
-- Prestanda: `npm run bench -w server` seedar 300 000 check-ins och kontrollerar budgeten (flygplatsautocomplete < 20 ms, recensionssök < 50 ms).
-
-## Nytt i v4 (kontrakt runda 4, integreras i referensen ovan när det är byggt)
-
-### Säkerhet och standardval (byggt)
-- `POST /auth/logout` återkallar bara sessionen från en giltig access-token eller en cookie vars hemlighet verifieras.
-- Misslyckade inloggningar spärras per konto+IP (10 per 15 min) och per konto (50 per 15 min): 429 med `Retry-After`, även med rätt lösenord. Lyckad inloggning nollställer konto+IP.
-- Nya konton får `publishDelayHours: 1` och `hideHomeAirport: true`. `POST /auth/register` tar valfritt `privacy: { isPrivate?, defaultVisibility?, publishDelayHours?, hideHomeAirport?, notifyHomeVisits? }` och `ref` (inbjudningskod). Svaret 201 får även `settings` (Settings) och `invitedBy` (användarnamn eller null).
-
-### Inbjudningar
+## Inbjudningar
 | Metod | Väg | Svar |
 |---|---|---|
 | POST | /me/invites | `{ maxUses? (1-100, standard 25) }` -> 201 Invite (max 10 aktiva, 409 annars) |
@@ -337,27 +338,27 @@ Moderatorer anges med env `MODERATORS=användarnamn,...`.
 
 `Invite`: `{ code (10 tecken A-Z/2-9), url: "/register?ref=<code>", uses, maxUses, createdAt, expiresAt (90 dagar) }`. Registrering med giltig `ref` ger ömsesidig följning och notis `invite_accepted` till den som bjöd in; ogiltig kod ignoreras.
 
-### Vänförslag
+## Vänförslag
 `GET /me/suggestions?limit=10` -> `[UserSummary & { reason: "friends" | "airports" | "popular", mutualFriends, sharedAirports }]`
 Poäng: personer som dina godkända följningar följer (vänners vänner) och personer med flest gemensamma flygplatser; fyll på med populära profiler. Aldrig dig själv, redan följda/förfrågade eller blockerade.
 
-### Stammisar ("Borgmästare")
+## Stammisar ("Borgmästare")
 - `GET /airports/:iata/regulars?days=60` -> `{ days, mayor: { user, checkins, since } | null, regulars: [{ rank, user, checkins, lastVisit }] (10) }`. `days` 7-365.
 - Räknas på check-ins som är synliga för alla (publik profil, `public`, publicerade) med `visitedOn` inom perioden. Stammis nummer ett (`mayor`, 60 dagar) kräver minst 2 check-ins; vid lika behåller nuvarande titeln.
 - `GET /airports/:iata` får `mayor: { user, checkins, since } | null`. `GET /users/:u/mayorships` -> `[{ airport, checkins, since }]`.
 - Notiser: `mayor_gained` (till den nya) och `mayor_lost` (till den förra, `actor` = den nya).
 
-### Säsongsmärken
+## Säsongsmärken
 Fem nya märken i `GET /users/:u/badges` med `category: "seasonal"` och fältet `season: { from: "MM-DD" | "YYYY-MM-DD", to }`:
 `jul` Julresenär (12-20 - 01-06, 1/3/6) · `nyar` Nyårsflygare (12-31 - 01-01, 1/2/3) · `sportlov` Sportlovsresenär (02-10 - 03-10, 1/3/6) · `midsommar` Midsommarflygare (06-19 - 06-26, 1/2/4) · `vinter-2026` Vinterresenär 2026/27 (2026-12-01 - 2027-02-28, 1/5/10).
 Måttet är antal check-ins med `visitedOn` i fönstret (återkommande fönster räknas alla år).
 
-### Månadsutmaningar
+## Månadsutmaningar
 `GET /users/:u/challenges?month=YYYY-MM` (standard innevarande månad, Europe/Stockholm) ->
 `{ month, challenges: [{ id, name, description, progress: { current, target }, completed, completedAt | null }] }`
 Utmaningar varje månad: `new-airports` (3 nya flygplatser), `countries` (2 länder), `reviewer` (3 check-ins med kommentar), `rater` (5 check-ins med betyg). Räknas på `visitedOn` i månaden (nya flygplatser = första besöket någonsin i månaden). När en utmaning klaras skapas notisen `challenge_completed` (en gång per utmaning och månad).
 
-### Import av resehistorik
+## Import av resehistorik
 | Metod | Väg | Svar |
 |---|---|---|
 | POST | /me/imports?dryRun=1 | CSV som `text/csv` (max 1 MB) eller JSON `{ csv }` -> 201 ImportResult (200 vid dryRun) |
@@ -375,11 +376,16 @@ Utmaningar varje månad: `new-airports` (3 nya flygplatser), `countries` (2 län
 - Dubbletter (samma flygplats, datum och typ som redan finns eller förekommer tidigare i filen) hoppas över. Importerade check-ins får `source: "import"`, användarens standardsynlighet, visas inte i flöden och ger inga notiser till andra; märken uppdateras med en samlad notis.
 - Checkin-objektet får fältet `source: "app" | "import"`.
 
-### Delning och Open Graph
+## Delning och Open Graph
 - `GET /api/airports/:iata/card.svg` och `GET /api/checkins/:id/card.svg` (1200x630, samma synlighet som för en utloggad besökare; dold check-in ger 404).
-- När servern levererar klientens `index.html` för `/c/:id`, `/u/:username` och `/airport/:iata` fylls `<head>` med `<title>`, `og:title`, `og:description`, `og:image` (absolut URL till motsvarande `card.svg`), `og:url`, `og:type` och `twitter:card`. Privat eller dold data ger allmänna taggar. Bas-URL från env `PUBLIC_URL` (annars förfrågans värd).
+- När servern levererar klientens `index.html` för `/c/:id`, `/u/:username` och `/airport/:iata` fylls `<head>` med `<title>`, `og:title`, `og:description`, `og:image` (absolut URL till motsvarande `card.svg`), `og:url`, `og:type` och `twitter:card`. Privat eller dold data ger allmänna taggar. Bas-URL från env `PUBLIC_URL` (annars förfrågans värd). Korten är SVG; plattformar som kräver PNG visar då den allmänna bilden.
 
-### Årsöversikt
+## Årsöversikt
 `GET /users/:u/year/:year` -> statistikkortets fält för året plus
 `{ months: [{ month: "2026-01", checkins, newAirports }] (12), newCountries: [{ code, name, firstVisit }], firstCheckin: { airport, visitedOn } | null, lastCheckin, favoriteAirport: { airport, avgRating, checkins } | null, badgesEarned: [{ id, name, tier, earnedAt }], challengesCompleted }`
 Räknas på check-ins som tittaren får se (privat profil: 403 som övriga listor).
+
+## Drift
+- Miljövariabler: se `server/.env.example` (läses endast i `server/src/config.js`). `JWT_SECRET` (minst 32 tecken) krävs när `NODE_ENV=production`, annars startar inte servern.
+- Databas: SQLite (`node:sqlite`), versionerad med `PRAGMA user_version` och numrerade migreringar i `server/src/db/migrations/` (6 st). Check-ins och kommentarer har AUTOINCREMENT, så id återanvänds aldrig. Statistiktabeller hålls i synk av triggers i samma transaktion.
+- Prestanda: `npm run bench -w server` seedar 300 000 check-ins och kontrollerar budgeten (flygplatsautocomplete < 20 ms, recensionssök < 50 ms).

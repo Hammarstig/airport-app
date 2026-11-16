@@ -3,6 +3,18 @@
 Aktuell referens: [API.md](API.md). Här står vad som ändrats mellan versionerna, nyast först.
 Brytande ändringar är markerade med **Brytande**.
 
+## v4 (runda 4)
+- Säkerhet: utloggning återkallar bara den egna sessionen (cookie-hemligheten verifieras; tidigare kunde ett känt sessions-id loggas ut). Misslyckade inloggningar spärras per konto+IP och per konto.
+- Integritet som förval: nya konton får 1 h fördröjd publicering och dold hemmaflygplats. `POST /auth/register` tar `privacy` och `ref` och svarar med `settings` och `invitedBy`.
+- Inbjudningar (`/me/invites`, `/invites/:code`) med ömsesidig följning och notis `invite_accepted`. Vänförslag (`/me/suggestions`).
+- Stammisar per flygplats (`/airports/:iata/regulars`, `mayor` på flygplatssidan, `/users/:u/mayorships`) med notiserna `mayor_gained` och `mayor_lost`.
+- Fem säsongsmärken (fältet `season`) och månadsutmaningar (`/users/:u/challenges`, notis `challenge_completed`).
+- Import av resehistorik från CSV (`/me/imports`) med förhandsvisning, dubblettkontroll och ångra. Checkin får `source`; importer visas inte i flöden.
+- Open Graph-taggar för delade sidor och delningskort `airports/:iata/card.svg` och `checkins/:id/card.svg`. Årsöversikt `/users/:u/year/:year`.
+- Revisionslogg för moderering (`/moderation/log`).
+- Check-ins och kommentarer har AUTOINCREMENT (migrering 6), så id återanvänds aldrig (BUG-12).
+- Märkeslistan har 23 märken (18 + 5 säsong).
+
 ## v3 (runda 3)
 - Sessioner: access-token gäller 15 minuter och bär sessions-id; refresh-token i `HttpOnly; SameSite=Strict`-cookie med rotation och återkallelse. Nya vägar: `POST /auth/refresh`, `/auth/logout`, `/auth/logout-all`, `GET/DELETE /me/sessions`, `POST /me/password`. **Brytande:** tokens från v2 (30 dagar, utan sessions-id) godtas inte längre; klienten måste förnya med `/auth/refresh` när den får 401 `token_expired`.
 - Lösenordspolicy: inte lika med användarnamnet och inte ett vanligt lösenord.

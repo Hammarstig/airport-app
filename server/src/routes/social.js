@@ -330,18 +330,34 @@ export default function socialRoutes({ db, limiters, config, photos }) {
     const action = enumParam(req.body ?? {}, 'action', ['dismiss', 'resolve', 'remove_content'], undefined);
     if (!action) throw new HttpError(400, 'action krävs', { allowed: ['dismiss', 'resolve', 'remove_content'] });
     if (action === 'remove_content' && rep.type === 'user') throw bad('remove_content gäller kommentarer och check-ins');
+    // Innehållet sparas i revisionsloggen innan det raderas.
+    const snapshot = reportFrom(db.prepare(`${REPORT_SELECT} WHERE r.id = ?`).get(id));
     const files = action === 'remove_content' && rep.type === 'checkin'
       ? db.prepare('SELECT filename FROM photos WHERE checkin_id = ?').all(rep.target_id).map((p) => p.filename) : [];
     transaction(db, () => {
       if (action === 'remove_content') {
         db.prepare(`DELETE FROM ${rep.type === 'comment' ? 'comments' : 'checkins'} WHERE id = ?`).run(rep.target_id);
       }
+      db.prepare(`INSERT INTO moderation_log (moderator_id, report_id, action, target_type, target_id, detail, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`).run(req.user.id, rep.id, action, rep.type, rep.target_id,
+        action === 'remove_content' ? JSON.stringify(snapshot.target) : null,
+        new Date().toISOString());
       // Alla öppna rapporter för samma mål avslutas samtidigt.
       db.prepare("UPDATE reports SET status = ?, resolved_by = ?, resolved_at = ? WHERE type = ? AND target_id = ? AND status = 'open'")
         .run(action === 'dismiss' ? 'dismissed' : 'resolved', req.user.id, new Date().toISOString(), rep.type, rep.target_id);
     });
     photos?.removeFiles(files);
     res.json(reportFrom(db.prepare(`${REPORT_SELECT} WHERE r.id = ?`).get(id)));
+  }));
+
+  r.get('/moderation/log', requireAuth, requireModerator, h((req, res) => {
+    const { limit, offset } = paging(req.query, { defLimit: 50, maxLimit: 200 });
+    const rows = db.prepare(`SELECT l.*, u.username AS moderator FROM moderation_log l LEFT JOIN users u ON u.id = l.moderator_id
+      ORDER BY l.id DESC LIMIT ? OFFSET ?`).all(limit, offset);
+    res.json(rows.map((x) => ({
+      id: x.id, moderator: x.moderator ?? null, reportId: x.report_id ?? null, action: x.action, targetType: x.target_type,
+      targetId: x.target_id, detail: x.detail ? JSON.parse(x.detail) : null, createdAt: x.created_at,
+    })));
   }));
 
   return r;
