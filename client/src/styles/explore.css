@@ -416,3 +416,94 @@ button.badge-card:hover, a.badge-card:hover { border-color: var(--line-strong); 
   0% { transform: scale(.6) rotate(-30deg); opacity: 0; }
   100% { transform: none; opacity: 1; }
 }
+
+/* Kontinenter: alltid två kolumner, kompakta kort på mobil */
+.grid:has(> .tile--continent) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: var(--sp-2); }
+@media (min-width: 960px) { .grid:has(> .tile--continent) { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
+@media (max-width: 639px) {
+  .tile--continent { min-height: 104px; padding: var(--sp-3); }
+  .tile--continent .tile__title { font-size: var(--fs-lg); }
+  .tile--continent .tile__meta { font-size: var(--fs-xs); }
+}
+
+/* ---------- Kompakta filter (Utforska, topplistan) ----------
+   Rekommenderad markup: .filter-bar > .chip-scroll (en rad chips) + button.filter-btn (öppnar .filter-sheet). */
+.chip-scroll,
+.row[role="group"]:has(> .chip) {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  margin-left: calc(var(--sp-4) * -1);
+  margin-right: calc(var(--sp-4) * -1);
+  padding: 2px var(--sp-4);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--sp-4), #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--sp-4), #000 calc(100% - 28px), transparent);
+}
+.chip-scroll::-webkit-scrollbar, .row[role="group"]:has(> .chip)::-webkit-scrollbar { display: none; }
+.chip-scroll > .chip, .row[role="group"]:has(> .chip) > .chip { flex: none; scroll-snap-align: start; }
+@media (min-width: 768px) {
+  .chip-scroll, .row[role="group"]:has(> .chip) { margin-left: 0; margin-right: 0; padding-left: 0; -webkit-mask-image: none; mask-image: none; flex-wrap: wrap; }
+}
+/* Period och scope på samma rad under chipsraden */
+.stack:has(> .row[role="group"] > .chip):has(> .segmented) {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.stack:has(> .row[role="group"] > .chip):has(> .segmented) > :not(.segmented) { flex-basis: 100%; }
+.stack:has(> .row[role="group"] > .chip):has(> .segmented) > .segmented { flex: 1 1 auto; padding: 3px; gap: 2px; }
+.stack:has(> .row[role="group"] > .chip):has(> .segmented) > .segmented .segmented__option {
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: var(--fs-xs);
+}
+.filter-bar { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.filter-bar > .chip-scroll { flex: 1; min-width: 0; margin-right: 0; padding-right: 28px; }
+.filter-btn {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+}
+.filter-btn::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 48px; transform: translateY(-50%); }
+.filter-btn svg { width: 18px; height: 18px; }
+.filter-btn__count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--surface);
+  font-size: .7rem;
+}
+.filter-summary { font-size: var(--fs-sm); color: var(--muted); }
+/* Bottenark med filtergrupper: lägg i .modal > .modal__panel.filter-sheet */
+.filter-sheet { display: flex; flex-direction: column; gap: var(--sp-4); }
+.filter-sheet__group { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0; padding: 0; border: 0; }
+.filter-sheet__group > legend, .filter-sheet__label { padding: 0; margin-bottom: 2px; font-size: var(--fs-sm); font-weight: 700; color: var(--ink-2); }
+.filter-sheet__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter-sheet__footer {
+  position: sticky;
+  bottom: calc(var(--sp-5) * -1);
+  display: flex;
+  gap: var(--sp-2);
+  margin: 0 calc(var(--sp-4) * -1) calc(var(--sp-5) * -1);
+  padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.filter-sheet__footer .btn { flex: 1; }

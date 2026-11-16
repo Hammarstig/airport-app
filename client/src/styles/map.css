@@ -179,3 +179,28 @@
   color: var(--ink);
   box-shadow: var(--shadow-1), inset 0 -2px 0 var(--signal);
 }
+
+/* Kartkontroller: egen rad under kartan, aldrig ovanpå kartinnehållet.
+   Bygg: lägg .map__controls på behållaren (inline-positionering skrivs över här). */
+.map__controls,
+.map > .map__svg + .row,
+.map > .map__svg + div:not(.map__legend):not(.map__tooltip) {
+  position: static !important;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px !important;
+  padding: 8px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.map__controls .icon-btn,
+.map > .map__svg + .row .icon-btn {
+  border: 1px solid var(--line-strong);
+  background: var(--surface) !important;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.map__controls .btn--sm,
+.map > .map__svg + .row .btn--sm { background: var(--surface) !important; }

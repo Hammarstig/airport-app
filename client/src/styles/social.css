@@ -76,19 +76,19 @@
 .notif-item__type {
   --t: var(--ink-2);
   position: absolute;
-  right: -4px;
-  bottom: -4px;
+  right: -7px;
+  bottom: -7px;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--t);
   color: #fff;
   box-shadow: 0 0 0 2px var(--surface);
 }
 .notif-item--unread .notif-item__type { box-shadow: 0 0 0 2px color-mix(in srgb, var(--signal-soft) 60%, var(--surface)); }
-.notif-item__type svg { width: 13px; height: 13px; stroke-width: 2.4; padding: 0; background: none; color: inherit; }
+.notif-item__type svg { width: 11px; height: 11px; stroke-width: 2.4; padding: 0; background: none; color: inherit; }
 .notif-item__type--follow { --t: #1E6BB0; }
 .notif-item__type--comment { --t: #18794E; }
 .notif-item__type--like { --t: #B8322A; }
