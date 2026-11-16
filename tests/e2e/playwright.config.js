@@ -36,6 +36,8 @@ module.exports = defineConfig({
       testMatch: /perf\.spec\.js/,
       dependencies: ['android', 'desktop'],
       fullyParallel: false,
+      // Mätningar med 4x CPU-strypning får inte dela processor med andra tester.
+      workers: 1,
     },
   ],
   webServer: {

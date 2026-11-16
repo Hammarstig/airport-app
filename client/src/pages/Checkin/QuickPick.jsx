@@ -33,7 +33,7 @@ function useNearby() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const items = await api.nearbyAirports(pos.coords.latitude, pos.coords.longitude, 6);
+          const items = await api.nearbyAirports(pos.coords.latitude, pos.coords.longitude, NEAR_ROWS);
           setState({ status: 'done', items: items || [], error: null });
         } catch (e) {
           setState({ status: 'error', items: [], error: e.message });
@@ -89,13 +89,35 @@ function useRecent() {
 }
 
 /** Snabbval överst i check-in: "Nära dig" och "Senaste". Ett tryck väljer flygplats. */
+const NEAR_ROWS = 3;
+// Höjden för en rad (.quick-pick__item 56 px + mellanrum). Platsen reserveras så att formuläret
+// under inte hoppar när listorna laddas (CLS 0).
+const ROW_PX = 64;
+
+function Placeholders({ n, label }) {
+  return (
+    <ul className="quick-pick__list" aria-busy="true" aria-label={label}>
+      {Array.from({ length: n }, (_, i) => (
+        <li key={i} className="quick-pick__item skeleton" aria-hidden="true" />
+      ))}
+    </ul>
+  );
+}
+
 export function QuickPick({ onPick }) {
   const near = useNearby();
   const recent = useRecent();
+  // Antal rader att reservera för "Senaste": senast kända antal, eller 3 första gången på enheten.
+  // Höjden låses medan sidan är öppen så att formuläret under aldrig flyttas när listan kommer.
+  const [recentSlots] = useState(() => {
+    const known = loadRecent();
+    return known ? Math.min(6, known.length) : 3;
+  });
+  const showRecent = recentSlots > 0 || recent.rows.length > 0 || recent.error;
 
   return (
     <div className="quick-pick stack">
-      <section aria-labelledby="qp-near">
+      <section aria-labelledby="qp-near" style={{ minHeight: NEAR_ROWS * ROW_PX + 28 }}>
         <h2 className="quick-pick__title" id="qp-near">
           <IconNearby size={16} aria-hidden="true" /> Nära dig
         </h2>
@@ -104,16 +126,12 @@ export function QuickPick({ onPick }) {
             Visa flygplatser nära mig
           </button>
         )}
-        {near.status === 'loading' && (
-          <p className="muted" role="status">
-            Letar efter flygplatser nära dig...
-          </p>
-        )}
+        {near.status === 'loading' && <Placeholders n={NEAR_ROWS} label="Letar efter flygplatser nära dig" />}
         {near.status === 'error' && <p className="muted">{near.error}</p>}
         {near.status === 'done' && near.items.length === 0 && <p className="muted">Inga flygplatser i närheten.</p>}
         {near.items.length > 0 && (
           <ul className="quick-pick__list">
-            {near.items.map((a) => (
+            {near.items.slice(0, NEAR_ROWS).map((a) => (
               <Choice
                 key={a.iata}
                 airport={a}
@@ -125,16 +143,17 @@ export function QuickPick({ onPick }) {
         )}
       </section>
 
-      {(recent.rows.length > 0 || recent.loading || recent.error) && (
-        <section aria-labelledby="qp-recent">
+      {showRecent && (
+        <section aria-labelledby="qp-recent" style={{ minHeight: recentSlots * ROW_PX + 28 }}>
           <h2 className="quick-pick__title" id="qp-recent">
             <IconClock size={16} aria-hidden="true" /> Senaste
           </h2>
           {recent.error && !recent.rows.length && <p className="muted">{recent.error}</p>}
+          {!recent.loading && !recent.error && recent.rows.length === 0 && (
+            <p className="muted">Här hamnar flygplatserna du checkar in på.</p>
+          )}
           {recent.loading ? (
-            <p className="muted" role="status">
-              Laddar...
-            </p>
+            <Placeholders n={recentSlots} label="Laddar senaste flygplatser" />
           ) : (
             <ul className="quick-pick__list">
               {recent.rows.map((r) => (

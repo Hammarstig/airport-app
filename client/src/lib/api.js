@@ -102,7 +102,25 @@ function qs(params = {}) {
  * Gör ett API-anrop. invalidate: lista med sökvägsprefix (utan /api) vars cachade GET-svar
  * ska slängas efter ett lyckat skrivande anrop. Utan lista töms inget.
  */
-export async function request(path, opts = {}) {
+// Pågående GET utan AbortSignal delas, så att data som förhämtas vid sidladdning (primeRoute) och
+// sidans eget anrop blir samma nätverksanrop.
+const inflight = new Map();
+
+export function request(path, opts = {}) {
+  if (opts.method && opts.method !== 'GET') return doRequest(path, opts);
+  const key = `${path}${qs(opts.params)}`;
+  const shared = inflight.get(key);
+  if (shared) return shared;
+  const p = doRequest(path, opts);
+  if (!opts.signal) {
+    inflight.set(key, p);
+    const done = () => inflight.delete(key);
+    p.then(done, done);
+  }
+  return p;
+}
+
+async function doRequest(path, opts = {}) {
   // Sidladdning: sessionen finns men ingen token i minnet ännu. Hämta en innan anropet (delat löfte).
   if (!accessToken && sessionExpected && !path.startsWith('/auth/')) {
     try {

@@ -10,7 +10,7 @@ const AuthContext = createContext(null);
  * inloggad direkt och även offline; access-token hämtas via refresh-cookien vid första API-anropet.
  * Sessionen avslutas bara när servern säger det (401 som inte går att förnya).
  */
-function initialUser() {
+export function initialUser() {
   const cached = load(USER_KEY);
   expectSession(!!cached || !!getToken());
   return cached;

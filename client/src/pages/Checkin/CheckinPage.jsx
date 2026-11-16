@@ -16,6 +16,7 @@ import { Disclosure } from './Disclosure.jsx';
 import { MAX_COMMENT, useCheckinForm, validate } from './useCheckinForm.js';
 import { saveEdit, submitCheckin } from './submitCheckin.js';
 import { loadOfflineList, loaders } from '../../routes.js';
+import { afterLoadIdle } from '../../lib/prefetch.js';
 
 const KIND_HINT = {
   departure: 'Du flög härifrån.',
@@ -74,11 +75,12 @@ export default function CheckinPage() {
   const { f, set, setTravel } = form;
   const [errors, setErrors] = useState({});
 
-  // Sammanfattningen och offlinelistan hämtas när check-in-sidan öppnas, så att check-in
-  // offline aldrig ger en sida som inte går att ladda (BUG-11, BUG-10).
+  // Kvittosidan (liten chunk, säkert nästa steg) hämtas direkt när check-in-sidan öppnas, så att
+  // check-in offline aldrig ger en sida som inte går att ladda (BUG-11). Offlinelistan (BUG-10) är
+  // större och hämtas först när sidan är ledig.
   useEffect(() => {
     loaders.done().catch(() => {});
-    loadOfflineList().catch(() => {});
+    return afterLoadIdle(() => loadOfflineList().catch(() => {}), 1000);
   }, []);
   const [saving, setSaving] = useState(null);
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { api } from '../../lib/api.js';
 import { useAsync } from '../../hooks/useAsync.js';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
@@ -18,6 +18,8 @@ import { ClassMix, FriendsVisited, PhotoGallery, TopAirlines, WishButton } from 
 export default function AirportPage() {
   const { iata: raw } = useParams();
   const iata = (raw || '').toUpperCase();
+  // Länkar från kort skickar med det de redan vet om flygplatsen, så att rubriken syns direkt.
+  const seed = useLocation().state?.airport;
   const {
     data: airport,
     error,
@@ -44,7 +46,15 @@ export default function AirportPage() {
   if (!/^[A-Z]{3}$/.test(iata) || error?.status === 404) {
     return <NotFoundPage message={`Flygplatsen ${iata} finns inte. Endast flygplatser med IATA-kod stöds.`} />;
   }
-  if (loading && !airport) return <PageSkeleton />;
+  if (loading && !airport) {
+    if (seed?.iata !== iata) return <PageSkeleton />;
+    return (
+      <div className="page">
+        <AirportHero airport={seed} />
+        <SkeletonList count={3} />
+      </div>
+    );
+  }
   if (error)
     return (
       <div className="page">
@@ -53,33 +63,10 @@ export default function AirportPage() {
     );
 
   const s = airport.stats || {};
-  const country = airport.countryName || countryName(airport.country);
 
   return (
     <div className="page">
-      <header className="airport-hero">
-        <div className="airport-hero__code" aria-label={`IATA-kod ${airport.iata}`}>
-          {airport.iata}
-        </div>
-        <h1 className="airport-hero__name">{airport.name}</h1>
-        <p className="airport-hero__place">
-          <IconMapPin size={16} aria-hidden="true" /> {airport.city ? `${airport.city}, ` : ''}
-          <Link to={`/country/${airport.country}`}>{country}</Link>
-          {airport.continent ? ` · ${continentName(airport.continent)}` : ''}
-          {airport.icao ? ` · ICAO ${airport.icao}` : ''}
-        </p>
-        {airport.myVisits > 0 && (
-          <p className="airport-hero__place">
-            Du har besökt {airport.iata} {airport.myVisits} {airport.myVisits === 1 ? 'gång' : 'gånger'}.
-          </p>
-        )}
-        <div className="row mt-2">
-          <Link to={`/checkin?iata=${airport.iata}`} className="btn btn--primary">
-            <IconPlus size={18} aria-hidden="true" /> Checka in här
-          </Link>
-          <WishButton key={airport.iata} iata={airport.iata} initial={airport.onMyWishlist} />
-        </div>
-      </header>
+      <AirportHero airport={airport} />
 
       <section className="section" aria-label="Statistik">
         <StatRow
@@ -152,5 +139,34 @@ export default function AirportPage() {
         </section>
       </Deferred>
     </div>
+  );
+}
+
+function AirportHero({ airport }) {
+  const country = airport.countryName || countryName(airport.country);
+  return (
+    <header className="airport-hero">
+      <div className="airport-hero__code" aria-label={`IATA-kod ${airport.iata}`}>
+        {airport.iata}
+      </div>
+      <h1 className="airport-hero__name">{airport.name}</h1>
+      <p className="airport-hero__place">
+        <IconMapPin size={16} aria-hidden="true" /> {airport.city ? `${airport.city}, ` : ''}
+        <Link to={`/country/${airport.country}`}>{country}</Link>
+        {airport.continent ? ` · ${continentName(airport.continent)}` : ''}
+        {airport.icao ? ` · ICAO ${airport.icao}` : ''}
+      </p>
+      {airport.myVisits > 0 && (
+        <p className="airport-hero__place">
+          Du har besökt {airport.iata} {airport.myVisits} {airport.myVisits === 1 ? 'gång' : 'gånger'}.
+        </p>
+      )}
+      <div className="row mt-2">
+        <Link to={`/checkin?iata=${airport.iata}`} className="btn btn--primary">
+          <IconPlus size={18} aria-hidden="true" /> Checka in här
+        </Link>
+        <WishButton key={airport.iata} iata={airport.iata} initial={airport.onMyWishlist} />
+      </div>
+    </header>
   );
 }

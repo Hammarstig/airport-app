@@ -5,7 +5,7 @@ import { PageSkeleton } from './components/Skeleton.jsx';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary.jsx';
 import FeedPage from './pages/Feed/FeedPage.jsx';
 import { loadOfflineList, loaders, pages } from './routes.js';
-import { afterLoadIdle, installLinkPrefetch, isStandalone, preloadNavChunks } from './lib/prefetch.js';
+import { afterLoadIdle, installLinkPrefetch, isStandalone, prefetchLikelyNext } from './lib/prefetch.js';
 
 // Startsidan (flödet) laddas direkt, övriga sidor delas upp per route (se routes.js).
 const {
@@ -39,21 +39,21 @@ function ScrollToTop() {
 }
 
 /**
- * Efter load och när webbläsaren är ledig: förhämta menyns sidor, och länkförhämtning vid
- * hover/tryck. Offlinelistan förladdas bara i installerad app (check-in-sidan laddar den själv).
- * Inget av detta konkurrerar med första laddningen.
+ * Förhämtning: vid pekare/fokus på länkar (användarens avsikt), och 3 s efter load bara koden för
+ * troligaste nästa steg. I installerad app hämtas dessutom offlinedata när appen har varit ledig en stund.
  */
 function usePrefetch() {
+  const { pathname } = useLocation();
   useEffect(() => installLinkPrefetch(), []);
+  useEffect(() => afterLoadIdle(() => prefetchLikelyNext(pathname)), [pathname]);
   useEffect(
     () =>
-      afterLoadIdle(() => {
-        preloadNavChunks();
-        if (isStandalone()) {
-          loaders.done().catch(() => {});
-          loadOfflineList().catch(() => {});
-        }
-      }),
+      isStandalone()
+        ? afterLoadIdle(() => {
+            loaders.done().catch(() => {});
+            loadOfflineList().catch(() => {});
+          }, 10000)
+        : undefined,
     []
   );
 }

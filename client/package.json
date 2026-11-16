@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/check-budget.mjs",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "budget": "node scripts/check-budget.mjs"
   },
   "dependencies": {
     "d3-geo": "^3.1.1",

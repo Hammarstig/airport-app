@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { gatelogPwa } from './pwa/plugin.js';
+import { routePreload } from './scripts/route-preload.js';
 
 const proxy = {
   '/api': 'http://localhost:8787',
@@ -8,11 +9,13 @@ const proxy = {
 };
 
 export default defineConfig({
-  plugins: [react(), gatelogPwa()],
+  plugins: [react(), routePreload(), gatelogPwa()],
   server: { port: 5173, proxy },
   preview: { proxy },
   build: {
     target: 'es2020',
+    // Manifestet används av scripts/check-budget.mjs för att räkna storlek per sida.
+    manifest: true,
     // Märkes-SVG:er ska inte bäddas in i JS (72 bilder skulle annars bli en 230 kB-chunk).
     assetsInlineLimit: (file) => (file.includes('/assets/badges/') ? false : undefined),
     rollupOptions: {

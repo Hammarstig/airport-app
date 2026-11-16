@@ -33,9 +33,12 @@ const RULES = [
 const recent = new Map();
 const TTL = 30 * 1000;
 
+/** Förhämta bara på snabb uppkoppling utan datasparläge (okänd uppkoppling, t.ex. Safari, räknas som ok). */
 function allowed() {
   const c = navigator.connection;
-  return navigator.onLine !== false && !(c && (c.saveData || /2g/.test(c.effectiveType || '')));
+  if (navigator.onLine === false) return false;
+  if (!c) return true;
+  return !c.saveData && (!c.effectiveType || c.effectiveType === '4g');
 }
 
 export function prefetchPath(href) {
@@ -66,41 +69,76 @@ export function installLinkPrefetch() {
     if (a && !a.hasAttribute('download')) prefetchPath(a.getAttribute('href'));
   };
   const opts = { capture: true, passive: true };
+  // Hovring räknas bara med mus (fin pekare); på touch räcker pointerdown/touchstart.
+  const hover = (e) => e.pointerType === 'mouse' && handler(e);
   document.addEventListener('pointerdown', handler, opts);
-  document.addEventListener('mouseover', handler, opts);
+  document.addEventListener('pointerover', hover, opts);
   document.addEventListener('focusin', handler, opts);
   return () => {
     document.removeEventListener('pointerdown', handler, opts);
-    document.removeEventListener('mouseover', handler, opts);
+    document.removeEventListener('pointerover', hover, opts);
     document.removeEventListener('focusin', handler, opts);
   };
 }
 
 /**
- * Efter att sidan har laddat klart och webbläsaren är ledig: förhämta koden för menyns sidor.
- * Påverkar aldrig första laddningen (startar efter load + requestIdleCallback).
+ * Kör fn när sidan har laddat klart, minst `delay` ms efter load och när webbläsaren är ledig.
+ * Används för förhämtning som aldrig får konkurrera med första laddningen.
  */
-export function afterLoadIdle(fn) {
+export function afterLoadIdle(fn, delay = 3000) {
   let cancelled = false;
+  let timer;
   let idleId;
   const idle = () => {
     if (cancelled) return;
     if ('requestIdleCallback' in window) idleId = window.requestIdleCallback(fn, { timeout: 5000 });
-    else idleId = setTimeout(fn, 2000);
+    else idleId = setTimeout(fn, 500);
   };
-  if (document.readyState === 'complete') setTimeout(idle, 500);
-  else window.addEventListener('load', () => setTimeout(idle, 500), { once: true });
+  const start = () => {
+    timer = setTimeout(idle, delay);
+  };
+  if (document.readyState === 'complete') start();
+  else window.addEventListener('load', start, { once: true });
   return () => {
     cancelled = true;
+    clearTimeout(timer);
     if ('cancelIdleCallback' in window) window.cancelIdleCallback(idleId);
     else clearTimeout(idleId);
   };
 }
 
-export function preloadNavChunks() {
+// Troligaste nästa steg per sida (bara sidkod, ingen data). Totalt under ca 30 kB gzip per sida
+// (kontrolleras av scripts/check-budget.mjs).
+const LIKELY_NEXT = [
+  [/^\/$/, ['checkin', 'airport']],
+  [/^\/airport\//, ['checkin']],
+  [/^\/u\//, ['airport']],
+  [/^\/(search|explore)/, ['airport']],
+  [/^\/checkin$/, ['done']]
+];
+
+/** Förhämtar koden för det troligaste nästa steget från den här sidan, om uppkopplingen tillåter. */
+export function prefetchLikelyNext(pathname) {
   if (!allowed()) return;
-  for (const k of ['checkin', 'search', 'leaderboard', 'profile', 'airport']) loaders[k]().catch(() => {});
+  const hit = LIKELY_NEXT.find(([re]) => re.test(pathname));
+  if (hit) for (const page of hit[1]) loaders[page]().catch(() => {});
 }
 
 export const isStandalone = () =>
   window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+/**
+ * Startar sidans dataanrop direkt vid sidladdning, parallellt med att sidans kod laddas, i stället
+ * för efter att den kört (sparar en rundresa på LCP). Sidan får samma anrop via api-klienten.
+ */
+export function primeRoute(pathname) {
+  const ignore = () => {};
+  let m;
+  if ((m = /^\/airport\/([A-Za-z]{3})\/?$/.exec(pathname))) {
+    const iata = m[1].toUpperCase();
+    api.airport(iata).catch(ignore);
+    api.airportCheckins(iata, 20, 0).catch(ignore);
+  } else if ((m = /^\/u\/([^/]+)\/?$/.exec(pathname))) {
+    api.user(decodeURIComponent(m[1])).catch(ignore);
+  }
+}

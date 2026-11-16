@@ -100,7 +100,7 @@ function CheckinCardInner({ checkin: c, onDelete, hideAirport = false, hideUser 
             {!hideAirport && (
               <>
                 {!hideUser && <span className="muted"> på </span>}
-                <Link to={`/airport/${c.airport.iata}`} className="checkin__airport">
+                <Link to={`/airport/${c.airport.iata}`} state={{ airport: c.airport }} className="checkin__airport">
                   {c.airport.name}
                 </Link>
               </>

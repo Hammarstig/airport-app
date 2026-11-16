@@ -9,7 +9,6 @@ import { OfflineQueueStatus } from '../../components/OfflineQueueStatus.jsx';
 import { EmptyState, Tabs } from '../../components/ui.jsx';
 import { IconPlane, IconPlus, IconUsers } from '../../assets/icons.jsx';
 import { FeedSidebar } from './FeedSidebar.jsx';
-import { afterLoadIdle, prefetchPath } from '../../lib/prefetch.js';
 
 const TABS = [
   { value: 'friends', label: 'Vänner' },
@@ -59,6 +58,8 @@ export default function FeedPage() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const def = useDefaultScope(user);
+  // Sidopanelen visas bara på bred skärm; hämta inte dess data på mobil.
+  const [wide] = useState(() => window.matchMedia?.('(min-width: 1024px)').matches ?? false);
   const chosen = TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : null;
   const scope = user ? chosen || def : 'global';
   const paged = usePaged(
@@ -67,18 +68,6 @@ export default function FeedPage() {
     20,
     (limit) => (scope ? api.peek.feed(limit, 0, scope) : undefined)
   );
-
-  // När flödet visats och webbläsaren är ledig: hämta de andra flikarna och de översta korten
-  // flygplatser i förväg så att flikbyte och navigering kan visas direkt från cachen.
-  const ready = !paged.loading && paged.items.length > 0;
-  useEffect(() => {
-    if (!ready) return;
-    return afterLoadIdle(() => {
-      if (user) for (const t of TABS) if (t.value !== scope) api.feed(20, 0, t.value).catch(() => {});
-      const codes = [...new Set(paged.items.slice(0, 6).map((c) => c.airport.iata))];
-      for (const code of codes) prefetchPath(`/airport/${code}`);
-    });
-  }, [ready, scope]); // eslint-disable-line react-hooks/exhaustive-deps -- körs en gång per flik när listan finns
 
   return (
     <div className="page">
@@ -117,7 +106,7 @@ export default function FeedPage() {
             <CheckinList paged={paged} empty={<Empty scope={scope} />} />
           </div>
         </div>
-        {user && <FeedSidebar username={user.username} />}
+        {user && wide && <FeedSidebar username={user.username} />}
       </div>
     </div>
   );
