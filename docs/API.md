@@ -319,3 +319,67 @@ Moderatorer anges med env `MODERATORS=användarnamn,...`.
 - Miljövariabler: se `server/.env.example` (läses endast i `server/src/config.js`). `JWT_SECRET` (minst 32 tecken) krävs när `NODE_ENV=production`, annars startar inte servern.
 - Databas: SQLite (`node:sqlite`), versionerad med `PRAGMA user_version` och numrerade migreringar i `server/src/db/migrations/`. Statistiktabeller hålls i synk av triggers i samma transaktion.
 - Prestanda: `npm run bench -w server` seedar 300 000 check-ins och kontrollerar budgeten (flygplatsautocomplete < 20 ms, recensionssök < 50 ms).
+
+## Nytt i v4 (kontrakt runda 4, integreras i referensen ovan när det är byggt)
+
+### Säkerhet och standardval (byggt)
+- `POST /auth/logout` återkallar bara sessionen från en giltig access-token eller en cookie vars hemlighet verifieras.
+- Misslyckade inloggningar spärras per konto+IP (10 per 15 min) och per konto (50 per 15 min): 429 med `Retry-After`, även med rätt lösenord. Lyckad inloggning nollställer konto+IP.
+- Nya konton får `publishDelayHours: 1` och `hideHomeAirport: true`. `POST /auth/register` tar valfritt `privacy: { isPrivate?, defaultVisibility?, publishDelayHours?, hideHomeAirport?, notifyHomeVisits? }` och `ref` (inbjudningskod). Svaret 201 får även `settings` (Settings) och `invitedBy` (användarnamn eller null).
+
+### Inbjudningar
+| Metod | Väg | Svar |
+|---|---|---|
+| POST | /me/invites | `{ maxUses? (1-100, standard 25) }` -> 201 Invite (max 10 aktiva, 409 annars) |
+| GET | /me/invites | `Invite[]` (aktiva) |
+| DELETE | /me/invites/:code | 204 |
+| GET | /invites/:code | `{ code, inviter: UserSummary, expiresAt }` (publik förhandsvisning, 404 om ogiltig) |
+
+`Invite`: `{ code (10 tecken A-Z/2-9), url: "/register?ref=<code>", uses, maxUses, createdAt, expiresAt (90 dagar) }`. Registrering med giltig `ref` ger ömsesidig följning och notis `invite_accepted` till den som bjöd in; ogiltig kod ignoreras.
+
+### Vänförslag
+`GET /me/suggestions?limit=10` -> `[UserSummary & { reason: "friends" | "airports" | "popular", mutualFriends, sharedAirports }]`
+Poäng: personer som dina godkända följningar följer (vänners vänner) och personer med flest gemensamma flygplatser; fyll på med populära profiler. Aldrig dig själv, redan följda/förfrågade eller blockerade.
+
+### Stammisar ("Borgmästare")
+- `GET /airports/:iata/regulars?days=60` -> `{ days, mayor: { user, checkins, since } | null, regulars: [{ rank, user, checkins, lastVisit }] (10) }`. `days` 7-365.
+- Räknas på check-ins som är synliga för alla (publik profil, `public`, publicerade) med `visitedOn` inom perioden. Stammis nummer ett (`mayor`, 60 dagar) kräver minst 2 check-ins; vid lika behåller nuvarande titeln.
+- `GET /airports/:iata` får `mayor: { user, checkins, since } | null`. `GET /users/:u/mayorships` -> `[{ airport, checkins, since }]`.
+- Notiser: `mayor_gained` (till den nya) och `mayor_lost` (till den förra, `actor` = den nya).
+
+### Säsongsmärken
+Fem nya märken i `GET /users/:u/badges` med `category: "seasonal"` och fältet `season: { from: "MM-DD" | "YYYY-MM-DD", to }`:
+`jul` Julresenär (12-20 - 01-06, 1/3/6) · `nyar` Nyårsflygare (12-31 - 01-01, 1/2/3) · `sportlov` Sportlovsresenär (02-10 - 03-10, 1/3/6) · `midsommar` Midsommarflygare (06-19 - 06-26, 1/2/4) · `vinter-2026` Vinterresenär 2026/27 (2026-12-01 - 2027-02-28, 1/5/10).
+Måttet är antal check-ins med `visitedOn` i fönstret (återkommande fönster räknas alla år).
+
+### Månadsutmaningar
+`GET /users/:u/challenges?month=YYYY-MM` (standard innevarande månad, Europe/Stockholm) ->
+`{ month, challenges: [{ id, name, description, progress: { current, target }, completed, completedAt | null }] }`
+Utmaningar varje månad: `new-airports` (3 nya flygplatser), `countries` (2 länder), `reviewer` (3 check-ins med kommentar), `rater` (5 check-ins med betyg). Räknas på `visitedOn` i månaden (nya flygplatser = första besöket någonsin i månaden). När en utmaning klaras skapas notisen `challenge_completed` (en gång per utmaning och månad).
+
+### Import av resehistorik
+| Metod | Väg | Svar |
+|---|---|---|
+| POST | /me/imports?dryRun=1 | CSV som `text/csv` (max 1 MB) eller JSON `{ csv }` -> 201 ImportResult (200 vid dryRun) |
+| GET | /me/imports | `[{ id, format, rows, imported, createdAt }]` |
+| DELETE | /me/imports/:id | 204, raderar check-ins från den importen |
+
+`ImportResult`: `{ id | null, format, rows, imported, duplicates, skipped: [{ line, reason }], preview: [{ line, iata, visitedOn, kind, airlineIata, flightNumber }] (max 50) }`
+
+**CSV-format** (första raden är rubriker, skiftlägesokänsliga; avgränsare `,` `;` eller tab; citattecken enligt RFC 4180; max 5 000 rader):
+- Datum (krävs): `date`, `visitedOn`, `flight date`, `departure date`, `dep date`, `start date`. Format `YYYY-MM-DD`, `YYYY/MM/DD` eller ISO-tid (datumdelen används). Inte i framtiden.
+- Antingen en flygplats: `iata`, `airport`, `airport code` (+ valfri `kind`: departure/arrival/transfer/layover, standard departure),
+- eller en flygning: `from`, `origin`, `departure airport`, `dep airport`, `from airport` och `to`, `destination`, `arrival airport`, `arr airport`, `to airport`. Ger en `departure`-check-in på avgångsflygplatsen och en `arrival` på ankomstflygplatsen.
+- Flygplatskoder: IATA eller ICAO (översätts). Valfritt: `airline`/`carrier` (IATA-kod med två tecken, annars ignoreras), `flight`/`flight number`, `class`/`cabin` (economy, premium economy, business, first), `rating` (0,5-5), `comment`.
+- Exempel (Flighty/App in the Air-exporter har dessa kolumner): `Date,From,To,Airline,Flight` / `2025-06-01,GOT,AMS,KL,KL1158`.
+- Dubbletter (samma flygplats, datum och typ som redan finns eller förekommer tidigare i filen) hoppas över. Importerade check-ins får `source: "import"`, användarens standardsynlighet, visas inte i flöden och ger inga notiser till andra; märken uppdateras med en samlad notis.
+- Checkin-objektet får fältet `source: "app" | "import"`.
+
+### Delning och Open Graph
+- `GET /api/airports/:iata/card.svg` och `GET /api/checkins/:id/card.svg` (1200x630, samma synlighet som för en utloggad besökare; dold check-in ger 404).
+- När servern levererar klientens `index.html` för `/c/:id`, `/u/:username` och `/airport/:iata` fylls `<head>` med `<title>`, `og:title`, `og:description`, `og:image` (absolut URL till motsvarande `card.svg`), `og:url`, `og:type` och `twitter:card`. Privat eller dold data ger allmänna taggar. Bas-URL från env `PUBLIC_URL` (annars förfrågans värd).
+
+### Årsöversikt
+`GET /users/:u/year/:year` -> statistikkortets fält för året plus
+`{ months: [{ month: "2026-01", checkins, newAirports }] (12), newCountries: [{ code, name, firstVisit }], firstCheckin: { airport, visitedOn } | null, lastCheckin, favoriteAirport: { airport, avgRating, checkins } | null, badgesEarned: [{ id, name, tier, earnedAt }], challengesCompleted }`
+Räknas på check-ins som tittaren får se (privat profil: 403 som övriga listor).
