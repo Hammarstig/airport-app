@@ -6,10 +6,11 @@ import { useToast } from './Toast.jsx';
 import { VisibilityChip } from './VisibilityPicker.jsx';
 import { CLASS_LABEL, SUB_RATINGS, formatDate, formatRating, timeAgo } from '../lib/format.js';
 import { ReportDialog } from './ReportDialog.jsx';
+import { ActionMenu } from './ActionMenu.jsx';
 import { Avatar, IataTag, KindChip, Stars } from './ui.jsx';
 import { Lightbox } from './Lightbox.jsx';
 import { ShareButton } from './ShareButton.jsx';
-import { IconComment, IconHeart } from '../assets/icons.jsx';
+import { IconComment, IconFlag, IconHeart } from '../assets/icons.jsx';
 
 const MAX_SUBS = 3;
 const timeFmt = new Intl.DateTimeFormat('sv-SE', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
@@ -196,9 +197,17 @@ function CheckinCardInner({ checkin: c, onDelete, hideAirport = false, hideUser 
         />
         <span className="spacer" />
         {user && !isMine && (
-          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setReporting(true)}>
-            Rapportera
-          </button>
+          <ActionMenu
+            label={`Val för check-in av ${who}`}
+            up
+            items={[
+              {
+                label: 'Rapportera',
+                icon: <IconFlag size={18} aria-hidden="true" />,
+                onSelect: () => setReporting(true)
+              }
+            ]}
+          />
         )}
         {reporting && <ReportDialog type="checkin" target={c.id} onClose={() => setReporting(false)} />}
         {isMine && (

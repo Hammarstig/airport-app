@@ -24,10 +24,36 @@ const REASON = {
   other: 'Annat'
 };
 
-function targetLink(r) {
-  if (r.type === 'user') return `/u/${r.target}`;
-  if (r.type === 'checkin') return `/c/${r.target}`;
-  return null;
+const UserLink = ({ username }) => (username ? <Link to={`/u/${username}`}>@{username}</Link> : 'okänd användare');
+
+/** Vad som rapporterats (API:t ger target som objekt per typ, BUG-13). */
+function ReportTarget({ type, target }) {
+  const t = target && typeof target === 'object' ? target : { id: target };
+  if (type === 'user')
+    return (
+      <span className="block">
+        Användare <UserLink username={t.username} />
+        {t.displayName ? ` (${t.displayName})` : ''}
+      </span>
+    );
+  const gone = t.exists === false;
+  const text = type === 'comment' ? t.body : t.comment;
+  return (
+    <span className="block">
+      {type === 'checkin' ? (
+        gone ? (
+          `Check-in ${t.id}`
+        ) : (
+          <Link to={`/c/${t.id}`}>Check-in{t.iata ? ` på ${t.iata}` : ''}</Link>
+        )
+      ) : (
+        'Kommentar'
+      )}{' '}
+      av <UserLink username={t.author} />
+      {gone && ' (borttagen)'}
+      {text && <q className="block mt-1">{text}</q>}
+    </span>
+  );
 }
 
 /** Modereringskö för rapporter (bara för moderatorer). */
@@ -66,9 +92,10 @@ export default function ModerationPage() {
                   <span className="bold block">
                     {REASON[r.reason] || r.reason} · {r.type} {r.reportCount > 1 ? `(${r.reportCount} rapporter)` : ''}
                   </span>
+                  <ReportTarget type={r.type} target={r.target} />
                   <span className="muted text-sm block">
-                    {targetLink(r) ? <Link to={targetLink(r)}>{String(r.target)}</Link> : `kommentar ${r.target}`} · av
-                    @{r.reporter?.username} · {formatDate(r.createdAt)}
+                    Rapporterad av @{typeof r.reporter === 'string' ? r.reporter : r.reporter?.username || 'okänd'} ·{' '}
+                    {formatDate(r.createdAt)}
                   </span>
                   {r.note && <span className="block">{r.note}</span>}
                 </span>
