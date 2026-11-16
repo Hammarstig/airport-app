@@ -56,6 +56,22 @@ export function rotateRefresh(db, token) {
   throw new HttpError(401, 'Sessionen har återkallats', { code: 'session_revoked' });
 }
 
+/**
+ * Kontrollerar en refresh-token utan att rotera. Returnerar sessionen om hemligheten stämmer
+ * (aktuell eller föregående inom fönstret), annars null. Används vid utloggning så att bara
+ * den som har cookien kan logga ut sessionen.
+ */
+export function verifyRefresh(db, token) {
+  const m = /^([a-f0-9]{32})\.([A-Za-z0-9_-]{20,100})$/.exec(typeof token === 'string' ? token : '');
+  if (!m) return null;
+  const s = db.prepare('SELECT * FROM sessions WHERE id = ?').get(m[1]);
+  if (!s) return null;
+  const h = sha(m[2]);
+  if (sameHash(h, s.refresh_hash)) return s;
+  if (sameHash(h, s.prev_hash) && Date.parse(s.rotated_at) > Date.now() - GRACE_MS) return s;
+  return null;
+}
+
 export function revokeSession(db, sid) {
   db.prepare('UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(new Date().toISOString(), sid);
 }

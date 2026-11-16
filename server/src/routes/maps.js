@@ -7,6 +7,7 @@ import { countryNameSv } from '../db/index.js';
 const CONTINENT_NAMES = {
   EU: 'Europa', AS: 'Asien', AF: 'Afrika', NA: 'Nordamerika', SA: 'Sydamerika', OC: 'Oceanien', AN: 'Antarktis',
 };
+const collator = new Intl.Collator('sv');
 const pct = (v, t) => (t ? Math.round((v / t) * 1000) / 10 : 0);
 
 export default function mapRoutes({ db }) {
@@ -22,32 +23,48 @@ export default function mapRoutes({ db }) {
   }
   const scopeAll = (q) => enumParam(q, 'scope', ['scheduled', 'all'], 'scheduled') === 'all';
 
-  /**
-   * Besökta flygplatser (iata, visits) som tittaren får se: ägaren läser förberäknad statistik,
-   * andra räknas på synliga check-ins.
-   */
-  function visitedSql(req, uid) {
-    if (req.user?.id === uid) return { sql: 'SELECT iata, visits FROM user_airports WHERE user_id = ?', params: [uid] };
-    const vis = checkinVisible(req.user?.id);
-    return {
-      sql: `SELECT c.iata, COUNT(*) AS visits FROM checkins c JOIN users u ON u.id = c.user_id
-        WHERE c.user_id = ? AND ${vis.sql} GROUP BY c.iata`,
-      params: [uid, ...vis.params],
-    };
-  }
   const privateCache = (res) => res.set('Cache-Control', 'private, max-age=30');
 
-  const overview = (v) => db.prepare(`
-    SELECT a.country, a.continent, COUNT(*) AS total, COUNT(v.iata) AS visited
-    FROM airports a
-    LEFT JOIN (${v.sql}) v ON v.iata = a.iata
-    WHERE (? = 1 OR a.scheduled = 1) AND a.country IS NOT NULL
-    GROUP BY a.country, a.continent`);
+  /**
+   * Besökta flygplatser som tittaren får se: Map iata -> antal besök. Ägaren läser förberäknad
+   * statistik, andra räknas på synliga check-ins.
+   */
+  function visitedMap(req, uid) {
+    let rows;
+    if (req.user?.id === uid) {
+      rows = db.prepare('SELECT iata, visits FROM user_airports WHERE user_id = ?').all(uid);
+    } else {
+      const vis = checkinVisible(req.user?.id);
+      rows = db.prepare(`SELECT c.iata, COUNT(*) AS visits FROM checkins c JOIN users u ON u.id = c.user_id
+        WHERE c.user_id = ? AND ${vis.sql} GROUP BY c.iata`).all(uid, ...vis.params);
+    }
+    return new Map(rows.map((r) => [r.iata, r.visits]));
+  }
+
+  // Totalt antal flygplatser per land och kontinent ändras inte efter seed: räknas en gång per scope.
+  const totalsCache = new Map();
+  function totals(all) {
+    if (!totalsCache.has(all)) {
+      totalsCache.set(all, db.prepare(`SELECT country, continent, COUNT(*) AS total FROM airports
+        WHERE (? = 1 OR scheduled = 1) AND country IS NOT NULL GROUP BY country, continent`).all(all));
+    }
+    return totalsCache.get(all);
+  }
+
+  const visitedByCountry = (all, visited) => {
+    const out = new Map();
+    if (!visited.size) return out;
+    for (const r of db.prepare(`SELECT country, continent, COUNT(*) AS n FROM airports
+      WHERE iata IN (SELECT value FROM json_each(?)) AND (? = 1 OR scheduled = 1) GROUP BY country, continent`)
+      .all(JSON.stringify([...visited.keys()]), all)) out.set(`${r.country}|${r.continent}`, r.n);
+    return out;
+  };
 
   r.get('/users/:username/map', h((req, res) => {
     const uid = userId(req);
-    const v = visitedSql(req, uid);
-    const rows = overview(v).all(...v.params, scopeAll(req.query) ? 1 : 0);
+    const all = scopeAll(req.query) ? 1 : 0;
+    const vc = visitedByCountry(all, visitedMap(req, uid));
+    const rows = totals(all).map((t) => ({ ...t, visited: vc.get(`${t.country}|${t.continent}`) ?? 0 }));
     const countries = new Map();
     const continents = new Map();
     let visited = 0;
@@ -74,25 +91,23 @@ export default function mapRoutes({ db }) {
       countries: [...countries.values()]
         .filter((c) => c.total > 0)
         .map((c) => ({ code: c.code, name: countryNameSv(c.code), continent: c.continent, visited: c.visited, total: c.total, pct: pct(c.visited, c.total) }))
-        .sort((a, b) => b.visited - a.visited || b.pct - a.pct || a.name.localeCompare(b.name, 'sv')),
+        .sort((a, b) => b.visited - a.visited || b.pct - a.pct || collator.compare(a.name, b.name)),
     });
   }));
 
   // Alla flygplatser i landet inom scope, plus besökta utanför scope (visas på kartan men räknas inte i total).
-  const countryAirports = (v) => db.prepare(`
-    SELECT a.iata, a.name, a.city, a.lat, a.lon, a.type, a.scheduled, a.region, a.region_name,
-           IFNULL(v.visits, 0) AS visits, (? = 1 OR a.scheduled = 1) AS in_scope
-    FROM airports a
-    LEFT JOIN (${v.sql}) v ON v.iata = a.iata
-    WHERE a.country = ? AND (? = 1 OR a.scheduled = 1 OR v.visits IS NOT NULL)
-    ORDER BY a.type_rank, a.name`);
+  const countryAirports = db.prepare(`
+    SELECT a.iata, a.name, a.city, a.lat, a.lon, a.type, a.scheduled, a.region, a.region_name
+    FROM airports a WHERE a.country = ? ORDER BY a.type_rank, a.name`);
 
   r.get('/users/:username/map/:country', h((req, res) => {
     const uid = userId(req);
     const code = code2(req.params.country);
     const all = scopeAll(req.query) ? 1 : 0;
-    const v = visitedSql(req, uid);
-    const rows = code ? countryAirports(v).all(all, ...v.params, code, all) : [];
+    const seen = visitedMap(req, uid);
+    const rows = (code ? countryAirports.all(code) : [])
+      .map((a) => ({ ...a, visits: seen.get(a.iata) ?? 0, in_scope: all === 1 || a.scheduled === 1 }))
+      .filter((a) => a.in_scope || a.visits > 0);
     if (!rows.length) {
       const exists = code && db.prepare('SELECT 1 FROM airports WHERE country = ? LIMIT 1').get(code);
       if (!exists) throw notFound('Landet finns inte');
@@ -116,7 +131,7 @@ export default function mapRoutes({ db }) {
       country: { code, name: countryNameSv(code), visited, total, pct: pct(visited, total) },
       regions: [...regions.values()]
         .map((g) => ({ ...g, pct: pct(g.visited, g.total) }))
-        .sort((a, b) => a.name.localeCompare(b.name, 'sv')),
+        .sort((a, b) => collator.compare(a.name, b.name)),
       airports: rows.map((a) => ({
         iata: a.iata,
         name: a.name,

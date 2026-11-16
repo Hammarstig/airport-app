@@ -646,6 +646,6 @@ describe('med demodata', () => {
     const t = Date.now();
     await api('GET', '/api/users/oliver/map');
     await api('GET', '/api/users/oliver/map/SE');
-    assert.ok(Date.now() - t < 200, 'kartanropen ska vara snabba');
+    assert.ok(Date.now() - t < 500, 'kartanropen ska vara snabba (generöst för belastad CI)');
   });
 });

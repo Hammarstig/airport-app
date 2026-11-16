@@ -68,3 +68,40 @@ export function rateLimit({ windowMs, max, name = 'default' }) {
     next();
   };
 }
+
+/**
+ * Spärr för misslyckade inloggningar per nyckel (t.ex. konto+IP och konto totalt).
+ * `blocked(keys)` ger sekunder att vänta om någon nyckel nått sin gräns, annars 0.
+ */
+export function failureGuard({ windowMs, perAccountIp, perAccount }) {
+  const hits = new Map();
+  const limitFor = (k) => (k.startsWith('a:') ? perAccountIp : perAccount);
+  const live = (k, now) => {
+    const e = hits.get(k);
+    if (e && e.resetAt <= now) { hits.delete(k); return null; }
+    return e ?? null;
+  };
+  return {
+    blocked(keys) {
+      const now = Date.now();
+      let wait = 0;
+      for (const k of keys) {
+        const e = live(k, now);
+        if (e && e.count >= limitFor(k)) wait = Math.max(wait, Math.ceil((e.resetAt - now) / 1000));
+      }
+      return wait;
+    },
+    fail(keys) {
+      const now = Date.now();
+      if (hits.size > 50_000) for (const [k, v] of hits) if (v.resetAt <= now) hits.delete(k);
+      for (const k of keys) {
+        const e = live(k, now) ?? { count: 0, resetAt: now + windowMs };
+        e.count++;
+        hits.set(k, e);
+      }
+    },
+    reset(key) {
+      hits.delete(key);
+    },
+  };
+}

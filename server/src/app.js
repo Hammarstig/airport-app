@@ -20,6 +20,7 @@ import socialRoutes from './routes/social.js';
 import accountRoutes from './routes/account.js';
 import photoRoutes, { photoStore, uploadsStatic } from './routes/photos.js';
 import pushRoutes from './routes/push.js';
+import inviteRoutes from './routes/invites.js';
 import { createPushService, resolveVapid } from './push.js';
 import { setPushService } from './notify.js';
 
@@ -141,7 +142,7 @@ export function createApp(opts = {}) {
 
   const ctx = { db: database, secret, photos, limiters, config: cfg, push };
   for (const routes of [authRoutes, airportRoutes, loungeRoutes, checkinRoutes, userRoutes, searchRoutes,
-    exploreRoutes, mapRoutes, rankingRoutes, socialRoutes, accountRoutes, photoRoutes, pushRoutes]) {
+    exploreRoutes, mapRoutes, rankingRoutes, socialRoutes, accountRoutes, photoRoutes, pushRoutes, inviteRoutes]) {
     app.use('/api', routes(ctx));
   }
 

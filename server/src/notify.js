@@ -3,7 +3,8 @@
 import { USER_COLS, userFrom } from './util.js';
 import { badgeDef, tierName } from './badges.js';
 
-export const NOTIFICATION_TYPES = ['follow', 'follow_request', 'follow_accepted', 'comment', 'like', 'badge', 'home_visit', 'overtaken'];
+export const NOTIFICATION_TYPES = ['follow', 'follow_request', 'follow_accepted', 'comment', 'like', 'badge', 'home_visit', 'overtaken',
+  'invite_accepted', 'mayor_gained', 'mayor_lost', 'challenge_completed'];
 export const PUSH_TYPES = NOTIFICATION_TYPES;
 const TIER_SV = { bronze: 'brons', silver: 'silver', gold: 'guld', platinum: 'platina' };
 
@@ -29,6 +30,7 @@ const blocked = (db, a, b) => !!db.prepare(`SELECT 1 FROM blocks WHERE (blocker_
  */
 export function notify(db, { userId, type, actorId = null, checkinId = null, commentId = null, iata = null,
   badgeId = null, badgeTier = null, groupKey = null, data = null }) {
+  if (!NOTIFICATION_TYPES.includes(type)) throw new Error(`Okänd notistyp ${type}`);
   if (!userId || userId === actorId) return null;
   if (actorId && blocked(db, userId, actorId)) return null;
   const info = db.prepare(`INSERT OR IGNORE INTO notifications
@@ -83,6 +85,16 @@ export function notificationFrom(row) {
     case 'like': text = `${who} gillade din check-in på ${row.iata}`; url = `/c/${row.checkin_id}`; break;
     case 'home_visit': text = `${who} checkade in på din hemmaflygplats ${row.iata}`; url = `/c/${row.checkin_id}`; break;
     case 'overtaken': text = `${who} gick om dig på veckans topplista`; url = '/leaderboard'; break;
+    case 'invite_accepted': text = `${who} gick med via din inbjudan`; url = `/u/${actor?.username}`; break;
+    case 'mayor_gained': text = `Du är ny stammis nummer ett på ${row.iata}`; url = `/airport/${row.iata}`; break;
+    case 'mayor_lost': text = `${who} tog över stammistiteln på ${row.iata}`; url = `/airport/${row.iata}`; break;
+    case 'challenge_completed': {
+      let d = {};
+      try { d = JSON.parse(row.data || '{}') ?? {}; } catch { d = {}; }
+      text = `Du klarade månadsutmaningen ${d.name ?? ''}`.trim();
+      url = `/u/${row.me_username}`;
+      break;
+    }
     case 'badge': {
       let list = [];
       try { list = JSON.parse(row.data || 'null') ?? []; } catch { list = []; }

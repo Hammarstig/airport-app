@@ -146,7 +146,10 @@ describe('integritet: synlighet, fördröjning, privat profil', () => {
     const r = await s.api('GET', '/api/me/settings', { token: t.agare });
     assert.deepEqual(r.body, {
       isPrivate: false, defaultVisibility: 'public', publishDelayHours: 0, hideHomeAirport: false, notifyHomeVisits: true,
-      push: { follow: true, follow_request: true, follow_accepted: true, comment: true, like: true, badge: true, home_visit: true, overtaken: true },
+      push: {
+        follow: true, follow_request: true, follow_accepted: true, comment: true, like: true, badge: true, home_visit: true, overtaken: true,
+        invite_accepted: true, mayor_gained: true, mayor_lost: true, challenge_completed: true,
+      },
     });
     const bad = await s.api('PATCH', '/api/me/settings', { token: t.agare, body: { defaultVisibility: 'alla' } });
     assert.equal(bad.status, 400);
