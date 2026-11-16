@@ -248,7 +248,16 @@ const GETS = {
   followRequests: () => ['/me/follow-requests'],
   blocks: () => ['/me/blocks'],
   pushKey: () => ['/push/public-key'],
-  moderationReports: (status = 'open') => ['/moderation/reports', { status }]
+  moderationReports: (status = 'open') => ['/moderation/reports', { status }],
+  // v4
+  invites: () => ['/me/invites'],
+  invite: (code) => [`/invites/${enc(code)}`],
+  suggestions: (limit = 10) => ['/me/suggestions', { limit }],
+  regulars: (iata, days = 60) => [`/airports/${enc(iata)}/regulars`, { days }],
+  mayorships: (u) => [`/users/${enc(u)}/mayorships`],
+  challenges: (u, month) => [`/users/${enc(u)}/challenges`, { month }],
+  year: (u, year) => [`/users/${enc(u)}/year/${enc(year)}`],
+  imports: () => ['/me/imports']
 };
 
 export const api = { peek: {} };
@@ -323,7 +332,15 @@ Object.assign(api, {
     fd.append('photo', blob, 'photo.jpg');
     return write('POST', `/checkins/${enc(checkinId)}/photos`, fd, ['/feed', '/airports', '/users']);
   },
-  deletePhoto: (id) => write('DELETE', `/photos/${enc(id)}`, undefined, ['/feed', '/airports', '/users'])
+  deletePhoto: (id) => write('DELETE', `/photos/${enc(id)}`, undefined, ['/feed', '/airports', '/users']),
+  // v4
+  createInvite: (maxUses) => write('POST', '/me/invites', maxUses ? { maxUses } : {}, ['/me/invites']),
+  deleteInvite: (code) => write('DELETE', `/me/invites/${enc(code)}`, undefined, ['/me/invites']),
+  importCsv: (csv, dryRun) =>
+    dryRun
+      ? request('/me/imports', { method: 'POST', params: { dryRun: 1 }, body: { csv } })
+      : write('POST', '/me/imports', { csv }, ['/me', ...CONTENT]),
+  deleteImport: (id) => write('DELETE', `/me/imports/${enc(id)}`, undefined, ['/me', ...CONTENT])
 });
 
 /** Laddar ner egen data (GET /api/me/export) som fil. */

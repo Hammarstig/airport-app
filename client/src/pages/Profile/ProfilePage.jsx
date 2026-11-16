@@ -67,7 +67,7 @@ export default function ProfilePage() {
         }
       />
       {profile.canView === false ? (
-        <EmptyState icon={IconLock} title="Privat profil">
+        <EmptyState icon={IconLock} title="Privat profil" heading>
           <p className="muted">
             {profile.followRequested
               ? 'Din förfrågan väntar på godkännande.'

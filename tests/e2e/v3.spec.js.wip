@@ -90,9 +90,9 @@ test.describe('sessioner', () => {
     const a = await device(browser, testInfo, u.username);
     const b = await device(browser, testInfo, u.username);
     const c = await device(browser, testInfo, u.username);
-    await b.page.goto('/settings');
-    await c.page.goto('/settings');
-    await a.page.goto('/settings');
+    await b.page.goto('/settings/sakerhet');
+    await c.page.goto('/settings/sakerhet');
+    await a.page.goto('/settings/sakerhet');
     const list = a.page.getByRole('list', { name: 'Inloggade enheter' });
     // API-registreringen + tre enheter.
     await expect(list.locator('li')).toHaveCount(4);
@@ -116,21 +116,21 @@ test.describe('sessioner', () => {
     const u = await apiRegister(request);
     const a = await device(browser, testInfo, u.username);
     const b = await device(browser, testInfo, u.username);
-    await b.page.goto('/settings');
-    await a.page.goto('/settings');
+    await b.page.goto('/settings/sakerhet');
+    await a.page.goto('/settings/sakerhet');
     const form = a.page.getByRole('form', { name: 'Byt lösenord' });
     await form.getByLabel('Nuvarande lösenord').fill('fel-losenord');
     await form.getByLabel('Nytt lösenord').fill('Nytt-Losen-2026');
     await form.getByRole('button', { name: 'Byt lösenord' }).click();
     await expect(form.getByRole('alert')).toHaveText('Fel nuvarande lösenord.');
-    await expect(a.page).toHaveURL(/\/settings$/);
+    await expect(a.page).toHaveURL(/\/settings\/sakerhet$/);
 
     await form.getByLabel('Nuvarande lösenord').fill('hemligt123');
     await form.getByRole('button', { name: 'Byt lösenord' }).click();
     await expect(a.page.getByText('Lösenordet är bytt. Andra enheter har loggats ut.')).toBeVisible();
     // Denna enhet är kvar inloggad, även efter omladdning.
     await a.page.reload();
-    await expect(a.page.getByRole('heading', { level: 1, name: 'Inställningar' })).toBeVisible();
+    await expect(a.page.getByRole('heading', { level: 1, name: 'Säkerhet' })).toBeVisible();
     await b.page.reload();
     await expect(b.page).toHaveURL(/\/login$/);
     expect((await request.post('/api/auth/login', { data: { username: u.username, password: 'hemligt123' } })).status()).toBe(401);
@@ -145,7 +145,7 @@ test.describe('integritet', () => {
     const p = await apiRegister(request);
     await apiCheckin(request, p.token, { iata: 'GOT', comment: 'Privat resa' });
     const owner = await device(browser, testInfo, p.username);
-    await owner.page.goto('/settings');
+    await owner.page.goto('/settings/integritet');
     const sw = owner.page.getByRole('switch', { name: /Privat profil/ });
     await expect(sw).not.toBeChecked();
     const saved = owner.page.waitForResponse((r) => r.url().endsWith('/api/me/settings') && r.request().method() === 'PATCH');
@@ -208,7 +208,7 @@ test.describe('integritet', () => {
 
   test('standardsynlighet och fördröjning ställs in under Integritet', async ({ page, request }) => {
     const u = await loginNewUser(page, request);
-    await page.goto('/settings');
+    await page.goto('/settings/integritet');
     const vis = page.getByRole('radiogroup', { name: 'Vem ser nya check-ins' });
     let saved = page.waitForResponse((r) => r.url().endsWith('/api/me/settings') && r.request().method() === 'PATCH');
     await vis.getByText('Följare').click();
@@ -253,7 +253,7 @@ test.describe('blockera och rapportera', () => {
     await expect(page.locator('article.checkin').first()).toBeVisible();
     await expect(page.locator('article.checkin').filter({ hasText: 'Blockeras snart' })).toHaveCount(0);
 
-    await page.goto('/settings');
+    await page.goto('/settings/integritet');
     const list = page.getByRole('list', { name: 'Blockerade' });
     await expect(list).toContainText(target.username);
     await list.getByRole('button', { name: 'Häv blockering' }).click();

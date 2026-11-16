@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import { api } from '../../lib/api.js';
+import { useAsync } from '../../hooks/useAsync.js';
+import { Avatar } from '../../components/ui.jsx';
 import { useAuth } from '../../lib/auth.jsx';
 import { useToast } from '../../components/Toast.jsx';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
@@ -18,6 +21,10 @@ export default function RegisterPage() {
   const [home, setHome] = useState(null);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
+  const [params] = useSearchParams();
+  const ref = (params.get('ref') || '').toUpperCase();
+  // Inbjudan: visa vem som bjöd in. Ogiltig kod ignoreras (som i API:t).
+  const { data: invite } = useAsync(() => (ref ? api.invite(ref).catch(() => null) : Promise.resolve(null)), [ref]);
 
   // Omdirigering sker här när user sätts, så att det bara finns en navigering.
   if (user) return <Navigate to={location.state?.from || '/checkin'} replace />;
@@ -36,9 +43,14 @@ export default function RegisterPage() {
         username: u,
         password,
         ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
-        ...(home ? { homeIata: home.iata } : {})
+        ...(home ? { homeIata: home.iata } : {}),
+        ...(invite ? { ref: invite.code } : {})
       });
-      toast.show(`Välkommen till Gatelog, ${created.displayName || created.username}!`);
+      toast.show(
+        `Välkommen till Gatelog, ${created.displayName || created.username}!${
+          invite ? ` Du och @${invite.inviter.username} följer nu varandra.` : ''
+        }`
+      );
     } catch (err) {
       if (err.status === 409) setErrors({ username: err.message || 'Användarnamnet är upptaget.' });
       toast.error(err);
@@ -53,6 +65,15 @@ export default function RegisterPage() {
         <h1 className="page__title">Skapa konto</h1>
         <p className="page__subtitle">Börja logga dina flygplatser.</p>
       </header>
+      {invite && (
+        <div className="notice row mb-4" role="status">
+          <Avatar user={invite.inviter} />
+          <span>
+            <strong>{invite.inviter.displayName || `@${invite.inviter.username}`}</strong> har bjudit in dig. Ni följer
+            varandra direkt när du skapat kontot.
+          </span>
+        </div>
+      )}
       <form className="card" onSubmit={submit} noValidate>
         <div className="card__body stack">
           <Field

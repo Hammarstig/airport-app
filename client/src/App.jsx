@@ -83,6 +83,7 @@ export function App() {
           <Route path="checkin/:id/edit" element={auth(<CheckinPage />)} />
           <Route path="c/:id" element={s(<CheckinDetailPage />)} />
           <Route path="settings" element={auth(<SettingsPage />)} />
+          <Route path="settings/:section" element={auth(<SettingsPage />)} />
           <Route path="notifications" element={auth(<NotificationsPage />)} />
           <Route path="u/:username/followers" element={s(<FollowPage list="followers" />)} />
           <Route path="u/:username/following" element={s(<FollowPage list="following" />)} />

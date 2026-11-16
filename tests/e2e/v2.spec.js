@@ -386,7 +386,8 @@ test.describe('offlinekö', () => {
     );
     await context.setOffline(false);
     await expect(page.locator('.offline-banner')).toHaveText(/1 check-in kunde inte skickas/);
-    await page.getByRole('link', { name: 'Inställningar' }).click();
+    // Kön visas under Inställningar > Data (runda 4); bannern länkar dit.
+    await page.locator('.offline-banner').getByRole('link', { name: 'visa kön' }).click();
     const q = page.locator('.offline-queue');
     await expect(q).toContainText('Testfel från servern');
     await q.getByRole('button', { name: 'Ta bort' }).click();
@@ -399,7 +400,7 @@ test.describe('konto', () => {
     const u = await apiRegister(request);
     await apiCheckin(request, u.token, { iata: 'GOT', comment: 'Exportera mig' });
     await useToken(page, u.token);
-    await page.goto('/settings');
+    await page.goto('/settings/data');
     const dl = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Exportera mina data' }).click();
     const file = await dl;
@@ -416,7 +417,7 @@ test.describe('konto', () => {
     const u = await apiRegister(request);
     const c = await apiCheckin(request, u.token, { iata: 'ARN', comment: 'Raderas' });
     await useToken(page, u.token);
-    await page.goto('/settings');
+    await page.goto('/settings/data');
     await page.getByRole('button', { name: 'Radera konto' }).click();
     const form = page.getByRole('form', { name: 'Radera konto' });
     await expect(form.getByRole('button', { name: 'Radera mitt konto' })).toBeDisabled();

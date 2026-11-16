@@ -77,7 +77,8 @@ export function Spinner({ label = 'Laddar' }) {
   );
 }
 
-export function EmptyState({ icon: Icon, title, children }) {
+export function EmptyState({ icon: Icon, title, heading = false, children }) {
+  const Title = heading ? 'h2' : 'p';
   return (
     <div className="empty-state">
       {Icon && (
@@ -85,7 +86,11 @@ export function EmptyState({ icon: Icon, title, children }) {
           <Icon size={32} />
         </span>
       )}
-      {title && <p className="bold mt-0 mb-0">{title}</p>}
+      {title && (
+        <Title className="bold mt-0 mb-0" style={heading ? { fontSize: 'inherit' } : undefined}>
+          {title}
+        </Title>
+      )}
       {children}
     </div>
   );

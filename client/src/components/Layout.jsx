@@ -49,7 +49,7 @@ function BackButton({ me }) {
       type="button"
       className="icon-btn topbar__back"
       aria-label="Tillbaka"
-      onClick={() => (canGoBack ? navigate(-1) : navigate('/'))}
+      onClick={() => (canGoBack ? navigate(-1) : navigate(pathname.startsWith('/settings/') ? '/settings' : '/'))}
     >
       <IconChevronLeft size={22} aria-hidden="true" />
     </button>

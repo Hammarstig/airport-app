@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useOnline } from '../hooks/useOnline.js';
 import { useOfflineQueue } from '../hooks/useOfflineQueue.js';
 import { onSent, startQueue } from '../lib/offlineQueue.js';
@@ -23,7 +24,12 @@ export function OfflineBanner() {
     text = waiting ? `Offline - ${waiting} check-in${waiting === 1 ? '' : 's'} väntar på nät` : 'Du är offline';
   else if (sending) text = 'Skickar köade check-ins...';
   else if (waiting) text = `${waiting} check-in${waiting === 1 ? '' : 's'} väntar på att skickas`;
-  else text = `${failed} check-in${failed === 1 ? '' : 's'} kunde inte skickas - se Inställningar`;
+  else
+    text = (
+      <>
+        {failed} check-in{failed === 1 ? '' : 's'} kunde inte skickas - <Link to="/settings/data">visa kön</Link>
+      </>
+    );
 
   return (
     <div className={`offline-banner${online ? '' : ' offline-banner--offline'}`} role="status" aria-live="polite">
