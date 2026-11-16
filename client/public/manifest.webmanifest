@@ -104,5 +104,28 @@
         }
       ]
     }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/narrow.webp",
+      "sizes": "824x1678",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Flödet med vänners check-ins"
+    },
+    {
+      "src": "/screenshots/narrow2.webp",
+      "sizes": "824x1678",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Flygplatssida med betyg och statistik"
+    },
+    {
+      "src": "/screenshots/wide.webp",
+      "sizes": "1280x800",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "Flödet på dator med sidopanel"
+    }
   ]
 }

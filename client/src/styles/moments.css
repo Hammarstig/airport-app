@@ -326,6 +326,8 @@
   height: 4px;
   background: repeating-linear-gradient(90deg, var(--signal) 0 18px, transparent 18px 28px);
 }
+.invite-card > * { min-width: 0; }
+.invite-card__link .btn { flex: none; }
 .invite-card__title { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: var(--fs-2xl); line-height: 1.05; color: var(--ink); max-width: 18ch; }
 .invite-card__text { margin: 0; color: var(--ink-2); max-width: 36ch; }
 .invite-card__link {

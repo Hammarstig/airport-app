@@ -34,11 +34,11 @@ Woff2 från @fontsource (SIL OFL 1.1, licenser i samma mapp), subset latin + lat
 - **Atkinson Hyperlegible** 400/400 kursiv/700 - brödtext och UI. Fallback system-ui. Latin-filerna är modifierade med en nolla utan snedstreck (originalet ritar 0 som Ø, vilket krockar med nordiska namn och gör "4,0" svårläst); se `client/public/fonts/README.txt`.
 - **IBM Plex Mono** 600 - endast koder: IATA, flightnummer, gate, plats. Fallback ui-monospace.
 
-Förladda de två viktigaste i `client/index.html` (Bygg):
+Förladda bara rubriktypsnittet i `client/index.html` (Bygg). Rubriken är LCP-element på flygplats- och profilsidan; brödtexten har bra systemfallback och ska inte konkurrera om bandbredden:
 ```html
-<link rel="preload" href="/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/big-shoulders-display-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 ```
+Ta bort preload-raden för `atkinson-hyperlegible-latin-400-normal.woff2`.
 Typskala 1.25: 0.8 / 0.875 / 1 / 1.25 / 1.563 / 1.953 / 2.441 / 3.052 rem.
 
 ### Touch
@@ -61,6 +61,7 @@ Tillagt: `.stack--sm`, `.stack--lg`, `.row--between`, `.row--nowrap`, `.skip-lin
 - Formulär: `.field`, `.field__label`, `.field__hint`, `.field__error`, `.input`, `.select`, `.textarea`, `.segmented`, `.segmented__option`, `.segmented__option--active`
 - Betyg: `.stars` (tomt element med `role="img"` + `aria-label`, `--value` 0-5 ger fyllnad i halvsteg), `.stars--lg`, `.stars-input` (storlek via `font-size`, 1 stjärna = 1em; knappar `.stars-input__btn` med `--fill` 0/0.5/1 per knapp, alternativt `.stars-input__btn--active` för hel), `.rating-badge` (siffra i färgad bricka; `--good`/`--mid`/`--bad` modifierare), `.subrating` (rad med etikett + mätare: `.subrating__label`, `.subrating__bar`, `.subrating__fill` med `--value` 0-5)
 - IATA-kod: `.iata-tag` (split-flap: en mörk bricka per tecken, förutsätter 3 tecken; annat antal via `--chars`), `.iata-tag--lg` (med flip-animation vid visning). `.airport-hero__code` får samma utseende automatiskt.
+- IATA-länken i kortets huvud har 48x48 px träffyta (transparent ram, brickan växer inte).
 - Check-in i flöde (kompakt boardingkort, 2-3 per skärm på Pixel 7): `.checkin`, `.checkin__head` (avatar 36 px, namn + flygplats på en rad, datum + ort på en rad, IATA till höger), `.checkin__avatar`, `.checkin__meta`, `.checkin__body`, `.checkin__comment` (max 4 rader; `.checkin__comment--full` visar allt), `.checkin__actions` (perforering med hack, ingen egen sidfot; skål, kommentar, dela), `.kind-chip` (+ `--departure`, `--arrival`, `--transfer`, `--layover`).
   - Delbetyg: en `ul.row` med `.badge` i `.checkin__body` visas som tunn textrad; de tre första syns, resten blir "+N" (läses ändå upp). Alternativt `.checkin__ratings`.
   - Foto: `.photo-strip` i kortet visar första fotot stort (16:9, max 240 px) och resten som tumnaglar. Alternativt `.checkin__photo` (knapp med en `img`).
@@ -98,6 +99,7 @@ Tillagt: `.stack--sm`, `.stack--lg`, `.row--between`, `.row--nowrap`, `.skip-lin
 - `.map__legend` med `.map__legend-scale` (6 tomma `<span>`, färgas automatiskt), `.map__legend-item` + `.map__swatch` (`--dot`, `--dot-visited`)
 - `.map__tooltip` - absolut positionerad; sätt `left`/`top` till punkten, den lägger sig ovanför. `<strong>` för rubrik.
 - `.coverage-bar` - mätare, `--value` 0-100
+- Kartknappar: lägg `.map__controls` på knappraden; den hamnar som egen rad under kartan (inline-positionering skrivs över), så knapparna aldrig täcker länder.
 - `.map-toggle` - växel karta/lista, barn `<button aria-pressed>` (eller `.map-toggle__option` + `--active`)
 
 ## Check-in-flödet (`flow.css`)
@@ -116,6 +118,20 @@ Tillagt: `.stack--sm`, `.stack--lg`, `.row--between`, `.row--nowrap`, `.skip-lin
 - `.streak` > `IconFlame` + `.streak__count` + `.streak__unit`. `.streak--active` (flamman fladdrar diskret), `.streak--cold` (bruten), `.streak--lg`.
 - `.share-card` (4:5 = 1080x1350, skalar med sin bredd via container-enheter) > `.share-card__inner` med `.share-card__brand`, `.share-card__title`, `.share-card__hero` (stor siffra), `.share-card__label`, `.share-card__stats` > `.share-card__stat` (`<b>` + `<span>`), `.share-card__codes` (iata-tags); plus `.share-card__footer` (gul stub med `.share-card__barcode`) som syskon till `__inner`. `.share-card--dark` för mörk variant. Rendera i 1080 px bredd för bildexport.
 - `.checkin-done` (sammanfattning efter check-in) > `.checkin-done__stamp` (passtämpel: `.checkin-done__stamp-kind`, `.checkin-done__stamp-code`, `.checkin-done__stamp-date`), `.checkin-done__title`, `.checkin-done__subtitle`, `.checkin-done__xp`, `.checkin-done__panel` (level-bar, streak, `.checkin-done__next`), `.checkin-done__badges` > `.checkin-done__badge` (img + namn), `.checkin-done__actions` (Dela, Klar). Stämpeln landar, sedan glider resten in i tur och ordning och XP-mätaren fylls. Allt stängs av vid `prefers-reduced-motion`.
+
+## Ögonblick och tillväxt (`moments.css`)
+- **Nytt märke eller ny nivå:** `.badge-moment` (fast helskärm, role=dialog) med nivåfärg `--bronze|--silver|--gold|--platinum` eller `--level`. Innehåll: `.badge-moment__confetti` (12-24 tomma `<i>`, döljs vid reduced-motion), `.badge-moment__stage` > `.badge-moment__rays` + `img.badge-moment__badge` (eller `.badge-moment__level` med nivåsiffran som split-flap), `.badge-moment__kicker`, `.badge-moment__title`, `.tier-chip`, `.badge-moment__desc`, `.badge-moment__actions` (Dela primär, Fortsätt som `.btn--ghost`), `.badge-moment__close`. Märket studsar in, glans sveper en gång, strålarna roterar långsamt.
+- **Månadsutmaningar och säsong:** `.challenge-card` (`--season`, `--winter`, `--summer`, `--done`) > `.challenge-card__media` (märkesbild eller ikon), `.challenge-card__head` (`__title`, `__when`), `.challenge-card__bar` (`--value` 0-100), `.challenge-card__meta`. `.season-chip` (t.ex. "Säsong") och `.badge-card--limited` för säsongsmärken i märkesrutnätet.
+- **Stammisar:** `.regulars` > `.regulars__mayor` (`.crown` runt avataren ger kronan, `__mayor-title` "Borgmästare på GOT", `__mayor-name`, `__mayor-meta`, `.mayor-chip`). Övriga stammisar som vanlig `.list` med `.rank`. `.crown--sm` för små avatarer i listor.
+- **Vänförslag:** `.suggest-row` (horisontell scroll) > `.suggest-card` (avatar 56 px, `__name`, `__reason`, valfritt `__codes` med iata-taggar, `.follow-btn.follow-btn--sm`, `__dismiss`).
+- **Inbjudan:** `.invite-card` > `__title`, `__text`, `__link` (kod i monospace + Kopiera), `__actions`.
+- **Årsöversikt "Ditt 2026":** `.wrapped` (horisontell bläddring med snap) > `.wrapped-slide` (9:16; teman `--sky`, `--signal`, `--plum`, `--green`, standard natt) > `.wrapped-slide__inner` med `__brand` (+ `<small>`), `__kicker`, `__big` (eller `__big--code` för IATA), `__label`, `__text`, `__list` (numrerad topplista med `<span>` för värdet), `__stats`, `__codes`, `__foot` (+ `__barcode`). `.wrapped-progress` (streck per bild, `is-done`, `aria-current="step"`). Skalar med container-enheter; rendera i 1080x1920 för delbar bild.
+- **Import:** `.import-steps` (ol, `is-done`, `aria-current="step"`), `.import-sources` > `button.import-source` (`aria-pressed`), `label.import-drop` med dold filinput (`--over` vid dragning), `table.import-preview` (rader `is-duplicate`, `is-error`), `.import-status--ok|--dup|--error`.
+
+## Kompakta filter
+- Chipsrader (`.chip-scroll`, och automatiskt `.row[role="group"]` med `.chip`) är en rad med horisontell scroll och fade-kant på mobil; från 768 px radbryts de.
+- Period och scope (två `.segmented` i samma `.stack` som chipsraden) läggs på samma rad automatiskt.
+- Rekommenderat: `.filter-bar` > `.chip-scroll` + `button.filter-btn` (`IconFilter`, `.filter-btn__count`) som öppnar `.modal__panel.filter-sheet` med `.filter-sheet__group` (fieldset + legend), `.filter-sheet__chips` och `.filter-sheet__footer` (Rensa, Visa resultat). `.filter-summary` för "Europa, stora".
 
 ## Inställningar och moderering (`settings.css`)
 - Synlighet: `.visibility-picker` (role=radiogroup, tre kolumner, en kolumn under 380 px) > `label.visibility-option` med dold `input type=radio`, ikon (`IconGlobe`, `IconUsers`, `IconLock`), `.visibility-option__title`, `.visibility-option__desc`. Valt alternativ markeras automatiskt via `:has(input:checked)` (eller `.visibility-option--active`). `.visibility-chip` (ikon + "Vänner"/"Privat") på check-ins och profil.
@@ -137,6 +153,7 @@ Tillagt: `.stack--sm`, `.stack--lg`, `.row--between`, `.row--nowrap`, `.skip-lin
 - PWA: `client/public/manifest.webmanifest`, `icon.svg`, `icon-192.png`, `icon-512.png`, `icon-maskable-192.png`, `icon-maskable-512.png`, `apple-touch-icon.png`. Temafärg `#F3F7FB` (bör även stå i `<meta name="theme-color">` i `index.html`).
 - Märken (API v2, 18 id): `checkins`, `airports`, `countries`, `continents`, `nordic`, `hubs`, `alphabet`, `regions-se`, `airlines`, `front-cabin`, `transfer-king`, `home-turf`, `streak`, `reviewer`, `lounge-expert`, `photographer`, `popular`, `conversationalist`. Emaljnål med metallring, en emaljfärg och glyf per märke.
   - Filnamn: `client/src/assets/badges/tiers/<id>--<tier>.svg` där `<tier>` är `bronze|silver|gold|platinum` (API-fältet `tier`). Nivåbilden har liten glyf + nivåns mål (t.ex. `airports--gold.svg` visar 50), ringens tänder och antalet prickar ökar med nivån, platina har iriserande ring och gnista.
+  - Säsongsmärken: `jul`, `nyar`, `sportlov`, `midsommar`, `vinter-2026` (tre nivåer i API:t; brons/silver/guld visar målet, platina bara glyfen).
   - Grundbild: `client/src/assets/badges/<id>.svg` (stålring, stor glyf, utan siffra). Används när `tier` är `null` (låst märke, gärna med `.badge-card--locked`) eller som reserv.
   - Nytt märkes-id i backend kräver en ny rad i generatorn och 5 nya filer (grundbild + 4 nivåer). Märken med id som inte finns i API:t ska inte ligga kvar.
 - Stilguide: `docs/styleguide.html`. Servera repots rot statiskt med `/fonts/` pekande på `client/public/fonts` för rätt typsnitt; direkt från disk används systemtypsnitt.
