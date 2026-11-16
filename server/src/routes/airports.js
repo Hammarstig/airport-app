@@ -7,6 +7,7 @@ import {
 } from '../util.js';
 import { globalMeans, bayesSql, AIRPORT_PRIOR } from '../stats.js';
 import { checkinVisible } from '../visibility.js';
+import { regulars, MAYOR_DAYS } from '../regulars.js';
 import { requireAuth } from '../auth.js';
 
 const MATCHED_ON = ['iata', 'icao', 'country', 'city', 'name', 'country'];
@@ -169,9 +170,12 @@ export default function airportRoutes({ db }) {
           SELECT 1 FROM checkins c WHERE c.user_id = u.id AND c.iata = ? AND ${fv.sql})
         ORDER BY u.username LIMIT 10`).all(req.user.id, a.iata, ...fv.params).map((x) => userFrom(x));
     }
+    const m = db.prepare(`SELECT am.checkins, am.since, ${USER_COLS('u', '')} FROM airport_mayors am
+      JOIN users u ON u.id = am.user_id WHERE am.iata = ?`).get(a.iata);
     res.json({
       ...airportFrom(a),
       countryName: countryNameSv(a.country),
+      mayor: m ? { user: userFrom(m), checkins: m.checkins, since: m.since } : null,
       stats,
       lounges: loungesFor.all(a.iata).map(loungeFrom),
       photos,
@@ -189,6 +193,24 @@ export default function airportRoutes({ db }) {
       ORDER BY c.visited_on DESC, c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`)
       .all(req.user?.id ?? -1, a.iata, ...vis.params, limit, offset);
     res.json(checkinsWithPhotos(db, rows));
+  }));
+
+  // Stammisar: flest publika check-ins de senaste `days` dagarna (standard 60).
+  r.get('/airports/:iata/regulars', h((req, res) => {
+    const a = airportOr404(req.params.iata);
+    let days = req.query.days === undefined ? MAYOR_DAYS : Number(req.query.days);
+    if (!Number.isInteger(days) || days < 7 || days > 365) throw bad('days måste vara ett heltal 7-365');
+    const rows = regulars(db, a.iata, { days, limit: 10 });
+    const users = rows.length ? new Map(db.prepare(`SELECT u.id, ${USER_COLS('u', '')} FROM users u
+      WHERE u.id IN (${rows.map(() => '?').join(',')})`).all(...rows.map((x) => x.user_id)).map((u) => [u.id, userFrom(u)])) : new Map();
+    let rank = 0;
+    const list = rows.map((x, i) => {
+      if (i === 0 || x.checkins !== rows[i - 1].checkins) rank = i + 1;
+      return { rank, user: users.get(x.user_id), checkins: x.checkins, lastVisit: x.last_visit };
+    });
+    const m = db.prepare(`SELECT am.checkins, am.since, ${USER_COLS('u', '')} FROM airport_mayors am
+      JOIN users u ON u.id = am.user_id WHERE am.iata = ?`).get(a.iata);
+    res.json({ days, mayor: m ? { user: userFrom(m), checkins: m.checkins, since: m.since } : null, regulars: list });
   }));
 
   r.get('/airports/:iata/lounges', h((req, res) => {

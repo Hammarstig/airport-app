@@ -27,9 +27,25 @@ export const BADGE_DEFS = [
   { id: 'lounge-expert', name: 'Loungeexpert', description: 'Recensera lounger', category: 'social', tiers: [1, 10, 40, 100], m: 'reviews' },
   { id: 'photographer', name: 'Fotograf', description: 'Ladda upp foton', category: 'social', tiers: [1, 20, 75, 250], m: 'photos' },
   { id: 'popular', name: 'Populär', description: 'Få gilla på dina check-ins', category: 'social', tiers: [10, 50, 250, 1000], m: 'likesReceived' },
+  // Säsongsmärken: antal check-ins med visitedOn i fönstret (MM-DD återkommer varje år, YYYY-MM-DD är ett evenemang).
+  { id: 'jul', name: 'Julresenär', description: 'Checka in mellan 20 december och 6 januari', category: 'seasonal', tiers: [1, 3, 6], season: { from: '12-20', to: '01-06' } },
+  { id: 'nyar', name: 'Nyårsflygare', description: 'Checka in på nyårsafton eller nyårsdagen', category: 'seasonal', tiers: [1, 2, 3], season: { from: '12-31', to: '01-01' } },
+  { id: 'sportlov', name: 'Sportlovsresenär', description: 'Checka in mellan 10 februari och 10 mars', category: 'seasonal', tiers: [1, 3, 6], season: { from: '02-10', to: '03-10' } },
+  { id: 'midsommar', name: 'Midsommarflygare', description: 'Checka in under midsommarveckan (19-26 juni)', category: 'seasonal', tiers: [1, 2, 4], season: { from: '06-19', to: '06-26' } },
+  { id: 'vinter-2026', name: 'Vinterresenär 2026/27', description: 'Checka in mellan 1 december 2026 och 28 februari 2027', category: 'seasonal', tiers: [1, 5, 10], season: { from: '2026-12-01', to: '2027-02-28' } },
   { id: 'conversationalist', name: 'Samtalare', description: 'Skriv kommentarer på check-ins', category: 'social', tiers: [5, 50, 200, 500], m: 'commentsWritten' },
 ];
+for (const d of BADGE_DEFS) if (d.season) d.m = `season:${d.id}`;
 const BY_ID = new Map(BADGE_DEFS.map((d) => [d.id, d]));
+
+/** SQL-villkor för ett säsongsfönster på kolumnen visited_on (värden från vår egen tabell, inte indata). */
+function seasonSql({ from, to }) {
+  if (from.length === 10) return `(visited_on BETWEEN '${from}' AND '${to}')`;
+  const md = "strftime('%m-%d', visited_on)";
+  return from <= to ? `(${md} BETWEEN '${from}' AND '${to}')` : `(${md} >= '${from}' OR ${md} <= '${to}')`;
+}
+const SEASONAL = BADGE_DEFS.filter((d) => d.season);
+const SEASON_SELECT = SEASONAL.map((d) => `IFNULL(SUM(${seasonSql(d.season)}), 0) AS "${d.id}"`).join(', ');
 export const badgeDef = (id) => BY_ID.get(id);
 export const tierName = (level) => (level >= 1 ? TIERS[level - 1] : null);
 
@@ -83,6 +99,7 @@ export function userMetrics(db, userId) {
     FROM user_airports ua JOIN airports a ON a.iata = ua.iata WHERE ua.user_id = ?`)
     .get(...NORDIC, ...MAIN_CONTINENTS, home, userId);
   const airlines = db.prepare('SELECT COUNT(DISTINCT airline_iata) AS n FROM checkins WHERE user_id = ?').get(userId).n;
+  const seasons = db.prepare(`SELECT ${SEASON_SELECT} FROM checkins WHERE user_id = ?`).get(userId);
   const streak = userStreak(db, userId);
   return {
     checkins: s.checkins ?? 0,
@@ -104,6 +121,7 @@ export function userMetrics(db, userId) {
     likesReceived: s.likes_received ?? 0,
     commentsWritten: s.comments_written ?? 0,
     xp: s.xp ?? 0,
+    ...Object.fromEntries(SEASONAL.map((d) => [d.m, seasons[d.id] ?? 0])),
     streak,
   };
 }
@@ -162,6 +180,7 @@ export function badgeObject(def, value, earnedRows, rarityMap) {
     earnedAt: tierLevel ? earned.get(tierLevel) : null,
     tiers: def.tiers.map((target, i) => ({ tier: TIERS[i], target, earnedAt: earned.get(i + 1) ?? null })),
     progress: { current: Math.min(value, next), target: next },
+    ...(def.season ? { season: def.season } : {}),
     rarity: rarityMap.get(def.id) ?? 0,
   };
 }

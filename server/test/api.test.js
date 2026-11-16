@@ -588,7 +588,7 @@ describe('med demodata', () => {
   test('märken', async () => {
     const r = await api('GET', '/api/users/oliver/badges');
     const by = Object.fromEntries(r.body.map((b) => [b.id, b]));
-    assert.equal(r.body.length, 18);
+    assert.equal(r.body.length, 23);
     assert.equal(by.checkins.tier, 'bronze');
     assert.equal(by.airports.tier, 'bronze');
     assert.equal(by.countries.tier, 'bronze');
@@ -599,7 +599,9 @@ describe('med demodata', () => {
     assert.ok(by.checkins.earnedAt);
     assert.deepEqual(by.airports.progress, { current: 10, target: 25 });
     assert.equal(by['regions-se'].tier, null);
-    assert.equal(r.body.filter((b) => b.tier).length, 11);
+    assert.equal(r.body.filter((b) => b.tier).length, 12, 'inklusive säsongsmärket Sportlovsresenär (OSL 8 mars)');
+    assert.equal(by.sportlov.tier, 'bronze');
+    assert.deepEqual(by.sportlov.season, { from: '02-10', to: '03-10' });
     assert.equal(r.body.filter((b) => b.tier === 'platinum').length, 0);
     assert.ok(by.nordic.name && by.nordic.description && by.nordic.category);
     assert.equal(by.nordic.icon, undefined);

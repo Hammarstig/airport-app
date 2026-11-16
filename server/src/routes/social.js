@@ -83,6 +83,56 @@ export default function socialRoutes({ db, limiters, config, photos }) {
     res.status(204).end();
   }));
 
+  // ---- Vänförslag ----
+  r.get('/me/suggestions', requireAuth, h((req, res) => {
+    const me = req.user.id;
+    const { limit } = paging(req.query, { defLimit: 10, maxLimit: 50 });
+    const excluded = new Set(db.prepare(`SELECT followee_id AS id FROM follows WHERE follower_id = ?
+      UNION SELECT blocked_id FROM blocks WHERE blocker_id = ? UNION SELECT blocker_id FROM blocks WHERE blocked_id = ?`)
+      .all(me, me, me).map((x) => x.id));
+    excluded.add(me);
+    const score = new Map();
+    const add = (id, key, n) => {
+      if (excluded.has(id)) return;
+      const e = score.get(id) ?? { mutualFriends: 0, sharedAirports: 0 };
+      e[key] = n;
+      score.set(id, e);
+    };
+    // Vänners vänner
+    for (const x of db.prepare(`SELECT f2.followee_id AS id, COUNT(*) AS n FROM follows f1
+      JOIN follows f2 ON f2.follower_id = f1.followee_id AND f2.status = 'accepted'
+      WHERE f1.follower_id = ? AND f1.status = 'accepted' GROUP BY f2.followee_id ORDER BY n DESC LIMIT 100`).all(me)) {
+      add(x.id, 'mutualFriends', x.n);
+    }
+    // Gemensamma flygplatser (begränsat till de 50 mest lika)
+    for (const x of db.prepare(`SELECT ua2.user_id AS id, COUNT(*) AS n FROM user_airports ua1
+      JOIN user_airports ua2 ON ua2.iata = ua1.iata AND ua2.user_id <> ua1.user_id
+      WHERE ua1.user_id = ? GROUP BY ua2.user_id ORDER BY n DESC LIMIT 100`).all(me)) {
+      add(x.id, 'sharedAirports', x.n);
+    }
+    let ranked = [...score.entries()]
+      .map(([id, e]) => ({ id, ...e, score: e.mutualFriends * 3 + e.sharedAirports }))
+      .sort((a, b) => b.score - a.score || a.id - b.id);
+    if (ranked.length < limit) {
+      const have = new Set(ranked.map((x) => x.id));
+      for (const x of db.prepare(`SELECT u.id FROM users u LEFT JOIN user_stats us ON us.user_id = u.id
+        WHERE u.is_private = 0 ORDER BY (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id AND f.status = 'accepted') DESC,
+          IFNULL(us.checkins, 0) DESC, u.id LIMIT ?`).all(limit + excluded.size + have.size)) {
+        if (!excluded.has(x.id) && !have.has(x.id)) ranked.push({ id: x.id, mutualFriends: 0, sharedAirports: 0, score: 0 });
+      }
+    }
+    ranked = ranked.slice(0, limit);
+    if (!ranked.length) return res.json([]);
+    const users = new Map(db.prepare(`SELECT u.id, ${USER_COLS('u', '')} FROM users u WHERE u.id IN (${ranked.map(() => '?').join(',')})`)
+      .all(...ranked.map((x) => x.id)).map((u) => [u.id, userFrom(u)]));
+    res.json(ranked.map((x) => ({
+      ...users.get(x.id),
+      reason: x.mutualFriends ? 'friends' : x.sharedAirports ? 'airports' : 'popular',
+      mutualFriends: x.mutualFriends,
+      sharedAirports: x.sharedAirports,
+    })));
+  }));
+
   // ---- Blockera ----
   r.post('/users/:username/block', requireAuth, h((req, res) => {
     const u = userOr404(req.params.username);

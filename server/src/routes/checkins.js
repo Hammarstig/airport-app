@@ -8,6 +8,8 @@ import { checkinVisible, visibleCheckin, VISIBILITIES } from '../visibility.js';
 import { transaction } from '../db/index.js';
 import { awardBadges, userStreak, todayStockholm, mondayOf } from '../badges.js';
 import { notify, notifyHomeVisit } from '../notify.js';
+import { updateMayor } from '../regulars.js';
+import { syncChallenges } from '../challenges.js';
 
 function parseVisibility(v) {
   if (!VISIBILITIES.includes(v)) {
@@ -153,6 +155,8 @@ export default function checkinRoutes({ db, photos, limiters }) {
       }
       notifyHomeVisit(db, { actorId: uid, checkinId: cid, iata });
       notifyOvertaken(db, { uid, iata, visitedOn, visibility, delayed: publishAt > now });
+      updateMayor(db, iata);
+      syncChallenges(db, uid, visitedOn.slice(0, 7));
 
       const m = db.prepare(`SELECT
           (SELECT visits FROM user_airports WHERE user_id = ? AND iata = ?) AS visits,

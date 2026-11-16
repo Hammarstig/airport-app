@@ -7,6 +7,7 @@ import {
 import { countryNameSv } from '../db/index.js';
 import { getBadges, userStreak } from '../badges.js';
 import { checkinVisible, profileAccess, requireProfileAccess } from '../visibility.js';
+import { getChallenges, currentMonth, MONTH_RE } from '../challenges.js';
 
 export default function userRoutes({ db }) {
   const r = Router();
@@ -90,6 +91,22 @@ export default function userRoutes({ db }) {
       ORDER BY c.visited_on DESC, c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`)
       .all(req.user?.id ?? -1, u.id, ...vis.params, limit, offset);
     res.json(checkinsWithPhotos(db, rows));
+  }));
+
+  r.get('/users/:username/challenges', h((req, res) => {
+    const u = userOr404(req.params.username);
+    requireProfileAccess(db, req.user?.id, u);
+    const month = req.query.month ?? currentMonth();
+    if (typeof month !== 'string' || !MONTH_RE.test(month)) throw bad('month måste vara YYYY-MM');
+    res.json({ month, challenges: getChallenges(db, u.id, month) });
+  }));
+
+  r.get('/users/:username/mayorships', h((req, res) => {
+    const u = userOr404(req.params.username);
+    requireProfileAccess(db, req.user?.id, u);
+    const rows = db.prepare(`SELECT ${AIRPORT_COLS('a', '')}, am.checkins, am.since FROM airport_mayors am
+      JOIN airports a ON a.iata = am.iata WHERE am.user_id = ? ORDER BY am.since DESC`).all(u.id);
+    res.json(rows.map((x) => ({ airport: airportFrom(x), checkins: x.checkins, since: x.since })));
   }));
 
   r.get('/users/:username/badges', h((req, res) => {
