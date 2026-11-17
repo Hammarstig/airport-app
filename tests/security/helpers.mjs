@@ -12,6 +12,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { createApp } from '../../server/src/app.js';
 
@@ -36,6 +37,8 @@ export async function startServer({ env = {}, limits = false, ...opts } = {}) {
   const app = createApp({
     dbPath: join(dir, 'sec.db'),
     uploadDir: join(dir, 'uploads'),
+    // Byggd klient (npm run build) behövs för SPA/Open Graph-vägarna.
+    staticDir: fileURLToPath(new URL('../../client/dist', import.meta.url)),
     env: fullEnv,
     pushSender: async (sub, payload) => { pushed.push({ endpoint: sub.endpoint, payload: JSON.parse(payload) }); },
     ...opts,
