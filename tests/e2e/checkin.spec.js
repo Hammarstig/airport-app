@@ -70,6 +70,12 @@ test.describe('check-in', () => {
       await expect(page.getByText('Ny flygplats - din 1:a')).toBeVisible();
       await expect(page.getByText('Nytt land - ditt 1:a')).toBeVisible();
       await expect(page.locator('.streak__count')).toHaveText('1');
+      // Helskärmsögonblicket för nya märken visas först (runda 4) och stängs med Esc.
+      const moment = page.locator('.badge-moment');
+      await expect(moment).toBeVisible();
+      await expect(moment.getByRole('heading', { level: 2 })).not.toBeEmpty();
+      await page.keyboard.press('Escape');
+      await expect(moment).toHaveCount(0);
       const badges = page.getByRole('list', { name: 'Nya märken' });
       await expect(badges).toContainText('Nytt märke');
       for (const b of body.newBadges) await expect(badges).toContainText(b.name);

@@ -7,6 +7,8 @@ import { usePaged } from '../../hooks/usePaged.js';
 import { CheckinList } from '../../components/CheckinList.jsx';
 import { OfflineQueueStatus } from '../../components/OfflineQueueStatus.jsx';
 import { EmptyState, Tabs } from '../../components/ui.jsx';
+import { Suggestions } from '../../components/Suggestions.jsx';
+import { InviteCard } from '../Settings/InviteSection.jsx';
 import { IconPlane, IconPlus, IconUsers } from '../../assets/icons.jsx';
 import { FeedSidebar } from './FeedSidebar.jsx';
 
@@ -36,12 +38,16 @@ function useDefaultScope(user) {
 function Empty({ scope }) {
   if (scope === 'friends') {
     return (
-      <EmptyState icon={IconUsers} title="Inga check-ins från vänner ännu">
-        <p className="muted">Följ andra resenärer för att se deras flygplatsbesök här.</p>
-        <Link to="/search?tab=users" className="btn btn--primary">
-          Hitta resenärer
-        </Link>
-      </EmptyState>
+      <div className="stack stack--lg">
+        <EmptyState icon={IconUsers} title="Inga check-ins från vänner ännu">
+          <p className="muted">Följ andra resenärer för att se deras flygplatsbesök här.</p>
+          <Link to="/search?tab=users" className="btn btn--primary">
+            Hitta resenärer
+          </Link>
+        </EmptyState>
+        <Suggestions />
+        <InviteCard compact />
+      </div>
     );
   }
   return (

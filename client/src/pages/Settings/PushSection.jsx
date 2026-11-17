@@ -11,7 +11,11 @@ const TYPES = [
   ['follow_accepted', 'Godkända förfrågningar'],
   ['badge', 'Nya märken'],
   ['overtaken', 'När en vän går om mig på topplistan'],
-  ['home_visit', 'Vänner på min hemmaflygplats']
+  ['home_visit', 'Vänner på min hemmaflygplats'],
+  ['invite_accepted', 'När någon gått med via min inbjudan'],
+  ['mayor_gained', 'När jag blir borgmästare på en flygplats'],
+  ['mayor_lost', 'När någon tar över som borgmästare'],
+  ['challenge_completed', 'När jag klarar en månadsutmaning']
 ];
 
 /** Push-notiser: slå på/av på den här enheten, och vilka typer som skickas. */

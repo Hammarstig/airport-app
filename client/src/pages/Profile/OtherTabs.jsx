@@ -4,9 +4,42 @@ import { useAsync } from '../../hooks/useAsync.js';
 import { formatDate } from '../../lib/format.js';
 import { AirportRow } from '../../components/Rows.jsx';
 import { BadgeGrid } from '../../components/Badges.jsx';
+import { Challenges, upcomingSeasons } from '../../components/Challenges.jsx';
 import { SkeletonRows } from '../../components/Skeleton.jsx';
 import { EmptyState, ErrorState } from '../../components/ui.jsx';
 import { IconBadge, IconBookmark } from '../../assets/icons.jsx';
+
+function Mayorships({ username }) {
+  const { data } = useAsync(
+    () => api.mayorships(username),
+    [username],
+    () => api.peek.mayorships(username)
+  );
+  if (!data?.length) return null;
+  return (
+    <section className="stack stack--sm" aria-labelledby="mayor-title">
+      <h2 className="section__title mt-0 mb-0" id="mayor-title">
+        Borgmästare på
+      </h2>
+      <ul className="list card">
+        {data.map((m) => (
+          <li key={m.airport.iata}>
+            <Link to={`/airport/${m.airport.iata}`} className="list__item">
+              <span className="iata-tag">{m.airport.iata}</span>
+              <span className="flex-1 min-w-0">
+                <span className="bold block">{m.airport.name}</span>
+                <span className="muted text-sm block">{m.checkins} check-ins senaste 60 dagarna</span>
+              </span>
+              <span className="mayor-chip">
+                Sedan {new Date(m.since).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 export function BadgesTab({ username }) {
   const { data, loading, error, reload } = useAsync(
@@ -20,11 +53,18 @@ export function BadgesTab({ username }) {
   const earned = data.filter((b) => b.tierLevel > 0).length;
   const tiers = data.reduce((n, b) => n + (b.tierLevel || 0), 0);
   return (
-    <div className="stack">
-      <p className="muted mt-0 mb-0">
-        {earned} av {data.length} märken upplåsta · {tiers} nivåer totalt
-      </p>
-      <BadgeGrid badges={data} />
+    <div className="stack stack--lg">
+      <Challenges username={username} seasonal={upcomingSeasons(data)} />
+      <Mayorships username={username} />
+      <section className="stack stack--sm" aria-labelledby="badges-title">
+        <h2 className="section__title mt-0 mb-0" id="badges-title">
+          Märken
+        </h2>
+        <p className="muted mt-0 mb-0">
+          {earned} av {data.length} märken upplåsta · {tiers} nivåer totalt
+        </p>
+        <BadgeGrid badges={data} />
+      </section>
     </div>
   );
 }

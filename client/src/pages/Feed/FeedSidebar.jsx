@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api.js';
 import { useAsync } from '../../hooks/useAsync.js';
 import { LevelBar, StreakChip } from '../../components/Level.jsx';
+import { Suggestions } from '../../components/Suggestions.jsx';
 
 /** Sidopanel på desktop: egen nivå, streak och snabbstatistik (dold på mobil via CSS). */
 export function FeedSidebar({ username }) {
@@ -41,6 +42,9 @@ export function FeedSidebar({ username }) {
             </Link>
           </div>
         </div>
+      </div>
+      <div className="mt-4">
+        <Suggestions title="Resenärer att följa" limit={6} />
       </div>
     </aside>
   );

@@ -1,5 +1,6 @@
 import { api } from '../../lib/api.js';
 import { UserRow } from '../../components/UserRow.jsx';
+import { Suggestions } from '../../components/Suggestions.jsx';
 import { EmptyState } from '../../components/ui.jsx';
 import { IconUsers } from '../../assets/icons.jsx';
 import { PAGE, Results, useSearchResults } from './shared.jsx';
@@ -9,9 +10,14 @@ export function UsersTab({ q }) {
   const res = useSearchResults(q, () => api.users(q, PAGE), !!q);
   if (!q) {
     return (
-      <EmptyState icon={IconUsers} title="Hitta vänner och andra resenärer">
-        <p className="muted">Sök på användarnamn eller namn och tryck Följ för att se deras check-ins i ditt flöde.</p>
-      </EmptyState>
+      <div className="stack stack--lg">
+        <Suggestions />
+        <EmptyState icon={IconUsers} title="Hitta vänner och andra resenärer">
+          <p className="muted">
+            Sök på användarnamn eller namn och tryck Följ för att se deras check-ins i ditt flöde.
+          </p>
+        </EmptyState>
+      </div>
     );
   }
   return (

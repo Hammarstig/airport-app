@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
+import { BadgeMoment, momentsFor } from '../../components/BadgeMoment.jsx';
 import { useAuth } from '../../lib/auth.jsx';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
 import { KIND_LABEL, formatDate } from '../../lib/format.js';
@@ -45,6 +47,16 @@ export default function DonePage() {
   useDocumentTitle('Incheckad');
   const { state } = useLocation();
   const { user } = useAuth();
+  // Helskärmsögonblicket visas en gång per check-in (inte igen vid tillbaka/omladdning).
+  const seenKey = state?.result ? `gatelog.moment.${state.result.id}` : null;
+  const [showMoment, setShowMoment] = useState(() => {
+    if (!seenKey) return false;
+    try {
+      return !sessionStorage.getItem(seenKey);
+    } catch {
+      return true;
+    }
+  });
   if (!state) return <Navigate to="/" replace />;
 
   if (state.queued) {
@@ -72,6 +84,15 @@ export default function DonePage() {
   const ap = c.airport;
   const next = `/checkin?date=${c.visitedOn}&kind=transfer`;
   const badges = c.newBadges || [];
+  const moments = momentsFor(c);
+  const closeMoment = () => {
+    setShowMoment(false);
+    try {
+      sessionStorage.setItem(seenKey, '1');
+    } catch {
+      /* privat läge */
+    }
+  };
 
   return (
     <div className="page checkin-done">
@@ -109,6 +130,10 @@ export default function DonePage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {showMoment && moments.length > 0 && (
+        <BadgeMoment moments={moments} username={user.username} onDone={closeMoment} />
       )}
 
       <div className="checkin-done__actions">

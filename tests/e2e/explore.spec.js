@@ -117,6 +117,12 @@ test.describe('märken', () => {
     await page.goto('/checkin?iata=ARN');
     await page.getByRole('button', { name: 'Checka in på ARN' }).click();
     await expect(page).toHaveURL(/\/checkin\/done$/);
+    // Helskärmsögonblicket för nya märken visas först (runda 4) och stängs med Esc.
+    const moment = page.locator('.badge-moment');
+    await expect(moment).toBeVisible();
+    await expect(moment.getByRole('heading', { level: 2 })).not.toBeEmpty();
+    await page.keyboard.press('Escape');
+    await expect(moment).toHaveCount(0);
     const badges = page.getByRole('list', { name: 'Nya märken' });
     await expect(badges).toContainText('Nytt märke');
     await expect(badges.locator('img').first()).toBeVisible();

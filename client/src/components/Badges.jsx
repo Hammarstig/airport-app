@@ -42,6 +42,18 @@ function Progress({ b }) {
   );
 }
 
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+const dayMonth = (md) => {
+  const [m, d] = md.split('-').slice(-2).map(Number);
+  return `${d} ${MONTHS[m - 1]}`;
+};
+/** Säsongsfönster som text: "20 dec - 6 jan" (återkommande) eller med år för engångsfönster. */
+export function seasonText(season) {
+  if (!season) return 'Säsong';
+  const year = (s) => (s.length > 5 ? ` ${s.slice(0, 4)}` : '');
+  return `${dayMonth(season.from)}${year(season.from)} - ${dayMonth(season.to)}${year(season.to)}`;
+}
+
 const maxed = (b) => b.tiers && b.tierLevel >= b.tiers.length;
 
 function BadgeCard({ b, onOpen }) {
@@ -50,10 +62,17 @@ function BadgeCard({ b, onOpen }) {
     <li>
       <button
         type="button"
-        className={`badge-card${locked ? ' badge-card--locked' : ` badge-card--${b.tier}`}`}
+        className={`badge-card${locked ? ' badge-card--locked' : ` badge-card--${b.tier}`}${
+          b.category === 'seasonal' ? ' badge-card--limited' : ''
+        }`}
         aria-haspopup="dialog"
         onClick={() => onOpen(b)}
       >
+        {b.category === 'seasonal' && (
+          <span className="season-chip" title={seasonText(b.season)}>
+            Säsong
+          </span>
+        )}
         <BadgeIcon badge={b} className="badge-card__icon" />
         <span className="badge-card__name">{b.name}</span>
         {b.tier ? (

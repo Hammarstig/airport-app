@@ -8,7 +8,16 @@ import { setUnread } from '../../hooks/useUnread.js';
 import { timeAgo } from '../../lib/format.js';
 import { Avatar, EmptyState, ErrorState } from '../../components/ui.jsx';
 import { SkeletonRows } from '../../components/Skeleton.jsx';
-import { IconBadge, IconBell, IconComment, IconHeart, IconHome, IconTrophy, IconUsers } from '../../assets/icons.jsx';
+import {
+  IconBadge,
+  IconBell,
+  IconCheck,
+  IconComment,
+  IconHeart,
+  IconHome,
+  IconTrophy,
+  IconUsers
+} from '../../assets/icons.jsx';
 import { FollowRequests } from '../../components/FollowRequests.jsx';
 import { badgeUrl } from '../../components/Badges.jsx';
 
@@ -20,7 +29,11 @@ const TYPE_ICON = {
   like: IconHeart,
   badge: IconBadge,
   home_visit: IconHome,
-  overtaken: IconTrophy
+  overtaken: IconTrophy,
+  invite_accepted: IconUsers,
+  mayor_gained: IconTrophy,
+  mayor_lost: IconTrophy,
+  challenge_completed: IconCheck
 };
 
 function target(n) {
@@ -52,7 +65,7 @@ function Media({ n }) {
 }
 
 function Item({ n, me }) {
-  const to = target(n) || (n.type === 'badge' ? `/u/${me}?tab=badges` : null);
+  const to = target(n) || (n.type === 'badge' || n.type === 'challenge_completed' ? `/u/${me}?tab=badges` : null);
   const many = n.badges && n.badges.length > 1;
   const body = (
     <>

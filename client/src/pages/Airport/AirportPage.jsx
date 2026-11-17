@@ -13,6 +13,7 @@ import { Deferred } from '../../components/Deferred.jsx';
 import { EmptyState, ErrorState, Stars, StatRow } from '../../components/ui.jsx';
 import { IconMapPin, IconPlane, IconPlus } from '../../assets/icons.jsx';
 import NotFoundPage from '../NotFound/NotFoundPage.jsx';
+import { Regulars } from './Regulars.jsx';
 import { ClassMix, FriendsVisited, PhotoGallery, TopAirlines, WishButton } from './AirportExtras.jsx';
 
 export default function AirportPage() {
@@ -97,6 +98,13 @@ export default function AirportPage() {
           </div>
         </section>
 
+        <section className="section" aria-labelledby="regulars-title">
+          <h2 className="section__title" id="regulars-title">
+            Stammisar
+          </h2>
+          <Regulars iata={airport.iata} />
+        </section>
+
         <section className="section" aria-labelledby="photos-title">
           <h2 className="section__title" id="photos-title">
             Foton
@@ -156,6 +164,14 @@ function AirportHero({ airport }) {
         {airport.continent ? ` · ${continentName(airport.continent)}` : ''}
         {airport.icao ? ` · ICAO ${airport.icao}` : ''}
       </p>
+      {airport.mayor && (
+        <p className="airport-hero__place">
+          <span className="mayor-chip">Borgmästare</span>{' '}
+          <Link to={`/u/${airport.mayor.user.username}`}>
+            {airport.mayor.user.displayName || `@${airport.mayor.user.username}`}
+          </Link>
+        </p>
+      )}
       {airport.myVisits > 0 && (
         <p className="airport-hero__place">
           Du har besökt {airport.iata} {airport.myVisits} {airport.myVisits === 1 ? 'gång' : 'gånger'}.
