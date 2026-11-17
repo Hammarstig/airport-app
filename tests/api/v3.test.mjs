@@ -653,3 +653,24 @@ describe('grupperade notiser', () => {
     assert.equal((await call('POST', '/api/notifications/read', { token: owner.token, body: { ids: 'alla' } })).status, 400);
   });
 });
+
+describe('id:n efter radering (regression BUG-12)', () => {
+  test('raderad check-in/kommentar får inte sitt id återanvänt av annan användare', async () => {
+    const a = await user('ida');
+    const b = await user('idb');
+    const rep = await user('idr');
+    const ca = await checkin(a, { comment: 'A:s check-in' });
+    const com = (await call('POST', `/api/checkins/${ca.id}/comments`, { token: a.token, body: { body: 'A:s kommentar' } })).body;
+    const report = (await call('POST', '/api/reports', { token: rep.token, body: { type: 'comment', target: com.id, reason: 'harassment' } })).body;
+    await call('DELETE', `/api/comments/${com.id}`, { token: a.token });
+    await call('DELETE', `/api/checkins/${ca.id}`, { token: a.token });
+    const cb = await checkin(b, { comment: 'B:s check-in' });
+    const comb = (await call('POST', `/api/checkins/${cb.id}/comments`, { token: b.token, body: { body: 'B:s kommentar' } })).body;
+    assert.notEqual(cb.id, ca.id, 'nytt check-in-id ska inte vara ett raderat id');
+    assert.notEqual(comb.id, com.id, 'nytt kommentar-id ska inte vara ett raderat id');
+    // Den gamla rapporten ska inte kunna radera B:s kommentar.
+    const mod = (await call('POST', '/api/auth/login', { body: { username: 'v3mod', password: 'Moderator-2026!' } })).body.token;
+    await call('POST', `/api/moderation/reports/${report.id}`, { token: mod, body: { action: 'remove_content' } });
+    assert.equal((await call('GET', `/api/checkins/${cb.id}/comments`)).body.length, 1);
+  });
+});

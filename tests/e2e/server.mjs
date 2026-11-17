@@ -12,8 +12,9 @@ process.env.DB_PATH = join(dir, 'e2e.db');
 process.env.UPLOAD_DIR = join(dir, 'uploads');
 process.env.AUTH_RATE_MAX ||= '10000';
 process.env.NODE_ENV ||= 'test';
+process.env.MODERATORS ||= 'e2e_mod';
 
-const { openDb } = await import(join(root, 'server/src/db.js'));
+const { openDb } = await import(join(root, 'server/src/db/index.js'));
 const { seedDemo } = await import(join(root, 'server/scripts/seed-demo.js'));
 const { createApp } = await import(join(root, 'server/src/app.js'));
 
@@ -22,6 +23,10 @@ seedDemo(db);
 const app = createApp({ db, jwtSecret: 'e2e-secret', staticDir: join(root, 'client/dist'), uploadDir: process.env.UPLOAD_DIR });
 const port = Number(process.env.PORT) || 4173;
 const server = app.listen(port, '127.0.0.1', () => console.log(`[e2e] Gatelog på http://127.0.0.1:${port} (data i ${dir})`));
+// Nodes standard keepAliveTimeout (5 s) stänger vilande anslutningar samtidigt som testklientens
+// keep-alive-pool återanvänder dem, vilket gav sporadiska ECONNRESET under parallell last.
+server.keepAliveTimeout = 120_000;
+server.headersTimeout = 121_000;
 
 const stop = () => {
   server.close();

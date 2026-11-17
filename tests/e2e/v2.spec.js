@@ -428,19 +428,23 @@ test.describe('konto', () => {
     expect(await page.evaluate(() => localStorage.getItem('gatelog.token'))).toBeNull();
     expect((await request.post('/api/auth/login', { data: { username: u.username, password: 'hemligt123' } })).status()).toBe(401);
     expect((await request.get(`/api/users/${u.username}`)).status()).toBe(404);
-    expect((await request.get(`/api/checkins/${c.id}`)).status()).toBe(404);
+    // BUG-12: id:n återanvänds, så en parallell test kan redan ha fått samma check-in-id.
+    // Kontrollera att check-in:en inte längre tillhör den raderade användaren.
+    const after = await request.get(`/api/checkins/${c.id}`);
+    if (after.status() === 200) expect((await after.json()).user.username).not.toBe(u.username);
+    else expect(after.status()).toBe(404);
   });
 
   test('fel lösenord vid radering ger felmeddelande och behåller inloggningen', async ({ page, request }) => {
     const u = await apiRegister(request);
     await useToken(page, u.token);
-    await page.goto('/settings');
+    await page.goto('/settings/data');
     await page.getByRole('button', { name: 'Radera konto' }).click();
     const form = page.getByRole('form', { name: 'Radera konto' });
     await form.getByLabel('Bekräfta med ditt lösenord').fill('fel-losenord');
     await form.getByRole('button', { name: 'Radera mitt konto' }).click();
     await expect(page.getByText('Fel lösenord.')).toBeVisible();
-    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page).toHaveURL(/\/settings\/data$/);
     await expect(form.getByLabel('Bekräfta med ditt lösenord')).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem('gatelog.user'))).not.toBeNull();
   });
