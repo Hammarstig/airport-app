@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { discard, enqueue, flush, onSent, subscribe } from './offlineQueue.js';
+import { clearQueue, discard, enqueue, flush, onSent, setQueueOwner, subscribe } from './offlineQueue.js';
 import { outbox } from './idb.js';
 
 const body = { iata: 'GOT', visitedOn: '2026-11-01', kind: 'departure' };
@@ -10,6 +10,34 @@ describe('offlinekön', () => {
   beforeEach(async () => {
     for (const i of await outbox.all()) await outbox.remove(i.id);
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    setQueueOwner('anna');
+  });
+
+  it('skickar aldrig en annan användares poster och visar dem inte (SEC-11)', async () => {
+    await outbox.add({ owner: 'mads', body, photos: [], attempts: 0, error: null });
+    await outbox.add({ body, photos: [], attempts: 0, error: null }); // utan ägare (äldre version)
+    await enqueue({ body: { ...body, iata: 'ARN' }, photos: [] });
+    const calls = [];
+    global.fetch = vi.fn(async (url, init) => {
+      calls.push(JSON.parse(init.body).iata);
+      return json({ id: 1 }, 201);
+    });
+    let items;
+    const off = subscribe((s) => (items = s.items));
+    expect(await flush()).toBe(1);
+    off();
+    expect(calls).toEqual(['ARN']);
+    expect(items).toHaveLength(0);
+    expect(await outbox.all()).toHaveLength(2);
+    setQueueOwner(null);
+    expect(await flush()).toBe(0);
+  });
+
+  it('utloggning tömmer kön för alla konton', async () => {
+    await enqueue({ body, photos: [] });
+    await outbox.add({ owner: 'mads', body, photos: [], attempts: 0, error: null });
+    await clearQueue();
+    expect(await outbox.all()).toHaveLength(0);
   });
 
   it('köar och rapporterar till prenumeranter', async () => {

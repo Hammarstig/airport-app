@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildBody, submitCheckin } from './submitCheckin.js';
 import { outbox } from '../../lib/idb.js';
+import { setQueueOwner } from '../../lib/offlineQueue.js';
 
 vi.mock('../../lib/image.js', () => ({
   downscaleToJpeg: async () => ({ blob: new Blob(['x'], { type: 'image/jpeg' }) })
@@ -52,6 +53,7 @@ describe('buildBody', () => {
 
 describe('submitCheckin offline', () => {
   beforeEach(async () => {
+    setQueueOwner('anna');
     for (const i of await outbox.all()) await outbox.remove(i.id);
   });
 

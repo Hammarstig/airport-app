@@ -29,5 +29,6 @@ export const outbox = {
   all: () => tx('readonly', (s) => s.getAll()),
   add: (item) => tx('readwrite', (s) => s.add(item)),
   put: (item) => tx('readwrite', (s) => s.put(item)),
-  remove: (id) => tx('readwrite', (s) => s.delete(id))
+  remove: (id) => tx('readwrite', (s) => s.delete(id)),
+  clear: () => tx('readwrite', (s) => s.clear())
 };

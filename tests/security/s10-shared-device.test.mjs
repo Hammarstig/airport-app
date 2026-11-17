@@ -34,7 +34,7 @@ describe('S10 delad enhet', { skip: !up && `ingen server på ${BASE}` }, () => {
   });
   after(async () => { await browser?.close(); });
 
-  test('SEC-11: offlinekö och lokala data rensas vid utloggning och skickas aldrig som en annan användare', { todo: 'SEC-11' }, async () => {
+  test('SEC-11: offlinekö och lokala data rensas vid utloggning och skickas aldrig som en annan användare', async () => {
     await login('anna');
     await page.goto(`${BASE}/settings`);
     await page.waitForLoadState('networkidle');

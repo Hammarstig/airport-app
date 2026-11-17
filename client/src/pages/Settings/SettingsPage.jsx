@@ -27,6 +27,7 @@ import { BlocksSection } from './BlocksSection.jsx';
 import { ImportSection } from './ImportSection.jsx';
 import { InviteSection } from './InviteSection.jsx';
 import NotFoundPage from '../NotFound/NotFoundPage.jsx';
+import { useOfflineQueue } from '../../hooks/useOfflineQueue.js';
 
 function Section({ id, title, children }) {
   return (
@@ -153,6 +154,18 @@ const SUBPAGES = [
   ['data', 'Data', 'Import, export, offlinekö och radering', IconTicket, DataPage]
 ];
 
+/** Varning före utloggning om det finns osända check-ins: de raderas från enheten (SEC-11). */
+function LogoutNotice() {
+  const { items } = useOfflineQueue();
+  if (!items.length) return null;
+  return (
+    <p className="notice notice--warn mt-0 mb-0" role="note">
+      Du har {items.length} osänd{items.length === 1 ? ' check-in' : 'a check-ins'} på den här enheten. Loggar du ut
+      raderas {items.length === 1 ? 'den' : 'de'} härifrån. <Link to="/settings/data">Visa kön</Link>
+    </p>
+  );
+}
+
 function SettingsIndex() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -179,6 +192,7 @@ function SettingsIndex() {
         <Link to="/about">Om appen, datakällor och licenser</Link>
         {user.isModerator && <Link to="/moderation">Modereringskö</Link>}
       </Section>
+      <LogoutNotice />
       <div>
         <button
           type="button"

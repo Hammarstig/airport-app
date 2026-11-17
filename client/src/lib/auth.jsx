@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, expectSession, getToken, onRefreshed, onUnauthorized, setToken } from './api.js';
+import { setQueueOwner } from './offlineQueue.js';
+import { stopPush, wipeLocalData } from './localData.js';
 import { load, save } from './storage.js';
 
 const USER_KEY = 'gatelog.user';
@@ -29,23 +31,38 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  // Lokal utloggning (t.ex. när sessionen återkallats på servern).
-  const clear = useCallback(() => {
-    setToken(null);
-    setUser(null);
-  }, [setUser]);
+  // Lokal utloggning. Används när sessionen återkallats på servern eller kontot raderats:
+  // push avregistreras och personlig data rensas, men egna köade check-ins behålls (de skickas
+  // bara om samma konto loggar in igen) utom när kontot är raderat.
+  const clear = useCallback(
+    ({ keepQueue = true } = {}) => {
+      stopPush();
+      setToken(null);
+      setUser(null);
+      wipeLocalData({ keepQueue });
+    },
+    [setUser]
+  );
 
-  /** Loggar ut: återkallar sessionen på servern (om nätet finns) och rensar lokalt. */
+  /**
+   * Loggar ut: avregistrerar push, återkallar sessionen på servern (om nätet finns) och rensar
+   * allt personligt på enheten, även offlinekön (delad enhet, SEC-11 och SEC-13).
+   */
   const logout = useCallback(async () => {
+    await stopPush();
     try {
       await api.logout();
     } catch (e) {
       if (e.status === undefined) console.warn('Utloggning på servern misslyckades (offline):', e.message);
     }
-    clear();
-  }, [clear]);
+    setToken(null);
+    setUser(null);
+    await wipeLocalData();
+  }, [setUser]);
 
-  useEffect(() => onUnauthorized(clear), [clear]);
+  useEffect(() => onUnauthorized(() => clear()), [clear]);
+  // Offlinekön visar och skickar bara den inloggade användarens poster.
+  useEffect(() => setQueueOwner(user?.username || null), [user?.username]);
   useEffect(() => onRefreshed((u) => u && setUser(u)), [setUser]);
 
   useEffect(() => {

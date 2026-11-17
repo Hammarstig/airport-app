@@ -18,7 +18,7 @@ export function DangerZone() {
     setBusy(true);
     try {
       await api.deleteMe(password);
-      clear();
+      clear({ keepQueue: false });
       toast.show('Ditt konto och alla dina check-ins är raderade.');
       navigate('/', { replace: true });
     } catch (err) {

@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api.js';
+import { stopPush } from '../../lib/localData.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { timeAgo } from '../../lib/format.js';
@@ -51,12 +52,14 @@ export function SessionsSection() {
   };
   const all = async () => {
     if (!window.confirm('Logga ut på alla enheter, även den här?')) return;
+    // Push avregistreras medan sessionen fortfarande gäller (SEC-13).
+    await stopPush();
     try {
       await api.logoutAll();
     } catch (e) {
       return toast.error(e);
     }
-    clear();
+    clear({ keepQueue: false });
     toast.show('Du är utloggad på alla enheter.');
     navigate('/', { replace: true });
   };
