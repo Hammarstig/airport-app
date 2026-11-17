@@ -24,6 +24,8 @@ import inviteRoutes from './routes/invites.js';
 import importRoutes from './routes/imports.js';
 import cardRoutes from './routes/cards.js';
 import { ogMeta, injectHead } from './og.js';
+import { refreshPublicStats, sweepPublicStats } from './publicstats.js';
+import { purgeExpired } from './retention.js';
 import { createPushService, resolveVapid } from './push.js';
 import { setPushService } from './notify.js';
 
@@ -134,6 +136,34 @@ export function createApp(opts = {}) {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS' || req.path.startsWith('/auth/')) return next();
     limiters.all(req, res, next);
   });
+
+  // Publik statistik (SEC-01/02/04) räknas om efter varje lyckad skrivning av en inloggad användare,
+  // innan svaret skickas, så att topplistor och nivåer aldrig visar dolda check-ins och alltid är aktuella.
+  app.use('/api', (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+    const end = res.end;
+    res.end = function patchedEnd(...args) {
+      res.end = end;
+      const uid = req.user?.id;
+      if (uid && res.statusCode < 400) {
+        try { refreshPublicStats(database, uid); } catch (e) { console.error(JSON.stringify({ level: 'error', msg: 'public_stats', error: e.message })); }
+      }
+      return end.apply(this, args);
+    };
+    next();
+  });
+  // Sopare: fördröjda check-ins som publicerats, utgångna sessioner (SEC-27).
+  const sweep = () => {
+    try {
+      sweepPublicStats(database);
+      purgeExpired(database, cfg.retention);
+    } catch (e) {
+      console.error(JSON.stringify({ level: 'error', msg: 'sweep', error: e.message }));
+    }
+  };
+  const sweeper = setInterval(sweep, cfg.sweepMs);
+  sweeper.unref();
+  app.locals.sweep = sweep;
 
   app.get('/api/health', (_req, res) => {
     const { n } = database.prepare('SELECT COUNT(*) AS n FROM airports').get();

@@ -21,3 +21,9 @@ export function checkPassword(password, username, field = 'password') {
   if (username && p === username.toLowerCase()) throw bad(`${field} får inte vara samma som användarnamnet`);
   if (COMMON.has(p) || /^(.)\1+$/.test(p)) throw bad(`${field} är för vanligt, välj ett annat`);
 }
+
+// Användarnamn som kan förväxlas med tjänsten eller personalen (SEC-03, SEC-30).
+const RESERVED = /^(admin|administrator|root|system|support|help|hjalp|info|kontakt|contact|security|sakerhet|moderator|moderators|mod|mods|staff|team|gatelog|official|officiell|noreply|no_reply|abuse|privacy|api|www)(_|\d|$)/;
+export function isReservedUsername(username) {
+  return RESERVED.test(username) || /gatelog/.test(username);
+}

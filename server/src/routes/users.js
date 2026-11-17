@@ -6,6 +6,7 @@ import {
 } from '../util.js';
 import { countryNameSv } from '../db/index.js';
 import { getBadges, userStreak } from '../badges.js';
+import { visibleStats } from '../publicstats.js';
 import { checkinVisible, profileAccess, requireProfileAccess } from '../visibility.js';
 import { getChallenges, currentMonth, MONTH_RE } from '../challenges.js';
 
@@ -20,36 +21,46 @@ export default function userRoutes({ db }) {
     return u;
   }
 
+  // Profil. Ägaren ser sin fulla statistik; andra ser statistik räknad på de check-ins de får se, och
+  // ingen statistik, nivå eller streak alls utan behörighet till profilen (SEC-04).
   r.get('/users/:username', h((req, res) => {
     const u = userOr404(req.params.username);
     const viewer = req.user?.id ?? -1;
     const access = profileAccess(db, req.user?.id, u);
-    const s = db.prepare(`
-      SELECT us.*, (SELECT AVG(rating) FROM checkins WHERE user_id = us.user_id) AS avg_rating,
-        (SELECT COUNT(*) FROM follows WHERE followee_id = us.user_id AND status = 'accepted') AS followers,
-        (SELECT COUNT(*) FROM follows WHERE follower_id = us.user_id AND status = 'accepted') AS following,
-        EXISTS (SELECT 1 FROM follows WHERE follower_id = us.user_id AND followee_id = ? AND status = 'accepted') AS follows_me
-      FROM user_stats us WHERE us.user_id = ?`).get(viewer, u.id) ?? {};
     const self = req.user?.id === u.id;
+    const rel = db.prepare(`SELECT
+        (SELECT COUNT(*) FROM follows WHERE followee_id = ? AND status = 'accepted') AS followers,
+        (SELECT COUNT(*) FROM follows WHERE follower_id = ? AND status = 'accepted') AS following,
+        EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ? AND status = 'accepted') AS follows_me`)
+      .get(u.id, u.id, u.id, viewer);
+    let stats = null;
+    if (access.canView) {
+      const st = self
+        ? { ...db.prepare('SELECT * FROM user_stats WHERE user_id = ?').get(u.id),
+          avg_rating: db.prepare('SELECT AVG(rating) AS a FROM checkins WHERE user_id = ?').get(u.id).a }
+        : visibleStats(db, u.id, req.user?.id ?? null);
+      stats = {
+        uniqueAirports: st.airports ?? 0,
+        totalCheckins: st.checkins ?? 0,
+        countries: st.countries ?? 0,
+        continents: st.continents ?? 0,
+        avgGivenRating: round2(st.avg_rating ?? null),
+        xp: st.xp ?? 0,
+      };
+    }
     res.json({
-      ...(self ? userSummary(db, u) : { ...userSummary(db, u), homeIata: u.hide_home ? null : u.home_iata }),
+      ...userSummary(db, u, { self }),
+      ...(access.canView && !self ? { level: levelInfo(stats.xp).level } : {}),
       isPrivate: !!u.is_private,
       canView: access.canView,
-      stats: access.canView ? {
-        uniqueAirports: s.airports ?? 0,
-        totalCheckins: s.checkins ?? 0,
-        countries: s.countries ?? 0,
-        continents: s.continents ?? 0,
-        avgGivenRating: round2(s.avg_rating ?? null),
-        xp: s.xp ?? 0,
-      } : null,
-      followers: s.followers ?? 0,
-      following: s.following ?? 0,
+      stats,
+      followers: rel.followers,
+      following: rel.following,
       followedByMe: access.following,
       followRequested: access.followRequested,
-      followsMe: !!s.follows_me,
-      levelInfo: levelInfo(s.xp ?? 0),
-      streak: access.canView ? userStreak(db, u.id) : null,
+      followsMe: !!rel.follows_me,
+      levelInfo: stats ? levelInfo(stats.xp) : null,
+      streak: access.canView ? userStreak(db, u.id, req.user?.id ?? null) : null,
     });
   }));
 
@@ -90,7 +101,7 @@ export default function userRoutes({ db }) {
     const rows = db.prepare(`${CHECKIN_SELECT} WHERE c.user_id = ? AND ${vis.sql}
       ORDER BY c.visited_on DESC, c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`)
       .all(req.user?.id ?? -1, u.id, ...vis.params, limit, offset);
-    res.json(checkinsWithPhotos(db, rows));
+    res.json(checkinsWithPhotos(db, rows, req.user?.id ?? null));
   }));
 
   r.get('/users/:username/challenges', h((req, res) => {
@@ -98,7 +109,7 @@ export default function userRoutes({ db }) {
     requireProfileAccess(db, req.user?.id, u);
     const month = req.query.month ?? currentMonth();
     if (typeof month !== 'string' || !MONTH_RE.test(month)) throw bad('month måste vara YYYY-MM');
-    res.json({ month, challenges: getChallenges(db, u.id, month) });
+    res.json({ month, challenges: getChallenges(db, u.id, month, req.user?.id ?? null) });
   }));
 
   r.get('/users/:username/mayorships', h((req, res) => {
@@ -112,7 +123,7 @@ export default function userRoutes({ db }) {
   r.get('/users/:username/badges', h((req, res) => {
     const u = userOr404(req.params.username);
     requireProfileAccess(db, req.user?.id, u);
-    res.json(getBadges(db, u.id));
+    res.json(getBadges(db, u.id, { viewerId: req.user?.id ?? null }));
   }));
 
   // ---- Statistikkort för delning ----
@@ -140,10 +151,14 @@ export default function userRoutes({ db }) {
         GROUP BY al.iata ORDER BY n DESC, al.name LIMIT 1`).get(...p);
     const countries = db.prepare(`SELECT a.country, COUNT(DISTINCT c.iata) AS n ${base} AND a.country IS NOT NULL
         GROUP BY a.country ORDER BY n DESC, a.country LIMIT 3`).all(...p);
-    const badges = db.prepare('SELECT COUNT(*) AS n FROM user_badges WHERE user_id = ?').get(u.id).n;
-    const xp = db.prepare('SELECT xp FROM user_stats WHERE user_id = ?').get(u.id)?.xp ?? 0;
+    const own = viewerId === u.id;
+    const badges = own
+      ? db.prepare('SELECT COUNT(*) AS n FROM user_badges WHERE user_id = ?').get(u.id).n
+      : getBadges(db, u.id, { viewerId: viewerId ?? null }).reduce((n, b) => n + b.tierLevel, 0);
+    const xp = own ? db.prepare('SELECT xp FROM user_stats WHERE user_id = ?').get(u.id)?.xp ?? 0
+      : visibleStats(db, u.id, viewerId ?? null).xp;
     return {
-      user: userSummary(db, u),
+      user: userSummary(db, u, { self: own }),
       year,
       checkins: t.checkins,
       uniqueAirports: t.airports,
@@ -153,7 +168,7 @@ export default function userRoutes({ db }) {
       worldPct: Math.round((t.scheduled / scheduledTotal()) * 1000) / 10,
       topAirport: top ? { airport: airportFrom(top), visits: top.n } : null,
       topAirline: airline ? { iata: airline.iata, name: airline.name, checkins: airline.n } : null,
-      longestStreak: userStreak(db, u.id).longest,
+      longestStreak: userStreak(db, u.id, viewerId ?? null).longest,
       levelInfo: levelInfo(xp),
       badges,
       topCountries: countries.map((c) => ({ code: c.country, name: countryNameSv(c.country), airports: c.n })),
@@ -164,8 +179,9 @@ export default function userRoutes({ db }) {
 
   r.get('/users/:username/card', h((req, res) => {
     const u = userOr404(req.params.username);
-    res.set('Cache-Control', 'public, max-age=300');
     requireProfileAccess(db, req.user?.id, u);
+    // Innehållet beror på tittaren (SEC-05): bara utloggade svar får cachas publikt.
+    res.set('Cache-Control', req.user ? 'private, no-cache' : 'public, max-age=300');
     res.json(cardData(u, req.query.year, req.user?.id));
   }));
 
@@ -200,14 +216,14 @@ export default function userRoutes({ db }) {
     const fav = db.prepare(`SELECT ${AIRPORT_COLS('a', '')}, AVG(c.rating) AS avg_rating, COUNT(*) AS n ${vc}
       AND c.visited_on BETWEEN ? AND ? AND c.rating IS NOT NULL GROUP BY c.iata ORDER BY avg_rating DESC, n DESC, a.iata LIMIT 1`)
       .get(...p, from, to);
-    const badges = getBadges(db, u.id);
+    const badges = getBadges(db, u.id, { viewerId: req.user?.id ?? null });
     const badgesEarned = [];
     for (const b of badges) {
       for (const t of b.tiers) {
         if (t.earnedAt && t.earnedAt.startsWith(String(year))) badgesEarned.push({ id: b.id, name: b.name, tier: t.tier, earnedAt: t.earnedAt });
       }
     }
-    const challengesCompleted = db.prepare("SELECT COUNT(*) AS n FROM user_challenges WHERE user_id = ? AND month LIKE ?")
+    const challengesCompleted = req.user?.id !== u.id ? null : db.prepare("SELECT COUNT(*) AS n FROM user_challenges WHERE user_id = ? AND month LIKE ?")
       .get(u.id, `${year}-%`).n;
     res.json({
       ...card,
@@ -243,7 +259,7 @@ export default function userRoutes({ db }) {
   <text x="80" y="520" font-size="30" fill="#FFFFFF">${d.topAirport ? `Mest besökt: ${e(d.topAirport.airport.iata)} (${d.topAirport.visits} gånger)` : ''}</text>
   <text x="80" y="565" font-size="26" fill="#C9D6EA">Längsta svit: ${d.longestStreak} veckor · ${d.badges} märkesnivåer</text>
 </svg>`;
-    res.set({ 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.set({ 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': req.user ? 'private, no-cache' : 'public, max-age=300' });
     res.send(svg);
   }));
 

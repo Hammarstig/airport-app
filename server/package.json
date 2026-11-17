@@ -9,7 +9,8 @@
     "start": "node --disable-warning=ExperimentalWarning src/index.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\"",
     "seed:demo": "node --disable-warning=ExperimentalWarning scripts/seed-demo.js",
-    "bench": "node --disable-warning=ExperimentalWarning scripts/bench.js"
+    "bench": "node --disable-warning=ExperimentalWarning scripts/bench.js",
+    "moderator": "node --disable-warning=ExperimentalWarning scripts/moderator.js"
   },
   "engines": {
     "node": ">=22.5"

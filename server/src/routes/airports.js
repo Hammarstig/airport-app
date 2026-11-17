@@ -192,7 +192,7 @@ export default function airportRoutes({ db }) {
     const rows = db.prepare(`${CHECKIN_SELECT} WHERE c.iata = ? AND ${vis.sql}
       ORDER BY c.visited_on DESC, c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`)
       .all(req.user?.id ?? -1, a.iata, ...vis.params, limit, offset);
-    res.json(checkinsWithPhotos(db, rows));
+    res.json(checkinsWithPhotos(db, rows, req.user?.id ?? null));
   }));
 
   // Stammisar: flest publika check-ins de senaste `days` dagarna (standard 60).

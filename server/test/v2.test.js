@@ -337,8 +337,11 @@ describe('gamification: XP, nivå, milstolpar, märken', () => {
     // Nivåer tas inte tillbaka när check-ins raderas
     const mine = await s.api('GET', '/api/users/resa/checkins?limit=50');
     for (const c of mine.body.filter((x) => x.airport.iata === 'HEL')) await s.api('DELETE', `/api/checkins/${c.id}`, { token: tok });
-    const after = await s.api('GET', '/api/users/resa/badges');
+    const after = await s.api('GET', '/api/users/resa/badges', { token: tok });
     assert.equal(after.body.find((b) => b.id === 'nordic').tier, 'silver');
+    // Andra ser bara nivåer som de synliga check-ins räcker till (SEC-04)
+    const anon = await s.api('GET', '/api/users/resa/badges');
+    assert.equal(anon.body.find((b) => b.id === 'nordic').tier, 'bronze');
   });
 });
 

@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { requireAuth, failureGuard } from '../auth.js';
 import { h, bad, HttpError, cleanText, normIata, userSummary } from '../util.js';
 import { transaction } from '../db/index.js';
-import { checkPassword } from '../passwords.js';
+import { checkPassword, isReservedUsername } from '../passwords.js';
 import { acceptInvite } from './invites.js';
 import { VISIBILITIES, PUBLISH_DELAYS } from '../visibility.js';
 import { PUSH_TYPES, pushPrefs } from '../notify.js';
@@ -56,7 +56,6 @@ function settingsColumns(b, currentPush) {
 export default function authRoutes({ db, secret, config }) {
   const r = Router();
   const production = !!config?.production;
-  const moderators = new Set(config?.moderators ?? []);
   const airportExists = db.prepare('SELECT 1 FROM airports WHERE iata = ?');
   const byUsername = db.prepare('SELECT * FROM users WHERE username = ?');
   const byId = db.prepare('SELECT * FROM users WHERE id = ?');
@@ -78,7 +77,8 @@ export default function authRoutes({ db, secret, config }) {
   });
 
   const loginGuard = failureGuard(config?.loginFailures ?? { windowMs: 15 * 60_000, perAccountIp: 10, perAccount: 50 });
-  const meSummary = (user) => ({ ...userSummary(db, user), isModerator: moderators.has(user.username) });
+  // Rollen läses från databasen (users.role), aldrig från användarnamnet (SEC-03).
+  const meSummary = (user) => ({ ...userSummary(db, user, { self: true }), isModerator: user.role === 'moderator' });
 
   /** Ny session: access-token i svaret, refresh-token i HttpOnly-cookie. */
   function startSession(req, res, user, status = 200, extra = {}) {
@@ -94,6 +94,10 @@ export default function authRoutes({ db, secret, config }) {
     const b = req.body ?? {};
     const username = typeof b.username === 'string' ? b.username.trim().toLowerCase() : '';
     if (!USERNAME_RE.test(username)) throw bad('username måste vara 3-20 tecken a-z, 0-9 eller _');
+    if (isReservedUsername(username)) throw bad('Användarnamnet är reserverat');
+    if (db.prepare('SELECT 1 FROM retired_usernames WHERE username = ? AND until > ?').get(username, new Date().toISOString())) {
+      throw new HttpError(409, 'Användarnamnet är upptaget');
+    }
     checkPassword(b.password, username);
     const displayName = cleanText(b.displayName, { field: 'displayName', max: 40 }) ?? username;
     const home = homeIata(b.homeIata);

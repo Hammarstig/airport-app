@@ -156,7 +156,7 @@ export function airportFrom(row, p = '') {
 export const USER_COLS = (t, p) =>
   `${t}.username AS ${p}username, ${t}.display_name AS ${p}display_name,
    CASE WHEN ${t}.hide_home = 1 THEN NULL ELSE ${t}.home_iata END AS ${p}home_iata,
-   IFNULL((SELECT us.level FROM user_stats us WHERE us.user_id = ${t}.id), 1) AS ${p}level`;
+   IFNULL((SELECT ps.level FROM user_public_stats ps WHERE ps.user_id = ${t}.id), 1) AS ${p}level`;
 
 export function userFrom(row, p = '') {
   return {
@@ -167,10 +167,17 @@ export function userFrom(row, p = '') {
   };
 }
 
-/** UserSummary för en users-rad (SELECT *) plus nivå. */
-export function userSummary(db, userRow) {
-  const s = db.prepare('SELECT level FROM user_stats WHERE user_id = ?').get(userRow.id);
-  return { ...userFrom(userRow), level: s?.level ?? 1 };
+/**
+ * UserSummary för en users-rad (SELECT *). För andra än ägaren (standard) visas nivån från den publika
+ * statistiken och hemmaflygplatsen döljs om användaren valt det; `self` ger egen nivå och hemmaflygplats.
+ */
+export function userSummary(db, userRow, { self = false } = {}) {
+  const s = self
+    ? db.prepare('SELECT level FROM user_stats WHERE user_id = ?').get(userRow.id)
+    : db.prepare('SELECT level FROM user_public_stats WHERE user_id = ?').get(userRow.id);
+  const base = userFrom(userRow);
+  if (!self && userRow.hide_home) base.homeIata = null;
+  return { ...base, level: s?.level ?? 1 };
 }
 
 // ---- Nivåer och XP ----
@@ -225,7 +232,7 @@ export const CHECKIN_SELECT = `
   LEFT JOIN airlines al ON al.iata = c.airline_iata
   LEFT JOIN lounges lo ON lo.id = c.lounge_id`;
 
-export function checkinFrom(row) {
+export function checkinFrom(row, viewerId = null) {
   return {
     id: row.id,
     user: userFrom(row, 'u_'),
@@ -238,7 +245,8 @@ export function checkinFrom(row) {
     likes: row.like_count,
     likedByMe: !!row.liked_by_me,
     commentCount: row.comment_count ?? 0,
-    createdAt: row.created_at,
+    // Andra än ägaren ser publiceringstiden, så att en fördröjning inte avslöjas i efterhand (SEC-04).
+    createdAt: viewerId === row.user_id ? row.created_at : (row.publish_at ?? row.created_at),
     editedAt: row.edited_at ?? null,
     visibility: row.visibility ?? 'public',
     source: row.source ?? 'app',
@@ -264,8 +272,8 @@ export function photoFrom(row) {
 }
 
 /** Mappar Checkin-rader och hämtar foton för alla i en fråga. */
-export function checkinsWithPhotos(db, rows) {
-  const list = rows.map(checkinFrom);
+export function checkinsWithPhotos(db, rows, viewerId = null) {
+  const list = rows.map((r) => checkinFrom(r, viewerId));
   if (!list.length) return list;
   const byId = new Map(list.map((c) => [c.id, c]));
   const ids = [...byId.keys()];

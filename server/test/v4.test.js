@@ -238,7 +238,9 @@ describe('stammisar, utmaningar, import, delning och årsöversikt', () => {
     const by = Object.fromEntries(c.body.challenges.map((x) => [x.id, x]));
     assert.equal(by['new-airports'].completed, true, 'BMA, CPH, OSL');
     assert.equal(by.countries.completed, true);
-    assert.ok(by['new-airports'].completedAt);
+    assert.equal(by['new-airports'].completedAt, null, 'andra ser inte lagrad tidpunkt (SEC-04)');
+    const mine = await s.api('GET', '/api/users/utmanare/challenges', { token: t.utmanare });
+    assert.ok(mine.body.challenges.find((x) => x.id === 'new-airports').completedAt);
     assert.deepEqual(by.rater.progress, { current: 2, target: 5 });
     const n = (await s.api('GET', '/api/notifications', { token: t.utmanare })).body.items.filter((x) => x.type === 'challenge_completed');
     assert.equal(n.length, 2);
@@ -347,7 +349,9 @@ describe('stammisar, utmaningar, import, delning och årsöversikt', () => {
     assert.equal(r.body.firstCheckin.airport.iata, 'BMA');
     assert.equal(r.body.favoriteAirport.airport.iata, 'GOT');
     assert.ok(r.body.badgesEarned.some((b) => b.id === 'checkins' && b.tier === 'bronze'));
-    assert.equal(typeof r.body.challengesCompleted, 'number');
+    assert.equal(r.body.challengesCompleted, null, 'bara ägaren ser lagrade utmaningar (SEC-04)');
+    const own = await s.api('GET', `/api/users/stammis/year/${year}`, { token: t.stammis });
+    assert.equal(typeof own.body.challengesCompleted, 'number');
     assert.ok(!JSON.stringify(r.body).includes('hemligt'));
     assert.equal((await s.api('GET', '/api/users/stammis/year/abc')).status, 400);
     assert.equal((await s.api('GET', `/api/users/utmanare/year/${year}`)).status, 403, 'privat profil');

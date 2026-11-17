@@ -5,5 +5,6 @@ import m003 from './003-fts-iata.js';
 import m004 from './004-v3-privacy-sessions.js';
 import m005 from './005-v4-growth.js';
 import m006 from './006-autoincrement.js';
+import m007 from './007-security.js';
 
-export const MIGRATIONS = [m001, m002, m003, m004, m005, m006];
+export const MIGRATIONS = [m001, m002, m003, m004, m005, m006, m007];

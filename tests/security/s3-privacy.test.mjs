@@ -92,14 +92,14 @@ describe('S3 sidokanaler som läcker dolda resor (öppna fynd)', () => {
   });
   after(() => s.close());
 
-  test('SEC-01: topplista per land och vecka visar inte privata/fördröjda check-ins (realtidsposition)', { todo: 'SEC-01' }, async () => {
+  test('SEC-01: topplista per land och vecka visar inte privata/fördröjda check-ins (realtidsposition)', async () => {
     await s.checkin(victim, { iata: 'CPH', visitedOn: daysAgo(0), visibility: 'private' });
     const r = await s.api('GET', '/api/rankings/users?scope=country&country=DK&period=week&metric=checkins');
     assert.equal(r.status, 200);
     assert.ok(!ids(r.body.items).includes(victim.username), `anonym ser ${victim.username} i Danmark denna vecka: ${JSON.stringify(r.body.items)}`);
   });
 
-  test('SEC-02: vänförslag avslöjar inte vilka som besökt en flygplats via dolda check-ins', { todo: 'SEC-02' }, async () => {
+  test('SEC-02: vänförslag avslöjar inte vilka som besökt en flygplats via dolda check-ins', async () => {
     const p = await s.user('prv2', { privacy: { isPrivate: true, defaultVisibility: 'private', publishDelayHours: 168 } });
     await s.checkin(p, { iata: 'KRN', visitedOn: daysAgo(0) });
     await s.checkin(attacker, { iata: 'KRN', visitedOn: daysAgo(3), visibility: 'private' });
@@ -108,7 +108,7 @@ describe('S3 sidokanaler som läcker dolda resor (öppna fynd)', () => {
     assert.ok(!hit || hit.sharedAirports === 0, `privat profil med privat check-in föreslås: ${JSON.stringify(hit)}`);
   });
 
-  test('SEC-04: profilstatistik, XP och nivå räknar inte dolda/fördröjda check-ins för andra', { todo: 'SEC-04' }, async () => {
+  test('SEC-04: profilstatistik, XP och nivå räknar inte dolda/fördröjda check-ins för andra', async () => {
     const before = (await s.api('GET', `/api/users/${victim.username}`)).body;
     await s.checkin(victim, { iata: 'ARN', visitedOn: daysAgo(0), visibility: 'private' });
     const afterP = (await s.api('GET', `/api/users/${victim.username}`)).body;
@@ -116,7 +116,7 @@ describe('S3 sidokanaler som läcker dolda resor (öppna fynd)', () => {
     assert.equal(afterP.levelInfo.xp, before.levelInfo.xp, 'XP ökade direkt för anonym');
   });
 
-  test('SEC-04: privat profil visar inte XP/nivå och användarsök visar inte antal flygplatser', { todo: 'SEC-04' }, async () => {
+  test('SEC-04: privat profil visar inte XP/nivå och användarsök visar inte antal flygplatser', async () => {
     const p = await s.user('prv3', { privacy: { isPrivate: true } });
     await s.checkin(p, { iata: 'OSL' });
     const prof = (await s.api('GET', `/api/users/${p.username}`)).body;
@@ -126,7 +126,7 @@ describe('S3 sidokanaler som läcker dolda resor (öppna fynd)', () => {
     assert.equal(found.uniqueAirports ?? 0, 0, 'uniqueAirports synligt för privat profil');
   });
 
-  test('SEC-05: statistikkort som beror på tittaren cachas inte publikt', { todo: 'SEC-05' }, async () => {
+  test('SEC-05: statistikkort som beror på tittaren cachas inte publikt', async () => {
     for (const p of [`/api/users/${victim.username}/card`, `/api/users/${victim.username}/card.svg`]) {
       const r = await s.api('GET', p, { token: attacker.token });
       assert.doesNotMatch(r.headers.get('cache-control') ?? '', /public/, `${p}: ${r.headers.get('cache-control')}`);

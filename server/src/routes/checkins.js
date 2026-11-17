@@ -10,6 +10,7 @@ import { awardBadges, userStreak, todayStockholm, mondayOf } from '../badges.js'
 import { notify, notifyHomeVisit } from '../notify.js';
 import { updateMayor } from '../regulars.js';
 import { syncChallenges } from '../challenges.js';
+import { refreshPublicStats } from '../publicstats.js';
 
 function parseVisibility(v) {
   if (!VISIBILITIES.includes(v)) {
@@ -89,7 +90,7 @@ export default function checkinRoutes({ db, photos, limiters }) {
   const one = (viewerId, id) => {
     const vis = checkinVisible(viewerId);
     const row = db.prepare(`${CHECKIN_SELECT} WHERE c.id = ? AND ${vis.sql}`).get(viewerId ?? -1, id, ...vis.params);
-    return row ? checkinsWithPhotos(db, [row])[0] : null;
+    return row ? checkinsWithPhotos(db, [row], viewerId)[0] : null;
   };
 
   function loungeFor(iata, loungeId) {
@@ -182,6 +183,7 @@ export default function checkinRoutes({ db, photos, limiters }) {
         },
       };
     });
+    refreshPublicStats(db, uid);
     const xpAfter = xpOf.get(uid)?.xp ?? 0;
     const li = levelInfo(xpAfter);
     res.status(201).json({
@@ -293,7 +295,7 @@ export default function checkinRoutes({ db, photos, limiters }) {
     const rows = db.prepare(`${CHECKIN_SELECT} WHERE ${where.join(' AND ')}
       ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`)
       .all(req.user?.id ?? -1, ...params, limit, offset);
-    res.json(checkinsWithPhotos(db, rows));
+    res.json(checkinsWithPhotos(db, rows, req.user?.id ?? null));
   }));
 
   return r;

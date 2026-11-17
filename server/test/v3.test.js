@@ -254,10 +254,13 @@ describe('integritet: synlighet, fördröjning, privat profil', () => {
     assert.equal(n.body.items[0].text, 'frammande vill följa dig');
 
     // Global topplista döljer privata profiler för icke-följare
-    const lb = async (token) => (await s.api('GET', '/api/rankings/users?metric=airports', { token })).body.items.map((x) => x.user.username);
+    // Globala listan är den anonyma vyn (SEC-01/04): privat profil syns bara i vänlistan för följare
+    const lb = async (token, scope = 'global') => (await s.api('GET', `/api/rankings/users?metric=airports&scope=${scope}`, { token }))
+      .body.items.map((x) => x.user.username);
     assert.ok(!(await lb(t.frammande)).includes('agare'));
-    assert.ok((await lb(t.foljare)).includes('agare'));
-    assert.ok((await lb(t.agare)).includes('agare'));
+    assert.ok(!(await lb(t.foljare)).includes('agare'));
+    assert.ok((await lb(t.foljare, 'friends')).includes('agare'));
+    assert.ok((await lb(t.agare, 'friends')).includes('agare'));
 
     assert.equal((await s.api('POST', '/api/me/follow-requests/frammande', { token: t.agare })).status, 204);
     assert.equal((await s.api('POST', '/api/me/follow-requests/frammande', { token: t.agare })).status, 404);
@@ -285,8 +288,9 @@ describe('blockering, rapporter och moderering', () => {
   const t = {};
   let cid;
   before(async () => {
-    s = await startServer({ env: { NODE_ENV: 'test', MODERATORS: 'moddo' } });
+    s = await startServer();
     for (const u of ['olle', 'troll', 'moddo']) t[u] = await s.register(u);
+    s.db.prepare("UPDATE users SET role = 'moderator' WHERE username = 'moddo'").run();
     await s.api('POST', '/api/users/olle/follow', { token: t.troll });
     await s.api('POST', '/api/users/troll/follow', { token: t.olle });
     cid = (await s.api('POST', '/api/checkins', { token: t.olle, body: { ...ok, iata: 'GOT', comment: 'blockord' } })).body.id;

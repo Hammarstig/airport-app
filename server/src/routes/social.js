@@ -5,15 +5,14 @@ import { h, bad, notFound, HttpError, cleanText, paging, enumParam, USER_COLS, u
 import { transaction } from '../db/index.js';
 import { notify, NOTIFICATION_SELECT, notificationFrom } from '../notify.js';
 import { awardBadges } from '../badges.js';
-import { visibleCheckin, commentVisible, isBlocked, requireProfileAccess } from '../visibility.js';
+import { visibleCheckin, checkinVisible, commentVisible, isBlocked, requireProfileAccess } from '../visibility.js';
 
 const REPORT_TYPES = ['user', 'comment', 'checkin'];
 const REPORT_REASONS = ['spam', 'harassment', 'inappropriate', 'privacy', 'other'];
 const REPORT_STATUSES = ['open', 'resolved', 'dismissed'];
 
-export default function socialRoutes({ db, limiters, config, photos }) {
+export default function socialRoutes({ db, limiters, photos }) {
   const r = Router();
-  const moderators = new Set(config?.moderators ?? []);
   const userByName = db.prepare('SELECT id, username, is_private FROM users WHERE username = ?');
   const followerCount = db.prepare("SELECT COUNT(*) AS n FROM follows WHERE followee_id = ? AND status = 'accepted'");
 
@@ -104,10 +103,14 @@ export default function socialRoutes({ db, limiters, config, photos }) {
       WHERE f1.follower_id = ? AND f1.status = 'accepted' GROUP BY f2.followee_id ORDER BY n DESC LIMIT 100`).all(me)) {
       add(x.id, 'mutualFriends', x.n);
     }
-    // Gemensamma flygplatser (begränsat till de 50 mest lika)
-    for (const x of db.prepare(`SELECT ua2.user_id AS id, COUNT(*) AS n FROM user_airports ua1
-      JOIN user_airports ua2 ON ua2.iata = ua1.iata AND ua2.user_id <> ua1.user_id
-      WHERE ua1.user_id = ? GROUP BY ua2.user_id ORDER BY n DESC LIMIT 100`).all(me)) {
+    // Gemensamma flygplatser räknas bara på kandidaternas publika, publicerade check-ins (SEC-02):
+    // förslagen avslöjar inget som inte redan syns för vem som helst. Privata profiler föreslås inte
+    // på grund av flygplatser.
+    const pub = checkinVisible(null, { c: 'c2', u: 'u2' });
+    for (const x of db.prepare(`SELECT c2.user_id AS id, COUNT(DISTINCT c2.iata) AS n
+      FROM checkins c2 JOIN users u2 ON u2.id = c2.user_id
+      WHERE c2.iata IN (SELECT iata FROM user_airports WHERE user_id = ?) AND c2.user_id <> ? AND ${pub.sql}
+      GROUP BY c2.user_id ORDER BY n DESC LIMIT 100`).all(me, me, ...pub.params)) {
       add(x.id, 'sharedAirports', x.n);
     }
     let ranked = [...score.entries()]
@@ -290,8 +293,10 @@ export default function socialRoutes({ db, limiters, config, photos }) {
     res.status(201).json({ id: Number(info.lastInsertRowid), status: 'open' });
   }));
 
+  // Moderatorroll lagras i users.role och sätts med scripts/moderator.js (SEC-03).
   function requireModerator(req, _res, next) {
-    if (!req.user || !moderators.has(req.user.username)) return next(new HttpError(403, 'Kräver moderator'));
+    const role = req.user ? db.prepare('SELECT role FROM users WHERE id = ?').get(req.user.id)?.role : null;
+    if (role !== 'moderator') return next(new HttpError(403, 'Kräver moderator'));
     next();
   }
 

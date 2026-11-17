@@ -3,6 +3,8 @@ import { Router } from 'express';
 import { h, bad, HttpError, paging, enumParam, round2, code2, SUB_RATINGS, AIRPORT_COLS, airportFrom, USER_COLS, userFrom } from '../util.js';
 import { globalMeans, bayesSql, categoryCols, AIRPORT_PRIOR } from '../stats.js';
 import { todayStockholm, mondayOf } from '../badges.js';
+import { checkinVisible } from '../visibility.js';
+import { visibleStats } from '../publicstats.js';
 
 const METRICS = ['airports', 'countries', 'continents', 'checkins', 'reviews', 'xp'];
 const PERIODS = ['week', 'month', 'year', 'all'];
@@ -48,13 +50,11 @@ function assignRanks(rows) {
   return rows;
 }
 
-/**
- * Rankad lista [{ user_id, value, rank }]. Periodlistor räknas globalt och cachas (cacheMs);
- * vänlistan filtreras fram ur den globala listan eftersom värdena inte beror på scope.
- */
+/** Rankad lista [{ user_id, value, rank }]. Globala periodlistor (anonym vy) cachas i cacheMs. */
 const caches = new WeakMap();
 function ranking(db, opts, cacheMs = 0) {
-  if (opts.from === null || !cacheMs) return computeRanking(db, opts);
+  // Vänlistan beror på tittaren och är liten: räknas alltid direkt.
+  if (opts.from === null || !cacheMs || opts.scope === 'friends') return computeRanking(db, opts);
   const key = `${opts.metric}|${opts.from}|${opts.to}|${opts.scope === 'country' ? opts.country : ''}`;
   let cache = caches.get(db);
   if (!cache) caches.set(db, (cache = new Map()));
@@ -64,38 +64,37 @@ function ranking(db, opts, cacheMs = 0) {
     cache.set(key, hit);
     if (cache.size > 100) cache.delete(cache.keys().next().value);
   }
-  if (opts.scope !== 'friends') return hit.rows;
-  const friends = new Set(db.prepare('SELECT followee_id AS id FROM follows WHERE follower_id = ? AND status = \'accepted\'').all(opts.viewerId).map((r) => r.id));
-  friends.add(opts.viewerId);
-  return assignRanks(hit.rows.filter((r) => friends.has(r.user_id)).map((r) => ({ ...r })));
+  return hit.rows;
 }
 
+/**
+ * Räknar en topplista på check-ins som tittaren får se (SEC-01): globala och landslistor på den anonyma
+ * vyn (publika, publicerade check-ins), vänlistan på det tittaren själv får se hos sina vänner.
+ */
 function computeRanking(db, { metric, scope, country, viewerId, from, to }) {
-  const where = [];
-  const params = [];
-  if (scope === 'friends') {
-    where.push("x.user_id IN (SELECT ? UNION SELECT followee_id FROM follows WHERE follower_id = ? AND status = 'accepted')");
-    params.push(viewerId, viewerId);
-  }
-  let sql;
-  if (from === null && scope !== 'country') {
-    // Hela tiden: direkt från förberäknad statistik.
-    sql = `SELECT x.user_id, x.${metric} AS value FROM user_stats x WHERE x.${metric} > 0
-      ${where.length ? 'AND ' + where.join(' AND ') : ''}`;
-  } else if (from === null) {
-    // Hela tiden inom ett land: från user_airports (en rad per användare och flygplats).
-    const expr = { airports: 'COUNT(*)', countries: '1', continents: 'COUNT(DISTINCT a.continent)', checkins: 'SUM(x.visits)' }[metric];
-    sql = `SELECT x.user_id, ${expr} AS value FROM user_airports x JOIN airports a ON a.iata = x.iata
-      WHERE a.country = ? ${where.length ? 'AND ' + where.join(' AND ') : ''} GROUP BY x.user_id`;
-    params.unshift(country);
+  const friends = scope === 'friends';
+  let rows;
+  if (from === null && scope === 'global') {
+    rows = db.prepare(`SELECT user_id, ${metric} AS value FROM user_public_stats WHERE ${metric} > 0`).all();
+  } else if (from === null && friends && ['xp', 'reviews'].includes(metric)) {
+    const ids = db.prepare("SELECT ? AS id UNION SELECT followee_id FROM follows WHERE follower_id = ? AND status = 'accepted'")
+      .all(viewerId, viewerId).map((x) => x.id);
+    rows = ids.map((id) => ({ user_id: id, value: visibleStats(db, id, id === viewerId ? id : viewerId)[metric] }));
   } else {
-    sql = `SELECT x.user_id, ${PERIOD_EXPR[metric]} AS value FROM checkins x
-      JOIN airports a ON a.iata = x.iata
-      WHERE x.visited_on BETWEEN ? AND ? ${scope === 'country' ? 'AND a.country = ?' : ''}
-      ${where.length ? 'AND ' + where.join(' AND ') : ''} GROUP BY x.user_id`;
-    params.unshift(...(scope === 'country' ? [from, to, country] : [from, to]));
+    const vis = checkinVisible(friends ? viewerId : null, { c: 'x', u: 'u' });
+    const where = [vis.sql];
+    const params = [...vis.params];
+    if (from !== null) { where.push('x.visited_on BETWEEN ? AND ?'); params.push(from, to); }
+    if (scope === 'country') { where.push('a.country = ?'); params.push(country); }
+    if (friends) {
+      where.push("x.user_id IN (SELECT ? UNION SELECT followee_id FROM follows WHERE follower_id = ? AND status = 'accepted')");
+      params.push(viewerId, viewerId);
+    }
+    rows = db.prepare(`SELECT x.user_id, ${PERIOD_EXPR[metric]} AS value FROM checkins x
+      JOIN users u ON u.id = x.user_id JOIN airports a ON a.iata = x.iata
+      WHERE ${where.join(' AND ')} GROUP BY x.user_id`).all(...params);
   }
-  const rows = db.prepare(sql).all(...params).filter((r) => r.value > 0);
+  rows = rows.filter((r) => r.value > 0);
   rows.sort((a, b) => b.value - a.value || a.user_id - b.user_id);
   return assignRanks(rows);
 }

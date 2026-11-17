@@ -8,6 +8,7 @@ import { syncBadges } from '../src/badges.js';
 import { notify, notifyHomeVisit } from '../src/notify.js';
 import { updateMayor } from '../src/regulars.js';
 import { syncChallenges } from '../src/challenges.js';
+import { refreshAllPublicStats } from '../src/publicstats.js';
 
 const PASSWORD = 'demo1234';
 
@@ -218,6 +219,7 @@ export function seedDemo(db) {
     const month = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date()).slice(0, 7);
     for (const u of USERS) syncChallenges(db, ids[u.username], month);
     db.prepare("UPDATE notifications SET read = 1 WHERE user_id = ? AND type = 'badge'").run(ids.oliver);
+    refreshAllPublicStats(db);
   });
   return { users: USERS.length, checkins: CHECKINS.length + STREAK.length };
 }

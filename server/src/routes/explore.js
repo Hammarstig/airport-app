@@ -164,7 +164,7 @@ export default function exploreRoutes({ db }) {
     const rows = db.prepare(`
       SELECT ${USER_COLS('u', '')}, IFNULL(us.airports, 0) AS unique_airports,
         EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.followee_id = u.id AND f.status = 'accepted') AS followed_by_me
-      FROM users u LEFT JOIN user_stats us ON us.user_id = u.id
+      FROM users u LEFT JOIN user_public_stats us ON us.user_id = u.id
       WHERE ? = '' OR u.username LIKE ? ESCAPE '\\' OR lower(u.display_name) LIKE ? ESCAPE '\\'
       ORDER BY (u.username LIKE ? ESCAPE '\\') DESC, unique_airports DESC, u.username
       LIMIT ?`).all(req.user?.id ?? -1, q, like, like, pfx, limit);

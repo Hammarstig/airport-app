@@ -3,6 +3,7 @@
 // förberäknad statistik (user_stats, user_airports) med ett fåtal indexerade frågor per användare.
 import { levelInfo } from './util.js';
 import { notify } from './notify.js';
+import { checkinVisible, reviewVisible } from './visibility.js';
 
 let rarityCache = null;
 export const TIERS = ['bronze', 'silver', 'gold', 'platinum'];
@@ -78,10 +79,55 @@ export function streakFrom(mondays, today = todayStockholm()) {
   return { current, longest, thisWeek };
 }
 
-export function userStreak(db, userId) {
-  const rows = db.prepare(`SELECT DISTINCT date(visited_on, '-' || ((CAST(strftime('%w', visited_on) AS INTEGER) + 6) % 7) || ' days') AS monday
-    FROM checkins WHERE user_id = ? ORDER BY monday`).all(userId);
+/** Veckostreak. Med `viewerId` (annan än ägaren) räknas bara check-ins som tittaren får se (SEC-04). */
+export function userStreak(db, userId, viewerId = userId) {
+  const vc = visibleCheckinsCte(userId, viewerId);
+  const rows = db.prepare(`WITH vc AS (${vc.sql})
+    SELECT DISTINCT date(visited_on, '-' || ((CAST(strftime('%w', visited_on) AS INTEGER) + 6) % 7) || ' days') AS monday
+    FROM vc ORDER BY monday`).all(...vc.params);
   return streakFrom(rows.map((r) => r.monday));
+}
+
+/** CTE-kropp med användarens check-ins som tittaren får se (ägaren ser alla). */
+export function visibleCheckinsCte(userId, viewerId) {
+  if (viewerId != null && viewerId === userId) return { sql: 'SELECT * FROM checkins WHERE user_id = ?', params: [userId] };
+  const vis = checkinVisible(viewerId ?? null);
+  return { sql: `SELECT c.* FROM checkins c JOIN users u ON u.id = c.user_id WHERE c.user_id = ? AND ${vis.sql}`, params: [userId, ...vis.params] };
+}
+
+/** Märkesmått räknade bara på det tittaren får se (för andra än ägaren). */
+export function visibleMetrics(db, userId, viewerId) {
+  const vc = visibleCheckinsCte(userId, viewerId);
+  const ph = (list) => list.map(() => '?').join(', ');
+  const home = db.prepare('SELECT home_iata FROM users WHERE id = ?').get(userId)?.home_iata ?? null;
+  const a = db.prepare(`WITH vc AS (${vc.sql}), ua AS (SELECT iata, COUNT(*) AS visits FROM vc GROUP BY iata)
+    SELECT (SELECT COUNT(*) FROM vc) AS checkins, COUNT(*) AS airports, COUNT(DISTINCT a.country) AS countries,
+      IFNULL(SUM(a.type = 'large'), 0) AS hubs, COUNT(DISTINCT substr(ua.iata, 1, 1)) AS alphabet,
+      COUNT(DISTINCT CASE WHEN a.country = 'SE' THEN a.region END) AS regions_se,
+      COUNT(DISTINCT CASE WHEN a.country IN (${ph(NORDIC)}) THEN a.country END) AS nordic,
+      COUNT(DISTINCT CASE WHEN a.continent IN (${ph(MAIN_CONTINENTS)}) THEN a.continent END) AS continents,
+      IFNULL(SUM(CASE WHEN ua.iata = ? THEN ua.visits END), 0) AS home,
+      (SELECT COUNT(DISTINCT airline_iata) FROM vc) AS airlines,
+      (SELECT IFNULL(SUM(IFNULL(travel_class, '') IN ('business', 'first')), 0) FROM vc) AS front_cabin,
+      (SELECT IFNULL(SUM(kind = 'transfer'), 0) FROM vc) AS transfers,
+      (SELECT IFNULL(SUM(comment IS NOT NULL), 0) FROM vc) AS commented,
+      (SELECT COUNT(*) FROM photos p WHERE p.checkin_id IN (SELECT id FROM vc)) AS photos,
+      (SELECT COUNT(*) FROM likes l WHERE l.checkin_id IN (SELECT id FROM vc)) AS likes_received,
+      ${SEASONAL.map((d) => `(SELECT IFNULL(SUM(${seasonSql(d.season)}), 0) FROM vc) AS "s_${d.id}"`).join(', ')}
+    FROM ua JOIN airports a ON a.iata = ua.iata`).get(...vc.params, ...NORDIC, ...MAIN_CONTINENTS, home);
+  const rv = reviewVisible(viewerId ?? null);
+  const reviews = db.prepare(`SELECT COUNT(*) AS n FROM lounge_reviews r JOIN users u ON u.id = r.user_id
+    LEFT JOIN checkins lc ON lc.id = r.checkin_id WHERE r.user_id = ? AND ${rv.sql}`).get(userId, ...rv.params).n;
+  const cv = checkinVisible(viewerId ?? null);
+  const commentsWritten = db.prepare(`SELECT COUNT(*) AS n FROM comments m JOIN checkins c ON c.id = m.checkin_id
+    JOIN users u ON u.id = c.user_id WHERE m.user_id = ? AND ${cv.sql}`).get(userId, ...cv.params).n;
+  return {
+    checkins: a.checkins, airports: a.airports, countries: a.countries, continents: a.continents, nordic: a.nordic,
+    hubs: a.hubs, alphabet: a.alphabet, regionsSe: a.regions_se, airlines: a.airlines, frontCabin: a.front_cabin,
+    transfers: a.transfers, home: a.home, longestStreak: userStreak(db, userId, viewerId).longest, commented: a.commented,
+    reviews, photos: a.photos, likesReceived: a.likes_received, commentsWritten,
+    ...Object.fromEntries(SEASONAL.map((d) => [d.m, a[`s_${d.id}`] ?? 0])),
+  };
 }
 
 /** Alla mått som märkena bygger på. */
@@ -186,9 +232,14 @@ export function badgeObject(def, value, earnedRows, rarityMap) {
 }
 
 /** Alla märken för en användare (synkar först så att nivåer som redan nåtts registreras). */
-export function getBadges(db, userId, { metrics } = {}) {
-  const m = metrics ?? userMetrics(db, userId);
-  syncBadges(db, userId, { metrics: m });
+/**
+ * Alla märken för en användare. För andra än ägaren (viewerId) visas bara nivåer som också nås med de
+ * check-ins tittaren får se, så att märken inte avslöjar privata resmål (SEC-04).
+ */
+export function getBadges(db, userId, { metrics, viewerId = userId } = {}) {
+  const own = metrics ?? userMetrics(db, userId);
+  syncBadges(db, userId, { metrics: own });
+  const m = viewerId === userId ? own : visibleMetrics(db, userId, viewerId);
   const rows = db.prepare('SELECT badge_id, tier_level, earned_at FROM user_badges WHERE user_id = ?').all(userId);
   const byBadge = new Map();
   for (const r of rows) {
@@ -196,7 +247,14 @@ export function getBadges(db, userId, { metrics } = {}) {
     byBadge.get(r.badge_id).push(r);
   }
   const rm = rarity(db);
-  return BADGE_DEFS.map((d) => badgeObject(d, m[d.m] ?? 0, byBadge.get(d.id) ?? [], rm));
+  return BADGE_DEFS.map((d) => {
+    let rows = byBadge.get(d.id) ?? [];
+    if (viewerId !== userId) {
+      const reachable = d.tiers.filter((t) => (m[d.m] ?? 0) >= t).length;
+      rows = rows.filter((r) => r.tier_level <= reachable);
+    }
+    return badgeObject(d, m[d.m] ?? 0, rows, rm);
+  });
 }
 
 /** Synkar märken efter en händelse och returnerar Badge-objekt för de nya nivåerna (med notiser). */

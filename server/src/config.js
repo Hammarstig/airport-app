@@ -42,7 +42,12 @@ export function loadConfig(env = process.env) {
     // Publik bas-URL för Open Graph (t.ex. https://gatelog.se); annars från förfrågan.
     publicUrl: env.PUBLIC_URL ? env.PUBLIC_URL.replace(/\/+$/, '') : null,
     // Moderatorer (användarnamn, kommaseparerade) som får hantera rapporter.
-    moderators: (env.MODERATORS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean),
+    // Hur ofta publik statistik och gallring körs (ms).
+    sweepMs: num(env.SWEEP_MS, 60_000),
+    // Lagringstider (dagar) för gallring (SEC-27): sessioner efter utgång, säkerhetsrelevanta loggar.
+    retention: { sessionsDays: num(env.RETAIN_SESSIONS_DAYS, 30), moderationDays: num(env.RETAIN_MODERATION_DAYS, 365), reportsDays: num(env.RETAIN_REPORTS_DAYS, 365) },
+    // Utgått: moderatorer sätts i databasen (scripts/moderator.js). Variabeln ger bara en varning (SEC-03).
+    legacyModerators: !!env.MODERATORS,
     // Web Push (VAPID). Saknas nycklarna genereras de i utveckling till data/vapid.json; i produktion är push avstängt.
     vapid: {
       publicKey: env.VAPID_PUBLIC_KEY || null,

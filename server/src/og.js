@@ -39,7 +39,7 @@ function checkinMeta(db, id) {
 }
 
 function userMeta(db, username) {
-  const u = db.prepare(`SELECT u.*, us.airports, us.countries, us.checkins FROM users u LEFT JOIN user_stats us ON us.user_id = u.id
+  const u = db.prepare(`SELECT u.*, us.airports, us.countries, us.checkins FROM users u LEFT JOIN user_public_stats us ON us.user_id = u.id
     WHERE u.username = ?`).get(username);
   if (!u) return null;
   if (u.is_private) return { ...DEFAULT, title: `${u.display_name} (@${u.username}) - Gatelog`, type: 'profile' };

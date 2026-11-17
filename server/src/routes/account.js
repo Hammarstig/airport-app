@@ -63,6 +63,10 @@ export default function accountRoutes({ db, photos }) {
     if (!(await bcrypt.compare(password, u.password_hash))) throw new HttpError(403, 'Fel lösenord');
     const files = db.prepare('SELECT filename FROM photos WHERE user_id = ?').all(req.user.id).map((p) => p.filename);
     transaction(db, () => {
+      // Användarnamnet får inte tas av någon annan direkt (imitation, SEC-03).
+      const name = db.prepare('SELECT username FROM users WHERE id = ?').get(req.user.id).username;
+      db.prepare('INSERT OR REPLACE INTO retired_usernames (username, until) VALUES (?, ?)')
+        .run(name, new Date(Date.now() + 90 * 86400_000).toISOString());
       db.prepare('DELETE FROM users WHERE id = ?').run(req.user.id);
     });
     photos.removeFiles(files);
@@ -74,7 +78,7 @@ export default function accountRoutes({ db, photos }) {
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
     const out = {
       exportedAt: new Date().toISOString(),
-      user: { ...userSummary(db, user), createdAt: user.created_at },
+      user: { ...userSummary(db, user, { self: true }), createdAt: user.created_at },
       checkins: db.prepare(`SELECT c.*, (SELECT json_group_array(filename) FROM photos p WHERE p.checkin_id = c.id) AS photos
         FROM checkins c WHERE c.user_id = ? ORDER BY c.visited_on, c.id`).all(uid)
         .map((c) => ({ ...c, photos: JSON.parse(c.photos).map((f) => '/uploads/' + f) })),

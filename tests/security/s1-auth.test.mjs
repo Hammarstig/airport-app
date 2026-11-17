@@ -99,7 +99,7 @@ describe('S1 moderatorroll knuten till användarnamn', () => {
   before(async () => { s = await startServer({ env: { MODERATORS: 'modbob' } }); });
   after(() => s.close());
 
-  test('SEC-03: den som registrerar ett ledigt moderatornamn blir inte moderator', { todo: 'SEC-03' }, async () => {
+  test('SEC-03: den som registrerar ett ledigt moderatornamn blir inte moderator', async () => {
     // Moderatorer anges med användarnamn i MODERATORS. Är namnet ledigt (aldrig skapat eller raderat
     // konto) kan vem som helst registrera det och får moderatorrättigheter.
     const r = await s.api('POST', '/api/auth/register', { body: { username: 'modbob', password: PASSWORD } });
