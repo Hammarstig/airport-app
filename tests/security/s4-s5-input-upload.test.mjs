@@ -124,8 +124,11 @@ describe('S5 filuppladdning', () => {
   test('för stor fil ger 413 och sökvägstraversering under /uploads ger 404', async () => {
     const big = Buffer.concat([fx('gps.jpg'), Buffer.alloc(5 * 1024 * 1024 + 10)]);
     assert.equal((await upload(big, 'big.jpg', 'image/jpeg')).status, 413);
-    for (const p of ['/uploads/..%2f..%2fetc%2fpasswd', '/uploads/%2e%2e/sec.db', '/uploads/.htaccess']) {
-      assert.equal((await s.api('GET', p)).status, 404, p);
+    // fetch normaliserar %2e%2e till .. (blir då en SPA-väg); avgörande är att varken databasen eller systemfiler lämnas ut.
+    for (const p of ['/uploads/..%2f..%2fetc%2fpasswd', '/uploads/%2e%2e/sec.db', '/uploads/..%2fsec.db', '/uploads/.htaccess']) {
+      const r = await s.api('GET', p);
+      assert.doesNotMatch(r.text, /SQLite format|root:x:0:0/, p);
+      if (p.includes('%2f') || p.endsWith('.htaccess')) assert.equal(r.status, 404, p);
     }
   });
 
