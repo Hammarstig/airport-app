@@ -20,6 +20,7 @@ export const loaders = {
   login: () => import('./pages/Auth/LoginPage.jsx'),
   register: () => import('./pages/Auth/RegisterPage.jsx'),
   moderation: () => import('./pages/Moderation/ModerationPage.jsx'),
+  year: () => import('./pages/Year/YearPage.jsx'),
   notFound: () => import('./pages/NotFound/NotFoundPage.jsx')
 };
 

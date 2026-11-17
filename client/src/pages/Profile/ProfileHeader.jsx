@@ -3,7 +3,7 @@ import { Avatar, StatRow } from '../../components/ui.jsx';
 import { FollowButton } from '../../components/FollowButton.jsx';
 import { LevelBar, StreakChip } from '../../components/Level.jsx';
 import { ShareButton } from '../../components/ShareButton.jsx';
-import { IconMap, IconSettings } from '../../assets/icons.jsx';
+import { IconMap, IconSettings, IconSparkle } from '../../assets/icons.jsx';
 import { ProfileActions } from './ProfileActions.jsx';
 
 export function ProfileHeader({ profile: p, isMe, me, onFollowChange }) {
@@ -38,9 +38,14 @@ export function ProfileHeader({ profile: p, isMe, me, onFollowChange }) {
       </div>
       <div className="row">
         {isMe ? (
-          <Link to="/settings" className="btn btn--ghost btn--sm">
-            <IconSettings size={18} aria-hidden="true" /> Redigera profil
-          </Link>
+          <>
+            <Link to="/settings/konto" className="btn btn--ghost btn--sm">
+              <IconSettings size={18} aria-hidden="true" /> Redigera profil
+            </Link>
+            <Link to={`/u/${p.username}/year/${new Date().getFullYear()}`} className="btn btn--ghost btn--sm">
+              <IconSparkle size={18} aria-hidden="true" /> Ditt {new Date().getFullYear()}
+            </Link>
+          </>
         ) : (
           <>
             <FollowButton

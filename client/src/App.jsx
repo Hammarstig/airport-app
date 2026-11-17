@@ -27,6 +27,7 @@ const {
   login: LoginPage,
   register: RegisterPage,
   moderation: ModerationPage,
+  year: YearPage,
   notFound: NotFoundPage
 } = pages;
 
@@ -92,6 +93,7 @@ export function App() {
           <Route path="airport/:iata" element={s(<AirportPage />)} />
           <Route path="u/:username" element={s(<ProfilePage />)} />
           <Route path="u/:username/map" element={s(<MapPage />)} />
+          <Route path="u/:username/year/:year" element={s(<YearPage />)} />
           <Route path="u/:username/map/:country" element={s(<MapPage />)} />
           <Route path="leaderboard" element={s(<LeaderboardPage />)} />
           <Route path="search" element={s(<SearchPage />)} />
