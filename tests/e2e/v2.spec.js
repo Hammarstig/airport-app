@@ -428,11 +428,8 @@ test.describe('konto', () => {
     expect(await page.evaluate(() => localStorage.getItem('gatelog.token'))).toBeNull();
     expect((await request.post('/api/auth/login', { data: { username: u.username, password: 'hemligt123' } })).status()).toBe(401);
     expect((await request.get(`/api/users/${u.username}`)).status()).toBe(404);
-    // BUG-12: id:n återanvänds, så en parallell test kan redan ha fått samma check-in-id.
-    // Kontrollera att check-in:en inte längre tillhör den raderade användaren.
-    const after = await request.get(`/api/checkins/${c.id}`);
-    if (after.status() === 200) expect((await after.json()).user.username).not.toBe(u.username);
-    else expect(after.status()).toBe(404);
+    // BUG-12 (rättad): raderade id:n återanvänds inte, så check-in:en ska ge 404.
+    expect((await request.get(`/api/checkins/${c.id}`)).status()).toBe(404);
   });
 
   test('fel lösenord vid radering ger felmeddelande och behåller inloggningen', async ({ page, request }) => {
