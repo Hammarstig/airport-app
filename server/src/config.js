@@ -71,6 +71,8 @@ export function loadConfig(env = process.env) {
       // Import (SEC-07): egen gräns, förhandsvisning har en högre.
       import: lim(24 * 60 * MIN, 5),
       importPreview: lim(60 * MIN, 30),
+      // Kostsamma läsningar (SEC-22): sök, användarsök, topplistor.
+      read: lim(5 * MIN, 300),
     },
   };
 }

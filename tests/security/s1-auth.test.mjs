@@ -85,7 +85,7 @@ describe('S1 sessioner och tokens', () => {
     assert.ok(r.status < 500, `fick ${r.status}`);
   });
 
-  test('SEC-12: lösenordspolicyn stoppar vanliga läckta lösenord', { todo: 'SEC-12' }, async () => {
+  test('SEC-12: lösenordspolicyn stoppar vanliga läckta lösenord', async () => {
     // Alla finns högt upp på listor över läckta lösenord men godtas idag (listan har ~70 poster).
     for (const pw of ['qwerty12', 'football1', 'Summer2026', 'iloveyou1', 'password2', 'Welcome2026']) {
       const r = await s.api('POST', '/api/auth/register', { body: { username: `pw_${Math.random().toString(36).slice(2, 8)}`, password: pw } });

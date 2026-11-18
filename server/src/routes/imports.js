@@ -3,7 +3,7 @@ import { Router } from 'express';
 import express from 'express';
 import { randomBytes } from 'node:crypto';
 import { requireAuth } from '../auth.js';
-import { h, bad, notFound, HttpError, KINDS, TRAVEL_CLASSES, maxAllowedDate } from '../util.js';
+import { h, bad, notFound, KINDS, TRAVEL_CLASSES, maxAllowedDate, cleanText } from '../util.js';
 import { transaction } from '../db/index.js';
 import { awardBadges } from '../badges.js';
 import { setImmediate as tick } from 'node:timers/promises';
@@ -113,7 +113,7 @@ export default function importRoutes({ db, photos, limiters }) {
   async function analyse(text, userId) {
     const table = parseCsv(text);
     if (table.length < 2) throw bad('Filen måste ha en rubrikrad och minst en datarad');
-    if (table.length - 1 > MAX_ROWS) throw new HttpError(413, `Max ${MAX_ROWS} rader per import`);
+    if (table.length - 1 > MAX_ROWS) throw bad(`Max ${MAX_ROWS} rader per import`);
     const map = headerMap(table[0]);
     if (map.date === undefined) throw bad('Hittar ingen datumkolumn (date, flight date, departure date ...)');
     const pair = map.from !== undefined && map.to !== undefined;
@@ -144,7 +144,9 @@ export default function importRoutes({ db, photos, limiters }) {
       const travelClass = CLASS_MAP[cell(row, 'cls').toLowerCase()] ?? null;
       const ratingRaw = Number(cell(row, 'rating').replace(',', '.'));
       const rating = cell(row, 'rating') && ratingRaw >= 0.5 && ratingRaw <= 5 && Number.isInteger(ratingRaw * 2) ? ratingRaw : null;
-      const comment = cell(row, 'comment').slice(0, 1000) || null;
+      // Samma textrensning som övriga skrivvägar (SEC-20).
+      let comment = null;
+      try { comment = cleanText(cell(row, 'comment').slice(0, 1000), { field: 'comment', max: 1000 }); } catch { comment = null; }
       const legs = [];
       if (pair) {
         const from = airport(cell(row, 'from'));

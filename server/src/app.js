@@ -33,7 +33,8 @@ import { setPushService } from './notify.js';
 const CSP = [
   "default-src 'self'",
   "img-src 'self' data: blob: https:",
-  "style-src 'self' 'unsafe-inline'",
+  // Inga inline-stilar (SEC-10); React-stilar sätts via CSSOM och påverkas inte.
+  "style-src 'self'",
   "script-src 'self'",
   "connect-src 'self'",
   // Typsnitten är självhostade under /fonts (client/public/fonts).
@@ -57,7 +58,7 @@ function securityHeaders(production) {
       'Permissions-Policy': 'camera=(self), microphone=(), geolocation=(self)',
       'Content-Security-Policy': CSP,
     });
-    if (production) res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+    if (production) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
   };
 }
@@ -99,6 +100,9 @@ function requestLog(enabled) {
  */
 export function createApp(opts = {}) {
   const cfg = loadConfig(opts.env ?? process.env);
+  if (cfg.production && !cfg.publicUrl) {
+    console.warn('[gatelog] PUBLIC_URL saknas - Open Graph-länkar blir relativa (SEC-21). Sätt PUBLIC_URL=https://din-doman.');
+  }
   const secret = resolveSecret(cfg, opts.jwtSecret);
   const database = opts.db ?? openDb(opts.dbPath ?? cfg.dbPath);
   const photos = photoStore(opts.uploadDir || cfg.uploadDir);
@@ -135,6 +139,9 @@ export function createApp(opts = {}) {
   app.use('/api/auth', rateLimit({ ...(opts.authRateLimit ?? cfg.authRateLimit), name: 'auth' }));
   const wl = { ...cfg.writeRateLimits, ...(opts.writeRateLimits ?? {}) };
   const limiters = Object.fromEntries(Object.entries(wl).map(([k, v]) => [k, rateLimit({ ...v, name: k })]));
+  // Läsgräns för sök och topplistor (SEC-22).
+  const READ_LIMITED = /^\/(search|users$|rankings\/|leaderboard|explore\/search)/;
+  app.use('/api', (req, res, next) => (req.method === 'GET' && limiters.read && READ_LIMITED.test(req.path) ? limiters.read(req, res, next) : next()));
   // Generell gräns för alla skrivande anrop (utom inloggning/registrering som har egen).
   app.use('/api', (req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS' || req.path.startsWith('/auth/')) return next();
@@ -196,7 +203,8 @@ export function createApp(opts = {}) {
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
       indexHtml ??= readFileSync(`${staticDir}/index.html`, 'utf8');
-      const base = cfg.publicUrl ?? `${req.protocol}://${req.get('host')}`;
+      // Aldrig Host-headern i produktion (SEC-21): utan PUBLIC_URL blir URL:erna relativa.
+      const base = cfg.publicUrl ?? (cfg.production ? '' : `${req.protocol}://${req.get('host')}`);
       let meta = null;
       try { meta = ogMeta(database, req.path); } catch { meta = null; }
       res.set({ 'Cache-Control': 'no-cache', 'Content-Type': 'text/html; charset=utf-8' });

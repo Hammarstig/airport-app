@@ -270,7 +270,8 @@ export default function checkinRoutes({ db, photos, limiters }) {
 
   r.delete('/checkins/:id/like', requireAuth, h((req, res) => {
     const id = idParam(req.params.id);
-    if (!checkinRow.get(id)) throw notFound('Check-in finns inte');
+    // Samma synlighetskontroll som för gilla (SEC-17): dold check-in ger 404.
+    if (!visibleCheckin(db, req.user.id, id)) throw notFound('Check-in finns inte');
     db.prepare('DELETE FROM likes WHERE checkin_id = ? AND user_id = ?').run(id, req.user.id);
     res.json({ likes: likeCount.get(id).n, likedByMe: false });
   }));

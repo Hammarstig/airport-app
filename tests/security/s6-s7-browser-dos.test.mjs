@@ -39,14 +39,14 @@ describe('S6 headers, CORS och CSRF', () => {
     assert.equal((await s.api('POST', '/api/checkins', { cookie: u.cookie, body: { iata: 'GOT', visitedOn: '2026-01-01', kind: 'departure' } })).status, 401);
   });
 
-  test('SEC-10: CSP utan unsafe-inline för stilar och HSTS minst ett år', { todo: 'SEC-10' }, async () => {
+  test('SEC-10: CSP utan unsafe-inline för stilar och HSTS minst ett år', async () => {
     const h = (await s.api('GET', '/')).headers;
     assert.doesNotMatch(h.get('content-security-policy'), /unsafe-inline/);
     const maxAge = Number(/max-age=(\d+)/.exec(h.get('strict-transport-security'))[1]);
     assert.ok(maxAge >= 31536000, `HSTS max-age ${maxAge}`);
   });
 
-  test('SEC-21: Open Graph-taggar använder inte Host-headern (kräver PUBLIC_URL i produktion)', { todo: 'SEC-21' }, async () => {
+  test('SEC-21: Open Graph-taggar använder inte Host-headern (kräver PUBLIC_URL i produktion)', async () => {
     // fetch tillåter inte egen Host-header, därför node:http.
     const text = await new Promise((resolve, reject) => {
       http.get(`${s.base}/airport/GOT`, { headers: { Host: 'evil.example' } }, (res) => {
@@ -114,7 +114,7 @@ describe('S7 rate limiting och DoS', () => {
     } finally { s.close(); }
   });
 
-  test('SEC-22: läsande endpoints (sök, topplistor) har rate limit', { todo: 'SEC-22' }, async () => {
+  test('SEC-22: läsande endpoints (sök, topplistor) har rate limit', async () => {
     const s = await startServer({ limits: true });
     try {
       let got429 = false;

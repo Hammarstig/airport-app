@@ -64,7 +64,8 @@ export function rateLimit({ windowMs, max, name = 'default' }) {
       res.set('Retry-After', String(Math.ceil((e.resetAt - now) / 1000)));
       return res.status(429).json({ error: name === 'auth'
         ? 'För många försök, vänta en stund och försök igen'
-        : 'För många ändringar på kort tid, vänta en stund och försök igen' });
+        : name === 'read' ? 'För många sökningar på kort tid, vänta en stund och försök igen'
+          : 'För många ändringar på kort tid, vänta en stund och försök igen' });
     }
     next();
   };

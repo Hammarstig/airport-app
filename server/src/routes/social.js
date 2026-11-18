@@ -272,7 +272,9 @@ export default function socialRoutes({ db, limiters, photos }) {
     const id = Number(target);
     if (!Number.isInteger(id) || id < 1) throw bad('target måste vara ett id');
     if (type === 'comment') {
-      if (!getComment.get(id)) throw notFound('Kommentaren finns inte');
+      // Kommentaren måste ligga på en check-in som rapportören får se (SEC-17).
+      const cm = getComment.get(id);
+      if (!cm || !visibleCheckin(db, viewerId, cm.checkin_id)) throw notFound('Kommentaren finns inte');
     } else if (!visibleCheckin(db, viewerId, id)) {
       throw notFound('Check-in finns inte');
     }

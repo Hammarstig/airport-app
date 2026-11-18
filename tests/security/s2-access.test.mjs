@@ -90,13 +90,13 @@ describe('S2 BOLA/IDOR på objekt med id', () => {
     assert.equal({}.polluted3, undefined);
   });
 
-  test('SEC-17: avgilla ger inte ut gilla-antal eller existens för en check-in man inte får se', { todo: 'SEC-17' }, async () => {
+  test('SEC-17: avgilla ger inte ut gilla-antal eller existens för en check-in man inte får se', async () => {
     const p = await s.checkin(a, { visibility: 'private' });
     const r = await s.api('DELETE', `/api/checkins/${p.id}/like`, { token: b.token });
     assert.equal(r.status, 404, `fick ${r.status} ${JSON.stringify(r.body)}`);
   });
 
-  test('SEC-17: rapport av kommentar på dold check-in avslöjar inte att kommentaren finns', { todo: 'SEC-17' }, async () => {
+  test('SEC-17: rapport av kommentar på dold check-in avslöjar inte att kommentaren finns', async () => {
     const p = await s.checkin(a, { visibility: 'private' });
     const cm = await s.api('POST', `/api/checkins/${p.id}/comments`, { token: a.token, body: { body: 'hemlig kommentar' } });
     const exists = await s.api('POST', '/api/reports', { token: b.token, body: { type: 'comment', target: cm.body.id, reason: 'spam' } });
