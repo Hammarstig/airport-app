@@ -43,7 +43,12 @@ check('initial CSS', sum(cssOf([entry])), BUDGET.initialCss);
 
 // Troligaste nästa steg: samma tabell som lib/prefetch.js.
 const page = (name) => Object.keys(manifest).find((k) => k.endsWith(`/${name}.jsx`));
-const LIKELY = { '/': ['CheckinPage', 'AirportPage'], '/airport': ['CheckinPage'], '/u': ['AirportPage'], '/checkin': ['DonePage'] };
+const LIKELY = {
+  '/': ['CheckinPage', 'AirportPage'],
+  '/airport': ['CheckinPage'],
+  '/u': ['AirportPage'],
+  '/checkin': ['DonePage']
+};
 for (const [route, pages] of Object.entries(LIKELY)) {
   const extra = files(pages.map(page)).filter((f) => !initialSet.has(f));
   check(`förhämtning från ${route}`, sum(extra), BUDGET.likelyNext);

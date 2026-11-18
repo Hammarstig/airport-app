@@ -21,6 +21,7 @@ export const loaders = {
   register: () => import('./pages/Auth/RegisterPage.jsx'),
   moderation: () => import('./pages/Moderation/ModerationPage.jsx'),
   year: () => import('./pages/Year/YearPage.jsx'),
+  privacy: () => import('./pages/Privacy/PrivacyPage.jsx'),
   notFound: () => import('./pages/NotFound/NotFoundPage.jsx')
 };
 

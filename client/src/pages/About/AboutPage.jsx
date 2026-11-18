@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api.js';
 import { useAsync } from '../../hooks/useAsync.js';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
@@ -45,6 +46,9 @@ export default function AboutPage() {
         Gatelog är en loggbok för flygplatser: checka in där du är, betygsätt säkerhetskontroll, mat, wifi och lounger,
         samla märken, följ vänner och se hur stor del av världens flygplatser du har besökt. Endast flygplatser med
         IATA-kod finns med.
+      </p>
+      <p>
+        <Link to="/privacy">Integritetspolicy</Link>: vilka uppgifter vi sparar, varför, hur länge och dina rättigheter.
       </p>
 
       <h2 className="section__title">Datakällor och licenser</h2>

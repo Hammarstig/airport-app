@@ -21,6 +21,7 @@ const ROUTES = [
   ['^/top/[^/]+$', 'pages/Top/TopPage.jsx'],
   ['^/lounge/[^/]+$', 'pages/Lounge/LoungePage.jsx'],
   ['^/login$', 'pages/Auth/LoginPage.jsx'],
+  ['^/privacy$', 'pages/Privacy/PrivacyPage.jsx'],
   ['^/register$', 'pages/Auth/RegisterPage.jsx']
 ];
 

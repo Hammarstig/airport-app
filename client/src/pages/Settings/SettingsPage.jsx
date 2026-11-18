@@ -190,6 +190,7 @@ function SettingsIndex() {
       </nav>
       <Section id="set-about" title="Om Gatelog">
         <Link to="/about">Om appen, datakällor och licenser</Link>
+        <Link to="/privacy">Integritetspolicy och dina rättigheter</Link>
         {user.isModerator && <Link to="/moderation">Modereringskö</Link>}
       </Section>
       <LogoutNotice />

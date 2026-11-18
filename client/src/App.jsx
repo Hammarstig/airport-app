@@ -28,6 +28,7 @@ const {
   register: RegisterPage,
   moderation: ModerationPage,
   year: YearPage,
+  privacy: PrivacyPage,
   notFound: NotFoundPage
 } = pages;
 
@@ -89,6 +90,7 @@ export function App() {
           <Route path="u/:username/followers" element={s(<FollowPage list="followers" />)} />
           <Route path="u/:username/following" element={s(<FollowPage list="following" />)} />
           <Route path="about" element={s(<AboutPage />)} />
+          <Route path="privacy" element={s(<PrivacyPage />)} />
           <Route path="moderation" element={auth(<ModerationPage />)} />
           <Route path="airport/:iata" element={s(<AirportPage />)} />
           <Route path="u/:username" element={s(<ProfilePage />)} />
