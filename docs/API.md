@@ -1,4 +1,4 @@
-# Gatelog API (v4)
+# Gatelog API (v4.1)
 
 Aktuell referens för alla vägar. Historik och brytande ändringar: [CHANGELOG.md](CHANGELOG.md).
 Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker varje väg.
@@ -15,15 +15,15 @@ Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker var
 | 401 | Inte inloggad. `code`: `token_expired` (förnya med `/auth/refresh`), `session_revoked` eller `invalid_token`. |
 | 403 | Saknar behörighet (inte ägare, inte moderator, blockerad, fel lösenord vid kontoradering eller lösenordsbyte). Privat profil: `code: "private_profile"`. |
 | 404 | Finns inte, eller får inte ses (dolda check-ins ger 404). |
-| 409 | Konflikt (användarnamn upptaget, lounge finns, max antal foton). |
+| 409 | Konflikt (användarnamn upptaget eller i karenstid, lounge finns, max antal foton, push-endpoint hos annat konto `push_endpoint_taken`). |
 | 413 | För stor förfrågan (JSON > 50 kB, foto > 5 MB). |
 | 429 | Rate limit, med `Retry-After`. |
 | 500 | Internt fel, med `requestId`. |
 
 - **Paginering:** `limit` och `offset` där det anges; för stora värden kapas till max.
-- **Cache:** API-svar har `Cache-Control: private, no-cache` och svag ETag (304 vid oförändrat). Undantag: kartor `private, max-age=30`, `nearby` `private, max-age=60`, `airlines` och `push/public-key` `public, max-age=3600`, `attributions` `public, max-age=86400`, statistikkort `public, max-age=300`, export `no-store`. Svar över 1 kB gzip-komprimeras.
-- **Headers:** `X-Request-Id` på alla svar (en skickad giltig `X-Request-Id`, 1-64 tecken `[A-Za-z0-9_.-]`, återanvänds). Strikt CSP, `nosniff`, `X-Frame-Options: DENY`.
-- **Rate limit:** `/api/auth/*` 100 anrop per 15 min och IP. Skrivande anrop per användare (eller IP): totalt 300 per 15 min; check-ins 60/h, foton 20/h, kommentarer 60/h, följningar 100/h, gilla 300/h, loungerecensioner 30/h. Bakom proxy krävs `TRUST_PROXY`.
+- **Cache:** API-svar har `Cache-Control: private, no-cache` och svag ETag (304 vid oförändrat). Undantag: kartor `private, max-age=30`, `nearby` `private, max-age=60`, `airlines` och `push/public-key` `public, max-age=3600`, `attributions` `public, max-age=86400`, statistikkort `public, max-age=300` för utloggade och `private, no-cache` för inloggade, export `no-store`. Svar över 1 kB gzip-komprimeras.
+- **Headers:** `X-Request-Id` på alla svar (en skickad giltig `X-Request-Id`, 1-64 tecken `[A-Za-z0-9_.-]`, återanvänds). Strikt CSP utan `unsafe-inline` (även stilar), `nosniff`, `X-Frame-Options: DENY`, HSTS ett år i produktion.
+- **Rate limit:** `/api/auth/*` 100 anrop per 15 min och IP. Skrivande anrop per användare (eller IP): totalt 300 per 15 min; check-ins 60/h, foton 20/h, kommentarer 60/h, följningar 100/h, gilla 300/h, loungerecensioner 30/h, importer 5/dygn (förhandsvisning 30/h). Läsningar: `/search`, `/users`, `/rankings/*`, `/leaderboard` 300 per 5 min. OPTIONS räknas inte. Bakom proxy krävs `TRUST_PROXY`.
 
 ## Objekt
 ```jsonc
@@ -72,8 +72,9 @@ Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker var
 - Före `publishAt` (skapad + `publishDelayHours`) ser bara ägaren check-in:en.
 - Blockering döljer check-ins, kommentarer och notiser åt båda håll.
 - Reglerna gäller flöden, flygplatsens och användarens check-ins, check-in-detalj, kommentarer, gilla, sök, flygplatsens fotogalleri, `friendsVisited` samt `home_visit`- och `overtaken`-notiser.
-- Profilens flygplatslista, karta och statistikkort räknas på de check-ins tittaren får se. Räknare (antal flygplatser, länder, XP) och flygplatsernas betygssnitt räknas på allt.
-- **Privat profil:** följning kräver godkännande. Andra än godkända följare får 403 `private_profile` på `/users/:u/{checkins, airports, map, map/:country, wishlist, badges, followers, following, card, card.svg}`, och profilen visar `stats: null`. Privata profiler syns i globala topplistor bara för sig själva och sina följare.
+- Allt som visar en annan användares resor räknas bara på check-ins som tittaren får se: profilens statistik, XP, nivå (även `level` i UserSummary), märken, svit, månadsutmaningar, flygplatslista, karta, statistikkort, årsöversikt, topplistor, användarsök (`uniqueAirports`) och vänförslag. Ägaren ser allt om sig själv. Lagrade tidpunkter (`completedAt`, `challengesCompleted`) visas bara för ägaren, och märkesnivåer för andra bara så långt synliga check-ins räcker. Flygplatsernas betygssnitt räknas på allt.
+- En fördröjd check-in visar `createdAt` = publiceringstiden för andra än ägaren.
+- **Privat profil:** följning kräver godkännande. Andra än godkända följare får 403 `private_profile` på `/users/:u/{checkins, airports, map, map/:country, wishlist, badges, followers, following, card, card.svg}`, och profilen visar `stats: null`. Globala topplistor och topplistor per land är samma för alla (anonym vy), så privata profiler syns inte där; följare ser dem med `scope=friends`.
 
 ## Sessioner
 | Metod | Väg | Body | Svar |
@@ -91,8 +92,10 @@ Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker var
 - `token` är en access-token (JWT, HS256) som gäller i 15 minuter (`expiresIn: 900`) och bär sessionens id. Sessionen kontrolleras vid varje anrop, så utloggning och lösenordsbyte gäller direkt.
 - Cookien `gl_refresh` är `HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=30 dagar` och `Secure` i produktion. Varje refresh ger en ny cookie. Föregående token godtas i 30 sekunder (flera flikar); därefter återkallar en återanvänd token hela sessionen.
 - **Nya konton** får skyddade standardval: `publishDelayHours: 1` och `hideHomeAirport: true`. `privacy: { isPrivate?, defaultVisibility?, publishDelayHours?, hideHomeAirport?, notifyHomeVisits? }` ändrar dem direkt vid registrering; svaret visar resultatet i `settings`. `ref` är en inbjudningskod (se [Inbjudningar](#inbjudningar)); `invitedBy` är den inbjudandes användarnamn eller null.
-- **Misslyckade inloggningar** spärras per konto+IP (10 per 15 min) och per konto (50 per 15 min): 429 med `Retry-After`, även med rätt lösenord. Lyckad inloggning nollställer konto+IP-räknaren.
-- `username`: 3-20 tecken `[a-z0-9_]` (gemenas). Lösenord: 8-200 tecken, inte lika med användarnamnet och inte ett vanligt lösenord. 409 om användarnamnet är upptaget.
+- **Misslyckade inloggningar:** per konto+IP hård spärr efter 10 fel per 15 min (429 med `Retry-After`, även med rätt lösenord). Per konto ger 50 fel växande fördröjning av svaret (250 ms per fel, max 5 s) i stället för spärr, så att ingen kan låsa ute ägaren; först vid 1 000 fel spärras kontot, utom för en känd enhet (giltig `gl_refresh`). Lyckad inloggning nollställer konto+IP-räknaren.
+- Cookien `gl_media` (`HttpOnly; SameSite=Strict; Path=/uploads`, 1 h, förnyas vid inloggning och refresh) ger åtkomst till foton som inte är publika. Utloggning rensar båda cookies.
+- `username`: 3-20 tecken `[a-z0-9_]` (gemenas). Reserverade namn (admin, support, moderator, gatelog m.fl.) ger 400; namn från raderade konton är spärrade i 90 dagar (409). `displayName` får inte likna Gatelog eller personalen (400, förväxlingsbara tecken normaliseras). Lösenord: 8-200 tecken, inte lika med användarnamnet, inte ett vanligt lösenord och inte en vanlig stam med siffror, årtal eller tecken (t.ex. `Summer2026`, `football1`).
+- Utloggning, "logga ut alla", återkallad session och lösenordsbyte tar bort push-prenumerationer som hör till de återkallade sessionerna.
 
 ## Eget konto
 | Metod | Väg | Svar |
@@ -102,8 +105,8 @@ Koden är facit: `server/src/routes/*.js`. Testerna i `server/test/` täcker var
 | GET | /me/settings | Settings |
 | PATCH | /me/settings | delvis Settings -> Settings |
 | GET | /me/recent-airports?limit=6 | `[{ airport, lastVisit, visits, isHome }]`: hemmaflygplatsen först (även obesökt), sedan senast incheckade |
-| GET | /me/export | JSON med all egen data (`user, checkins, loungeReviews, comments, wishlist, following, followers`), `Content-Disposition: attachment` |
-| DELETE | /me | `{ password }` -> 204. 400 utan lösenord, 403 vid fel. Raderar allt utom lounger man skapat. |
+| GET | /me/export | JSON med all egen data i ägarvyn, `Content-Disposition: attachment`: `user` (med egen hemmaflygplats), `checkins`, `loungeReviews`, `comments`, `wishlist`, `following`, `followers`, `settings`, `stats`, `level`, `badges`, `challenges`, `mayorships`, `likes`, `notifications`, `sessions` (utan hemligheter), `blocks`, `reports`, `pushSubscriptions`, `invites`, `imports`, `photos` (URL), `moderationActions` |
+| DELETE | /me | `{ password }` -> 204. 400 utan lösenord, 403 vid fel. Raderar allt utom lounger man skapat; fritext i rapporter om användaren och innehållskopior i modereringsloggen tas bort. Användarnamnet spärras i 90 dagar. |
 
 ```jsonc
 // Settings
@@ -145,6 +148,8 @@ Görs profilen publik godkänns väntande följförfrågningar.
 | GET | /feed?scope=global\|friends\|mine&iata=&limit&offset | `Checkin[]` efter `createdAt`, nyast först. `friends` = jag + godkända följningar (auth). Importerade check-ins visas inte. |
 | GET | /checkins/:id/card.svg | delningskort (bara publika check-ins) |
 
+**POST /checkins** tar valfri header `Idempotency-Key` (8-64 tecken `[A-Za-z0-9_.:-]`). Samma nyckel från samma användare skapar ingen ny check-in utan svarar 200 med den befintliga och `replayed: true` (offlinekön).
+
 **POST /checkins** body: `{ iata, visitedOn, kind, rating?, ratings?, comment?, visibility?, airlineIata?, travelClass?, flightNumber?, loungeId? | newLounge?: { name, terminal? }, loungeRating?, loungeComment? }`
 - `visitedOn` får inte vara i framtiden (senaste av dagens datum i UTC och Europe/Stockholm). `flightNumber` max 8 tecken `[A-Z0-9]`. `loungeId` måste ligga på samma flygplats; `newLounge` återanvänder en befintlig lounge med samma namn. `loungeRating` (1-5, halvsteg) kräver lounge och skapar en LoungeReview (med `loungeComment` eller check-in-kommentaren).
 - Svaret är Checkin plus:
@@ -172,9 +177,9 @@ Görs profilen publik godkänns väntande följförfrågningar.
 |---|---|---|
 | POST | /checkins/:id/photos | `multipart/form-data`, fält `photo` -> 201 Photo (ägare) |
 | DELETE | /photos/:id | 204 (ägare) |
-| GET | /uploads/:fil | bilden (`nosniff`, sandbox-CSP, lång cache) |
+| GET | /uploads/:fil | bilden (`nosniff`, sandbox-CSP). Foton som en utloggad får se: `public, max-age=86400`. Övriga kräver cookien `gl_media` och att tittaren får se check-in:en (annars 404), `private, no-cache`. |
 
-JPEG, PNG eller WEBP enligt magic bytes (annars 400), max 5 MB (413), max 4 per check-in (409). EXIF, XMP, IPTC, GPS och kommentarer tas bort innan lagring. Filnamn slumpas.
+JPEG, PNG eller WEBP enligt magic bytes (annars 400), max 5 MB (413), max 4 per check-in (409). EXIF, XMP, IPTC, GPS och kommentarer tas bort innan lagring; för JPEG även MPF och allt efter bildslutet (andrabilder). Filnamn slumpas.
 
 ## Användare, följa och blockera
 | Metod | Väg | Svar |
@@ -214,7 +219,7 @@ JPEG, PNG eller WEBP enligt magic bytes (annars 400), max 5 MB (413), max 4 per 
 | GET | /notifications/unread-count | `{ unread }` |
 | POST | /notifications/read | `{ ids?: number[] }` (utan ids: alla) -> `{ unread }` |
 | GET | /push/public-key | `{ enabled, publicKey \| null }` |
-| POST | /push/subscriptions | `{ endpoint (https), keys: { p256dh, auth } }` -> 201 (auth, max 10 per användare) |
+| POST | /push/subscriptions | `{ endpoint, keys: { p256dh, auth } }` -> 201 (auth, max 10 per användare). `endpoint` måste vara https på port 443 till en känd push-tjänst (`fcm.googleapis.com`, `updates.push.services.mozilla.com`, `*.notify.windows.com`, `web.push.apple.com`, `*.push.apple.com`, plus `PUSH_EXTRA_HOSTS`), inga IP-adresser (400). Prenumerationen kopplas till sessionen. En endpoint som tillhör ett annat konto med aktiv session ger 409 `push_endpoint_taken`. |
 | DELETE | /push/subscriptions | `{ endpoint }` -> 204 |
 
 ```jsonc
@@ -320,7 +325,7 @@ Täckning räknas mot flygplatser med reguljärtrafik (4 008), `scope=all` mot a
 
 | GET | /moderation/log?limit=50&offset=0 | `[{ id, moderator, reportId, action, targetType, targetId, detail, createdAt }]` (moderator, nyast först) |
 
-Moderatorer anges med env `MODERATORS=användarnamn,...`. Varje åtgärd skrivs till revisionsloggen (vem, vad, när, vilket mål).
+Moderatorroll lagras i databasen (`users.role`) och sätts med `npm run moderator -w server -- grant|revoke <användarnamn>` eller `list`; env `MODERATORS` används inte längre. Varje åtgärd skrivs till revisionsloggen (vem, vad, när, vilket mål). Rapport av en kommentar eller check-in man inte får se ger 404, precis som en som inte finns.
 
 ## Övrigt
 | Metod | Väg | Svar |
@@ -331,12 +336,12 @@ Moderatorer anges med env `MODERATORS=användarnamn,...`. Varje åtgärd skrivs 
 ## Inbjudningar
 | Metod | Väg | Svar |
 |---|---|---|
-| POST | /me/invites | `{ maxUses? (1-100, standard 25) }` -> 201 Invite (max 10 aktiva, 409 annars) |
+| POST | /me/invites | `{ maxUses? (1-100, standard 5) }` -> 201 Invite (max 10 aktiva, 409 annars) |
 | GET | /me/invites | `Invite[]` (aktiva) |
 | DELETE | /me/invites/:code | 204 |
 | GET | /invites/:code | `{ code, inviter: UserSummary, expiresAt }` (publik förhandsvisning, 404 om ogiltig) |
 
-`Invite`: `{ code (10 tecken A-Z/2-9), url: "/register?ref=<code>", uses, maxUses, createdAt, expiresAt (90 dagar) }`. Registrering med giltig `ref` ger ömsesidig följning och notis `invite_accepted` till den som bjöd in; ogiltig kod ignoreras.
+`Invite`: `{ code (10 tecken A-Z/2-9), url: "/register?ref=<code>", uses, maxUses, createdAt, expiresAt (90 dagar) }`. Registrering med giltig `ref` ger ömsesidig följning och notis `invite_accepted` till den som bjöd in; har den inbjudande privat profil blir den nyas följning en följförfrågan (notis `follow_request`). Ogiltig kod ignoreras.
 
 ## Vänförslag
 `GET /me/suggestions?limit=10` -> `[UserSummary & { reason: "friends" | "airports" | "popular", mutualFriends, sharedAirports }]`
@@ -367,7 +372,7 @@ Utmaningar varje månad: `new-airports` (3 nya flygplatser), `countries` (2 län
 
 `ImportResult`: `{ id | null, format, rows, imported, duplicates, skipped: [{ line, reason }], preview: [{ line, iata, visitedOn, kind, airlineIata, flightNumber }] (max 50) }`
 
-**CSV-format** (första raden är rubriker, skiftlägesokänsliga; avgränsare `,` `;` eller tab; citattecken enligt RFC 4180; max 5 000 rader):
+**CSV-format** (första raden är rubriker, skiftlägesokänsliga; avgränsare `,` `;` eller tab; citattecken enligt RFC 4180; max 5 000 rader, annars 400):
 - Datum (krävs): `date`, `visitedOn`, `flight date`, `departure date`, `dep date`, `start date`. Format `YYYY-MM-DD`, `YYYY/MM/DD` eller ISO-tid (datumdelen används). Inte i framtiden.
 - Antingen en flygplats: `iata`, `airport`, `airport code` (+ valfri `kind`: departure/arrival/transfer/layover, standard departure),
 - eller en flygning: `from`, `origin`, `departure airport`, `dep airport`, `from airport` och `to`, `destination`, `arrival airport`, `arr airport`, `to airport`. Ger en `departure`-check-in på avgångsflygplatsen och en `arrival` på ankomstflygplatsen.
@@ -387,5 +392,8 @@ Räknas på check-ins som tittaren får se (privat profil: 403 som övriga listo
 
 ## Drift
 - Miljövariabler: se `server/.env.example` (läses endast i `server/src/config.js`). `JWT_SECRET` (minst 32 tecken) krävs när `NODE_ENV=production`, annars startar inte servern.
-- Databas: SQLite (`node:sqlite`), versionerad med `PRAGMA user_version` och numrerade migreringar i `server/src/db/migrations/` (6 st). Check-ins och kommentarer har AUTOINCREMENT, så id återanvänds aldrig. Statistiktabeller hålls i synk av triggers i samma transaktion.
+- Databas: SQLite (`node:sqlite`, WAL, `secure_delete`), versionerad med `PRAGMA user_version` och numrerade migreringar i `server/src/db/migrations/` (8 st). Check-ins och kommentarer har AUTOINCREMENT, så id återanvänds aldrig. Statistiktabeller hålls i synk av triggers i samma transaktion.
+- **Säkerhetslogg:** en JSON-rad per händelse med `log: "security"`, `type`, `userId`, `reqId`, pseudonymiserad `ip` (HMAC med månadsnyckel) och `net` (/24 eller /48). Typer: `login_ok`, `login_fail`, `login_blocked`, `login_delayed`, `register`, `refresh_reuse` (`alert: true`, larma), `logout`, `logout_all`, `session_revoke`, `password_change`, `account_delete`, `moderation`, `moderator_role`, `rate_limited`. Aldrig lösenord, tokens eller cookies. Av med `SECURITY_LOG=0`. Rekommenderad lagringstid 90 dagar hos loggmottagaren; larma även på toppar i 401/429.
+- **Gallring:** en sopare (`SWEEP_MS`, standard 1 min) räknar om publik statistik när fördröjda check-ins publiceras och raderar utgångna/återkallade sessioner efter 30 dagar, modereringslogg efter 365 dagar och avslutade rapporter efter 365 dagar (`RETAIN_*`). Säkerhetskopior ska gallras med samma tider.
+- **Produktion:** sätt `PUBLIC_URL` (annars blir Open Graph-länkar relativa; Host-headern används aldrig) och `TRUST_PROXY` bakom proxy (varning loggas annars). `npm run seed:demo -w server` vägrar köra i produktion utan `--force-production`.
 - Prestanda: `npm run bench -w server` seedar 300 000 check-ins och kontrollerar budgeten (flygplatsautocomplete < 20 ms, recensionssök < 50 ms).

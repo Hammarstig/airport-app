@@ -3,6 +3,16 @@
 Aktuell referens: [API.md](API.md). Här står vad som ändrats mellan versionerna, nyast först.
 Brytande ändringar är markerade med **Brytande**.
 
+## v4.1 (säkerhetsgranskning)
+- **Integritet (SEC-01, 02, 04, 05):** topplistor, vänförslag, användarsök, profilstatistik, XP, nivå (även `level` i UserSummary), märken, svit, utmaningar och årsöversikt räknas bara på check-ins som tittaren får se. **Brytande:** globala topplistor är samma för alla och visar inte privata profiler (använd `scope=friends`); `completedAt` och `challengesCompleted` visas bara för ägaren; fördröjd check-in har `createdAt` = publiceringstid för andra. Statistikkort för inloggade cachas `private`.
+- **Moderatorroll (SEC-03):** **Brytande:** env `MODERATORS` ger ingen roll längre; använd `npm run moderator -w server -- grant <namn>`. Reserverade användarnamn (400) och 90 dagars karenstid för raderade namn (409).
+- **DoS (SEC-07, 16, 22):** import i tidsskivor med egen gräns (5/dygn); över 5 000 rader ger 400 i stället för 413. Inloggning: växande fördröjning per konto i stället för spärr, känd enhet släpps förbi. Läsgräns för sök och topplistor.
+- **Loggning (SEC-14, 15):** säkerhetslogg (`log: "security"`); trasig cookie ger inte längre 500.
+- **GDPR (SEC-19, 27):** fullständig export; radering pseudonymiserar rapporter och modereringslogg; `secure_delete` och gallring.
+- **Push (SEC-06, 13, 18):** endpoint måste vara en känd push-tjänst (**Brytande** för andra värdar, se `PUSH_EXTRA_HOSTS`); prenumerationer följer sessionen och tas bort vid utloggning; 409 `push_endpoint_taken` vid försök att ta över en annans.
+- **Media (SEC-08, 09):** JPEG rensas från MPF och data efter bildslut. Foton som inte är publika kräver cookien `gl_media` och ger annars 404.
+- **Övrigt:** `Idempotency-Key` på `POST /checkins` (SEC-11), CSP utan `unsafe-inline` och HSTS ett år (SEC-10), lösenordsstammar (SEC-12), existensorakel för avgilla och rapport stängda (SEC-17), import rensar styr- och bidi-tecken (SEC-20), OG utan Host-header (SEC-21), demoskript skyddat (SEC-26), `TRUST_PROXY` true/false (SEC-28), inbjudningar standard 5 och följförfrågan för privata profiler (SEC-29), reserverade visningsnamn (SEC-30). Migrering 7 och 8.
+
 ## v4 (runda 4)
 - Säkerhet: utloggning återkallar bara den egna sessionen (cookie-hemligheten verifieras; tidigare kunde ett känt sessions-id loggas ut). Misslyckade inloggningar spärras per konto+IP och per konto.
 - Integritet som förval: nya konton får 1 h fördröjd publicering och dold hemmaflygplats. `POST /auth/register` tar `privacy` och `ref` och svarar med `settings` och `invitedBy`.

@@ -100,6 +100,9 @@ function requestLog(enabled) {
  */
 export function createApp(opts = {}) {
   const cfg = loadConfig(opts.env ?? process.env);
+  if (cfg.legacyModerators) {
+    console.warn('[gatelog] MODERATORS ger inte längre moderatorroll (SEC-03). Använd: npm run moderator -w server -- grant <användarnamn>');
+  }
   if (cfg.production && !cfg.publicUrl) {
     console.warn('[gatelog] PUBLIC_URL saknas - Open Graph-länkar blir relativa (SEC-21). Sätt PUBLIC_URL=https://din-doman.');
   }
