@@ -1,0 +1,21 @@
+# Automatiska uppdateringar av beroenden och GitHub Actions (SEC-25).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      dev-verktyg:
+        dependency-type: development
+        update-types: [minor, patch]
+      produktion:
+        dependency-type: production
+        update-types: [patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
