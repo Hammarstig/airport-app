@@ -70,26 +70,45 @@ export function rateLimit({ windowMs, max, name = 'default' }) {
 }
 
 /**
- * Spärr för misslyckade inloggningar per nyckel (t.ex. konto+IP och konto totalt).
- * `blocked(keys)` ger sekunder att vänta om någon nyckel nått sin gräns, annars 0.
+ * Spärr för misslyckade inloggningar (SEC-16).
+ * - Konto+IP (`a:`-nycklar): hård spärr efter `perAccountIp` fel.
+ * - Konto totalt (`t:`-nycklar): ingen hård spärr vid `perAccount` utan växande fördröjning
+ *   (`delayStepMs` per fel över gränsen, högst `maxDelayMs`), så att en angripare från andra IP
+ *   inte kan låsa ute ägaren. Först vid `accountHardMax` fel spärras kontot helt, utom för en
+ *   känd enhet (giltig refresh-cookie för kontot).
+ * `blocked(keys, { knownDevice })` ger sekunder att vänta, `delay(keys)` ms att fördröja svaret.
  */
-export function failureGuard({ windowMs, perAccountIp, perAccount }) {
+export function failureGuard({ windowMs, perAccountIp, perAccount, accountHardMax = perAccount * 20, delayStepMs = 250, maxDelayMs = 5000 }) {
   const hits = new Map();
-  const limitFor = (k) => (k.startsWith('a:') ? perAccountIp : perAccount);
   const live = (k, now) => {
     const e = hits.get(k);
     if (e && e.resetAt <= now) { hits.delete(k); return null; }
     return e ?? null;
   };
   return {
-    blocked(keys) {
+    blocked(keys, { knownDevice = false } = {}) {
       const now = Date.now();
       let wait = 0;
       for (const k of keys) {
         const e = live(k, now);
-        if (e && e.count >= limitFor(k)) wait = Math.max(wait, Math.ceil((e.resetAt - now) / 1000));
+        if (!e) continue;
+        const max = k.startsWith('a:') ? perAccountIp : (knownDevice ? Infinity : accountHardMax);
+        if (e.count >= max) wait = Math.max(wait, Math.ceil((e.resetAt - now) / 1000));
       }
       return wait;
+    },
+    delay(keys) {
+      const now = Date.now();
+      let ms = 0;
+      for (const k of keys) {
+        if (k.startsWith('a:')) continue;
+        const e = live(k, now);
+        if (e && e.count >= perAccount) ms = Math.max(ms, Math.min(maxDelayMs, (e.count - perAccount + 1) * delayStepMs));
+      }
+      return ms;
+    },
+    count(key) {
+      return live(key, Date.now())?.count ?? 0;
     },
     fail(keys) {
       const now = Date.now();

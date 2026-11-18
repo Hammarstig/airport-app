@@ -80,7 +80,7 @@ describe('S1 sessioner och tokens', () => {
     assert.notEqual(refreshCookie(r).split('.')[0], u.cookie.split('.')[0]);
   });
 
-  test('SEC-15: trasig refresh-cookie ger 4xx, inte 500', { todo: 'SEC-15' }, async () => {
+  test('SEC-15: trasig refresh-cookie ger 4xx, inte 500', async () => {
     const r = await s.api('POST', '/api/auth/refresh', { cookie: 'gl_refresh=%E0%A4%A' });
     assert.ok(r.status < 500, `fick ${r.status}`);
   });
@@ -125,7 +125,7 @@ describe('S1 brute force och kontospärr (produktionsgränser)', () => {
     assert.equal(r.status, 429);
   });
 
-  test('SEC-16: en angripare kan inte låsa ute offret från offrets egen IP', { todo: 'SEC-16' }, async () => {
+  test('SEC-16: en angripare kan inte låsa ute offret från offrets egen IP', async () => {
     const u = await s.user('lock');
     // 50 felförsök fördelade på 5 IP-adresser (10 per IP) når kontogränsen.
     for (let ip = 1; ip <= 5; ip++) {

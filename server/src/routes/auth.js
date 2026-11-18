@@ -134,12 +134,17 @@ export default function authRoutes({ db, secret, config }) {
     const password = typeof b.password === 'string' ? b.password : '';
     if (!username || !password) throw bad('username och password krävs');
     const keys = [`a:${username}|${req.ip}`, `t:${username}`];
-    const wait = loginGuard.blocked(keys);
+    const user = byUsername.get(username);
+    // Känd enhet: giltig refresh-cookie för samma konto släpps förbi kontots hårda spärr (SEC-16).
+    const known = user ? verifyRefresh(db, parseCookies(req.get('cookie'))[REFRESH_COOKIE]) : null;
+    const knownDevice = !!known && !known.revoked_at && known.user_id === user.id && Date.parse(known.expires_at) > Date.now();
+    const wait = loginGuard.blocked(keys, { knownDevice });
     if (wait) {
       res.set('Retry-After', String(wait));
       throw new HttpError(429, 'För många misslyckade inloggningar, vänta en stund och försök igen');
     }
-    const user = byUsername.get(username);
+    const pause = loginGuard.delay(keys);
+    if (pause) await new Promise((resolve) => { setTimeout(resolve, pause); });
     const ok = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH);
     if (!user || !ok) {
       loginGuard.fail(keys);

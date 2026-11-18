@@ -72,9 +72,11 @@ describe('säkerhet: utloggning, sessioner och inloggningsgräns', () => {
     await loginRaw(s, 'glomsk', 'fel-losen-3');
     await loginRaw(s, 'glomsk', 'fel-losen-4');
     assert.equal((await loginRaw(s, 'glomsk')).status, 200);
-    // Kontots totala gräns (5) räknas fortfarande över fönstret
+    // Kontots totala gräns (5) ger fördröjning i stället för spärr (SEC-16)
     assert.equal((await loginRaw(s, 'glomsk', 'fel-losen-5')).status, 401);
-    assert.equal((await loginRaw(s, 'glomsk')).status, 429);
+    const t0 = Date.now();
+    assert.equal((await loginRaw(s, 'glomsk')).status, 200);
+    assert.ok(Date.now() - t0 >= 200, 'fördröjt svar');
   });
 });
 

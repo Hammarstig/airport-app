@@ -38,7 +38,8 @@ export function loadConfig(env = process.env) {
       hideHomeAirport: env.NEW_ACCOUNT_HIDE_HOME !== undefined ? env.NEW_ACCOUNT_HIDE_HOME === '1' : !test,
     },
     // Misslyckade inloggningar per konto+IP och per konto inom fönstret.
-    loginFailures: { windowMs: 15 * MIN, perAccountIp: num(env.LOGIN_FAIL_MAX, test ? 1000 : 10), perAccount: num(env.LOGIN_FAIL_ACCOUNT_MAX, test ? 1000 : 50) },
+    loginFailures: { windowMs: 15 * MIN, perAccountIp: num(env.LOGIN_FAIL_MAX, test ? 1000 : 10), perAccount: num(env.LOGIN_FAIL_ACCOUNT_MAX, test ? 1000 : 50),
+      accountHardMax: num(env.LOGIN_FAIL_ACCOUNT_HARD_MAX, test ? 20000 : 1000) },
     // Publik bas-URL för Open Graph (t.ex. https://gatelog.se); annars från förfrågan.
     publicUrl: env.PUBLIC_URL ? env.PUBLIC_URL.replace(/\/+$/, '') : null,
     // Moderatorer (användarnamn, kommaseparerade) som får hantera rapporter.
