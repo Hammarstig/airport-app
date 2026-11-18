@@ -53,7 +53,9 @@ export function rotateRefresh(db, token) {
     return { session: s, refresh: null };
   }
   db.prepare('UPDATE sessions SET revoked_at = ? WHERE id = ?').run(nowIso, sid);
-  throw new HttpError(401, 'Sessionen har återkallats', { code: 'session_revoked' });
+  const err = new HttpError(401, 'Sessionen har återkallats', { code: 'session_revoked' });
+  err.reuse = { sessionId: sid, userId: s.user_id };
+  throw err;
 }
 
 /**

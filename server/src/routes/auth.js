@@ -6,6 +6,7 @@ import { h, bad, HttpError, cleanText, normIata, userSummary } from '../util.js'
 import { transaction } from '../db/index.js';
 import { checkPassword, isReservedUsername } from '../passwords.js';
 import { acceptInvite } from './invites.js';
+import { secEvent } from '../seclog.js';
 import { VISIBILITIES, PUBLISH_DELAYS } from '../visibility.js';
 import { PUSH_TYPES, pushPrefs } from '../notify.js';
 import {
@@ -125,6 +126,7 @@ export default function authRoutes({ db, secret, config }) {
       if (/UNIQUE/.test(e.message)) throw new HttpError(409, 'Användarnamnet är upptaget');
       throw e;
     }
+    secEvent(req, 'register', { userId: Number(info.lastInsertRowid) });
     startSession(req, res, byId.get(Number(info.lastInsertRowid)), 201, { invitedBy });
   }));
 
@@ -140,17 +142,21 @@ export default function authRoutes({ db, secret, config }) {
     const knownDevice = !!known && !known.revoked_at && known.user_id === user.id && Date.parse(known.expires_at) > Date.now();
     const wait = loginGuard.blocked(keys, { knownDevice });
     if (wait) {
+      secEvent(req, 'login_blocked', { userId: user?.id ?? null, retryAfter: wait });
       res.set('Retry-After', String(wait));
       throw new HttpError(429, 'För många misslyckade inloggningar, vänta en stund och försök igen');
     }
     const pause = loginGuard.delay(keys);
+    if (pause) secEvent(req, 'login_delayed', { userId: user?.id ?? null, delayMs: pause });
     if (pause) await new Promise((resolve) => { setTimeout(resolve, pause); });
     const ok = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH);
     if (!user || !ok) {
       loginGuard.fail(keys);
+      secEvent(req, 'login_fail', { userId: user?.id ?? null, knownAccount: !!user, accountFailures: loginGuard.count(keys[1]) });
       throw new HttpError(401, 'Fel användarnamn eller lösenord');
     }
     loginGuard.reset(keys[0]);
+    secEvent(req, 'login_ok', { userId: user.id, knownDevice });
     startSession(req, res, user);
   }));
 
@@ -162,6 +168,7 @@ export default function authRoutes({ db, secret, config }) {
       const user = byId.get(session.user_id);
       res.json({ token: signAccess(secret, user, session.id), user: meSummary(user), expiresIn: ACCESS_TTL_S });
     } catch (e) {
+      if (e.reuse) secEvent(req, 'refresh_reuse', e.reuse);
       clearRefreshCookie(res, production);
       throw e;
     }
@@ -171,13 +178,17 @@ export default function authRoutes({ db, secret, config }) {
     // Bara den egna sessionen: via giltig access-token, eller via cookie vars hemlighet verifieras.
     const token = parseCookies(req.get('cookie'))[REFRESH_COOKIE];
     const sid = req.user?.sid ?? verifyRefresh(db, token)?.id ?? null;
-    if (sid) revokeSession(db, sid);
+    if (sid) {
+      revokeSession(db, sid);
+      secEvent(req, 'logout', { sessionId: sid });
+    }
     clearRefreshCookie(res, production);
     res.status(204).end();
   }));
 
   r.post('/auth/logout-all', requireAuth, h((req, res) => {
     revokeAll(db, req.user.id);
+    secEvent(req, 'logout_all');
     clearRefreshCookie(res, production);
     res.status(204).end();
   }));
@@ -213,6 +224,7 @@ export default function authRoutes({ db, secret, config }) {
     const s = db.prepare('SELECT id FROM sessions WHERE id = ? AND user_id = ?').get(String(req.params.id), req.user.id);
     if (!s) throw new HttpError(404, 'Sessionen finns inte');
     revokeSession(db, s.id);
+    secEvent(req, 'session_revoke', { sessionId: s.id });
     res.status(204).end();
   }));
 
@@ -227,6 +239,7 @@ export default function authRoutes({ db, secret, config }) {
       db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
       revokeAll(db, user.id, { except: req.user.sid });
     });
+    secEvent(req, 'password_change');
     res.json({ token: signAccess(secret, user, req.user.sid), expiresIn: ACCESS_TTL_S });
   }));
 

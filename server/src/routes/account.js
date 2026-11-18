@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { requireAuth } from '../auth.js';
 import { h, bad, HttpError, paging, AIRPORT_COLS, airportFrom, userSummary } from '../util.js';
 import { transaction } from '../db/index.js';
+import { secEvent } from '../seclog.js';
 
 export const ATTRIBUTIONS = [
   {
@@ -70,6 +71,7 @@ export default function accountRoutes({ db, photos }) {
       db.prepare('DELETE FROM users WHERE id = ?').run(req.user.id);
     });
     photos.removeFiles(files);
+    secEvent(req, 'account_delete');
     res.status(204).end();
   }));
 

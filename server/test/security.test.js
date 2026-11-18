@@ -23,3 +23,25 @@ test('SEC-16: kontospärr ger fördröjning, hård spärr först vid hög gräns
 test('SEC-15: trasig procentkodning i cookie kastar inte', () => {
   assert.deepEqual(parseCookies('gl_refresh=%E0%A4%A; a=b'), { gl_refresh: '%E0%A4%A', a: 'b' });
 });
+
+test('SEC-14: säkerhetshändelser loggas utan lösenord och tokens', async () => {
+  const { startServer } = await import('./helpers.js');
+  const events = [];
+  const s = await startServer({ securityLogSink: (e) => events.push(e), env: { NODE_ENV: 'test', LOGIN_FAIL_MAX: '2' } });
+  try {
+    const tok = await s.register('loggad');
+    const login = (password) => s.api('POST', '/api/auth/login', { body: { username: 'loggad', password } });
+    assert.equal((await login('fel-losen-1')).status, 401);
+    assert.equal((await login('fel-losen-2')).status, 401);
+    assert.equal((await login('hemligt123')).status, 429);
+    await s.api('POST', '/api/me/password', { token: tok, body: { currentPassword: 'hemligt123', newPassword: 'nyttHemligt456' } });
+    await s.api('POST', '/api/auth/logout-all', { token: tok });
+    const types = events.map((e) => e.type);
+    for (const t of ['register', 'login_fail', 'login_blocked', 'password_change', 'logout_all']) assert.ok(types.includes(t), t);
+    const fail = events.find((e) => e.type === 'login_fail');
+    assert.equal(fail.log, 'security');
+    assert.ok(fail.userId && fail.ip && fail.reqId);
+    const text = JSON.stringify(events);
+    for (const secret of ['hemligt123', 'fel-losen', 'nyttHemligt456', tok]) assert.ok(!text.includes(secret), secret);
+  } finally { s.close(); }
+});

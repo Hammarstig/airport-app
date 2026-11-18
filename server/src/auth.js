@@ -60,6 +60,7 @@ export function rateLimit({ windowMs, max, name = 'default' }) {
     res.set('RateLimit-Limit', String(max));
     res.set('RateLimit-Remaining', String(Math.max(0, max - e.count)));
     if (e.count > max) {
+      req.app?.locals?.securityLog?.(req, 'rate_limited', { limiter: name });
       res.set('Retry-After', String(Math.ceil((e.resetAt - now) / 1000)));
       return res.status(429).json({ error: name === 'auth'
         ? 'För många försök, vänta en stund och försök igen'

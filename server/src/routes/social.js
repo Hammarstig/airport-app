@@ -5,6 +5,7 @@ import { h, bad, notFound, HttpError, cleanText, paging, enumParam, USER_COLS, u
 import { transaction } from '../db/index.js';
 import { notify, NOTIFICATION_SELECT, notificationFrom } from '../notify.js';
 import { awardBadges } from '../badges.js';
+import { secEvent } from '../seclog.js';
 import { visibleCheckin, checkinVisible, commentVisible, isBlocked, requireProfileAccess } from '../visibility.js';
 
 const REPORT_TYPES = ['user', 'comment', 'checkin'];
@@ -352,6 +353,7 @@ export default function socialRoutes({ db, limiters, photos }) {
         .run(action === 'dismiss' ? 'dismissed' : 'resolved', req.user.id, new Date().toISOString(), rep.type, rep.target_id);
     });
     photos?.removeFiles(files);
+    secEvent(req, 'moderation', { action, reportId: rep.id, targetType: rep.type, targetId: rep.target_id });
     res.json(reportFrom(db.prepare(`${REPORT_SELECT} WHERE r.id = ?`).get(id)));
   }));
 

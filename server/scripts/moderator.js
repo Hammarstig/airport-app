@@ -2,6 +2,7 @@
 // Kör: npm run moderator -w server -- grant <användarnamn> | revoke <användarnamn> | list
 import { openDb } from '../src/db/index.js';
 import { loadConfig } from '../src/config.js';
+import { createSecurityLog } from '../src/seclog.js';
 
 const [cmd, name] = process.argv.slice(2);
 const db = openDb(loadConfig().dbPath);
@@ -12,7 +13,11 @@ if (cmd === 'list') {
   if (!info.changes) {
     console.error(`Hittar inget konto som heter ${name}`);
     process.exitCode = 1;
-  } else console.log(`${name}: ${cmd === 'grant' ? 'moderator' : 'vanlig användare'}`);
+  } else {
+    const uid = db.prepare('SELECT id FROM users WHERE username = ?').get(String(name).toLowerCase()).id;
+    createSecurityLog({ sink: (e) => console.error(JSON.stringify(e)) })(null, 'moderator_role', { userId: uid, role: cmd === 'grant' ? 'moderator' : 'user', via: 'cli' });
+    console.log(`${name}: ${cmd === 'grant' ? 'moderator' : 'vanlig användare'}`);
+  }
 } else {
   console.error('Användning: moderator.js grant|revoke <användarnamn> | list');
   process.exitCode = 1;

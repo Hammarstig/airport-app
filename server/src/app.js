@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { openDb } from './db/index.js';
 import { loadConfig, resolveSecret } from './config.js';
 import { optionalAuth, rateLimit } from './auth.js';
+import { createSecurityLog, ipNet } from './seclog.js';
 import { HttpError } from './util.js';
 import authRoutes from './routes/auth.js';
 import airportRoutes from './routes/airports.js';
@@ -74,7 +75,7 @@ function requestLog(enabled) {
         console.log(JSON.stringify({
           t: new Date().toISOString(), level: res.statusCode >= 500 ? 'error' : 'info', reqId: req.id,
           method: req.method, path: req.originalUrl.split('?')[0], status: res.statusCode, ms: Math.round(ms * 10) / 10,
-          user: req.user?.id ?? null,
+          user: req.user?.id ?? null, net: ipNet(req.ip),
         }));
       });
     }
@@ -112,6 +113,8 @@ export function createApp(opts = {}) {
   app.set('etag', 'weak');
   if (cfg.trustProxy) app.set('trust proxy', /^\d+$/.test(cfg.trustProxy) ? Number(cfg.trustProxy) : cfg.trustProxy);
   app.use(requestLog(cfg.logRequests));
+  // Säkerhetslogg (SEC-14); opts.securityLogSink för tester.
+  app.locals.securityLog = createSecurityLog({ enabled: opts.securityLogSink ? true : cfg.securityLog, secret, sink: opts.securityLogSink });
   app.use(compression({ threshold: 1024 }));
   app.use(securityHeaders(cfg.production));
   if (!cfg.production || cfg.corsOrigin) {
