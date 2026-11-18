@@ -110,8 +110,8 @@ export default function PrivacyPage() {
         <Section id="pp-see" title="Vem som ser vad">
           <ul className="stack stack--sm">
             <li>
-              Publika check-ins syns för alla, även utloggade besökare. Med &quot;Följare&quot; eller &quot;Bara jag&quot; syns de bara för
-              godkända följare respektive dig själv.
+              Publika check-ins syns för alla, även utloggade besökare. Med &quot;Följare&quot; eller &quot;Bara
+              jag&quot; syns de bara för godkända följare respektive dig själv.
             </li>
             <li>Med privat profil måste du godkänna nya följare.</li>
             <li>Fördröjning gör att andra ser check-in:en först efter vald tid.</li>
