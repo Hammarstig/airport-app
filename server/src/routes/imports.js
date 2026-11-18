@@ -6,29 +6,60 @@ import { requireAuth } from '../auth.js';
 import { h, bad, notFound, HttpError, KINDS, TRAVEL_CLASSES, maxAllowedDate } from '../util.js';
 import { transaction } from '../db/index.js';
 import { awardBadges } from '../badges.js';
+import { setImmediate as tick } from 'node:timers/promises';
 
 export const MAX_ROWS = 5000;
+/** Tidsbudget i ms för en sats (tolkning eller transaktion) innan händelseloopen lämnas fri (SEC-07). */
+export const SLICE_MS = 15;
 
-/** RFC 4180-tolerant CSV-tolkning. Avgränsare gissas från första raden (, ; eller tab). */
+/**
+ * RFC 4180-tolerant CSV-tolkning. Avgränsare gissas från första raden (, ; eller tab).
+ * Fält läses med slice i stället för tecken för tecken så att 1 MB tolkas på några ms (SEC-07).
+ */
 export function parseCsv(text) {
   const src = text.replace(/^\uFEFF/, '');
   const firstLine = src.split(/\r?\n/, 1)[0] ?? '';
   const delim = [',', ';', '\t'].map((d) => [d, firstLine.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
   const rows = [];
   let row = [];
-  let field = '';
-  let quoted = false;
-  for (let i = 0; i < src.length; i++) {
+  const n = src.length;
+  let i = 0;
+  const endRow = () => { rows.push(row); row = []; };
+  while (i < n) {
+    let field;
+    if (src[i] === '"') {
+      // Citerat fält: "" är ett citattecken.
+      let j = i + 1;
+      const parts = [];
+      for (;;) {
+        const q = src.indexOf('"', j);
+        if (q === -1) { parts.push(src.slice(j)); j = n; break; }
+        parts.push(src.slice(j, q));
+        if (src[q + 1] === '"') { parts.push('"'); j = q + 2; } else { j = q + 1; break; }
+      }
+      field = parts.join('');
+      // Text efter avslutande citattecken fram till avgränsare/radslut tas med (tolerant).
+      let k = j;
+      while (k < n && src[k] !== delim && src[k] !== '\n' && src[k] !== '\r') k++;
+      field += src.slice(j, k);
+      i = k;
+    } else {
+      let k = i;
+      while (k < n && src[k] !== delim && src[k] !== '\n' && src[k] !== '\r') k++;
+      field = src.slice(i, k);
+      i = k;
+    }
+    row.push(field);
+    if (i >= n) { endRow(); break; }
     const ch = src[i];
-    if (quoted) {
-      if (ch === '"' && src[i + 1] === '"') { field += '"'; i++; } else if (ch === '"') quoted = false; else field += ch;
-    } else if (ch === '"' && field === '') quoted = true;
-    else if (ch === delim) { row.push(field); field = ''; } else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && src[i + 1] === '\n') i++;
-      row.push(field); rows.push(row); row = []; field = '';
-    } else field += ch;
+    if (ch === delim) {
+      i++;
+      if (i >= n) { row.push(''); endRow(); }
+    } else {
+      i += ch === '\r' && src[i + 1] === '\n' ? 2 : 1;
+      endRow();
+    }
   }
-  if (field !== '' || row.length) { row.push(field); rows.push(row); }
   return rows.filter((r) => r.some((c) => c.trim() !== ''));
 }
 
@@ -65,7 +96,7 @@ function parseDate(v) {
 
 const CLASS_MAP = { economy: 'economy', 'premium economy': 'premium_economy', premium_economy: 'premium_economy', business: 'business', first: 'first' };
 
-export default function importRoutes({ db, photos }) {
+export default function importRoutes({ db, photos, limiters }) {
   const r = Router();
   const byIata = db.prepare('SELECT iata FROM airports WHERE iata = ?');
   const byIcao = db.prepare('SELECT iata FROM airports WHERE icao = ?');
@@ -79,7 +110,7 @@ export default function importRoutes({ db, photos }) {
   };
 
   /** Tolkar filen till check-in-rader. Returnerar { format, rows, items, skipped }. */
-  function analyse(text, userId) {
+  async function analyse(text, userId) {
     const table = parseCsv(text);
     if (table.length < 2) throw bad('Filen måste ha en rubrikrad och minst en datarad');
     if (table.length - 1 > MAX_ROWS) throw new HttpError(413, `Max ${MAX_ROWS} rader per import`);
@@ -95,8 +126,14 @@ export default function importRoutes({ db, photos }) {
     const skipped = [];
     let duplicates = 0;
     const cell = (row, k) => (map[k] === undefined ? '' : (row[map[k]] ?? '').trim());
-    table.slice(1).forEach((row, i) => {
-      const line = i + 2;
+    let t0 = performance.now();
+    for (let i = 0; i < table.length - 1; i++) {
+      if (performance.now() - t0 > SLICE_MS) { await tick(); t0 = performance.now(); }
+      analyseRow(table[i + 1], i + 2);
+    }
+    return { format, rows: table.length - 1, items, skipped, duplicates };
+
+    function analyseRow(row, line) {
       const visitedOn = parseDate(cell(row, 'date'));
       if (!visitedOn) return skipped.push({ line, reason: 'Ogiltigt datum' });
       if (visitedOn > today) return skipped.push({ line, reason: 'Datum i framtiden' });
@@ -128,36 +165,62 @@ export default function importRoutes({ db, photos }) {
         items.push({ line, ...leg, visitedOn, airlineIata: airline, flightNumber, travelClass,
           rating: pair && leg.kind === 'arrival' ? null : rating, comment: pair && leg.kind === 'arrival' ? null : comment });
       }
-    });
-    return { format, rows: table.length - 1, items, skipped, duplicates };
+    }
   }
 
   const body = [express.text({ type: ['text/csv', 'text/plain'], limit: '1mb' }), express.json({ limit: '1mb' })];
 
-  r.post('/me/imports', requireAuth, ...body, h((req, res) => {
+  // Egen gräns för importer (SEC-07); förhandsvisning (dryRun) räknas separat.
+  const isDry = (req) => req.query.dryRun === '1' || req.query.dryRun === 'true';
+  const limit = (req, res, next) => {
+    const l = isDry(req) ? limiters?.importPreview : limiters?.import;
+    return l ? l(req, res, next) : next();
+  };
+
+  r.post('/me/imports', requireAuth, limit, ...body, h(async (req, res) => {
     const text = typeof req.body === 'string' ? req.body : req.body?.csv;
     if (typeof text !== 'string' || !text.trim()) throw bad('Skicka CSV som text/csv eller JSON { csv }');
-    const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true';
-    const a = analyse(text, req.user.id);
+    const dryRun = isDry(req);
+    const a = await analyse(text, req.user.id);
     const preview = a.items.slice(0, 50).map(({ line, iata, visitedOn, kind, airlineIata, flightNumber }) =>
       ({ line, iata, visitedOn, kind, airlineIata, flightNumber }));
     const result = { id: null, format: a.format, rows: a.rows, imported: 0, duplicates: a.duplicates, skipped: a.skipped, preview };
     if (dryRun || !a.items.length) return res.status(200).json(result);
     const id = randomBytes(8).toString('hex');
     const now = new Date().toISOString();
-    const vis = db.prepare('SELECT default_visibility FROM users WHERE id = ?').get(req.user.id).default_visibility;
-    transaction(db, () => {
-      const ins = db.prepare(`INSERT INTO checkins (user_id, iata, visited_on, kind, rating, comment, created_at, airline_iata,
-        travel_class, flight_number, visibility, publish_at, source, import_batch)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?)`);
-      for (const it of a.items) {
-        ins.run(req.user.id, it.iata, it.visitedOn, it.kind, it.rating, it.comment, now, it.airlineIata,
-          TRAVEL_CLASSES.includes(it.travelClass) ? it.travelClass : null, it.flightNumber, vis, now, id);
+    const uid = req.user.id;
+    const vis = db.prepare('SELECT default_visibility FROM users WHERE id = ?').get(uid).default_visibility;
+    db.prepare('INSERT INTO import_batches (id, user_id, format, rows, imported, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(id, uid, a.format, a.rows, 0, now);
+    const ins = db.prepare(`INSERT INTO checkins (user_id, iata, visited_on, kind, rating, comment, created_at, airline_iata,
+      travel_class, flight_number, visibility, publish_at, source, import_batch)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?)`);
+    // Satsvis inskrivning så att servern svarar på andra anrop under en stor import (SEC-07).
+    // Misslyckas en sats tas hela importen bort igen.
+    try {
+      let i = 0;
+      while (i < a.items.length) {
+        transaction(db, () => {
+          const t0 = performance.now();
+          do {
+            const it = a.items[i++];
+            ins.run(uid, it.iata, it.visitedOn, it.kind, it.rating, it.comment, now, it.airlineIata,
+              TRAVEL_CLASSES.includes(it.travelClass) ? it.travelClass : null, it.flightNumber, vis, now, id);
+          } while (i < a.items.length && performance.now() - t0 < SLICE_MS);
+        });
+        await tick();
       }
-      db.prepare('INSERT INTO import_batches (id, user_id, format, rows, imported, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(id, req.user.id, a.format, a.rows, a.items.length, now);
-      awardBadges(db, req.user.id, `badge:import:${id}`);
-    });
+      transaction(db, () => {
+        db.prepare('UPDATE import_batches SET imported = ? WHERE id = ?').run(a.items.length, id);
+        awardBadges(db, uid, `badge:import:${id}`);
+      });
+    } catch (err) {
+      transaction(db, () => {
+        db.prepare('DELETE FROM checkins WHERE import_batch = ? AND user_id = ?').run(id, uid);
+        db.prepare('DELETE FROM import_batches WHERE id = ?').run(id);
+      });
+      throw err;
+    }
     res.status(201).json({ ...result, id, imported: a.items.length });
   }));
 

@@ -47,7 +47,7 @@ function migrate(db, opts) {
 export function openDb(dbPath = DEFAULT_DB_PATH, { airportsJson = AIRPORTS_JSON, airlinesJson = AIRLINES_JSON } = {}) {
   if (dbPath !== ':memory:') mkdirSync(dirname(resolve(dbPath)), { recursive: true });
   const db = new DatabaseSync(dbPath);
-  if (dbPath !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
+  if (dbPath !== ':memory:') db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
   db.exec('PRAGMA busy_timeout = 5000;');
   db.exec(SCHEMA);
   seedAirports(db, airportsJson);

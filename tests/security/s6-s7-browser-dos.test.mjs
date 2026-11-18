@@ -89,7 +89,7 @@ describe('S7 rate limiting och DoS', () => {
     } finally { s.close(); }
   });
 
-  test('SEC-07: en import på 1 MB blockerar inte servern mer än 250 ms och importer har egen gräns', { todo: 'SEC-07' }, async () => {
+  test('SEC-07: en import på 1 MB blockerar inte servern mer än 250 ms och importer har egen gräns', async () => {
     const s = await startServer({ limits: true });
     try {
       const u = await s.user('dos');

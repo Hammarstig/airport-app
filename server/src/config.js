@@ -65,6 +65,9 @@ export function loadConfig(env = process.env) {
       follow: lim(60 * MIN, 100),
       like: lim(60 * MIN, 300),
       review: lim(60 * MIN, 30),
+      // Import (SEC-07): egen gräns, förhandsvisning har en högre.
+      import: lim(24 * 60 * MIN, 5),
+      importPreview: lim(60 * MIN, 30),
     },
   };
 }
