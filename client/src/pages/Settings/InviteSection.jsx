@@ -50,6 +50,10 @@ export function InviteCard({ compact = false }) {
     <div className="invite-card">
       <h3 className="invite-card__title">Bjud in dina resvänner</h3>
       <p className="invite-card__text">Ni följer varandra direkt och ser varandras check-ins.</p>
+      <p className="invite-card__text text-sm">
+        Alla som får länken blir din följare utan att du godkänner dem och ser det du delar med följare. Skicka den bara
+        direkt till personer du känner, inte i öppna grupper eller sociala medier.
+      </p>
       {invite ? (
         <div className="invite-card__link">
           <span aria-label="Inbjudningslänk">{absolute(invite.url).replace(/^https?:\/\//, '')}</span>
