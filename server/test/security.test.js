@@ -144,3 +144,24 @@ test('SEC-29: inbjudan till privat profil ger följförfrågan, standard 5 anvä
     assert.equal(f.status, 'pending');
   } finally { s.close(); }
 });
+
+test('SEC-11: Idempotency-Key ger samma check-in vid omsändning, per användare', async () => {
+  const { startServer, daysAgo } = await import('./helpers.js');
+  const s = await startServer();
+  try {
+    const a = await s.register('idem_a');
+    const b = await s.register('idem_b');
+    const body = { iata: 'GOT', visitedOn: daysAgo(1), kind: 'departure' };
+    const post = (token, key) => s.api('POST', '/api/checkins', { token, body, headers: { 'Idempotency-Key': key } });
+    const first = await post(a, 'kö-post-12345'.replace('ö', 'o'));
+    assert.equal(first.status, 201);
+    const again = await post(a, 'ko-post-12345');
+    assert.equal(again.status, 200);
+    assert.equal(again.body.id, first.body.id);
+    assert.equal(again.body.replayed, true);
+    const other = await post(b, 'ko-post-12345');
+    assert.equal(other.status, 201, 'nyckeln gäller bara egen användare');
+    assert.notEqual(other.body.id, first.body.id);
+    assert.equal((await post(a, 'x')).status, 400);
+  } finally { s.close(); }
+});

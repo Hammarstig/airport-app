@@ -101,7 +101,18 @@ export default function checkinRoutes({ db, photos, limiters }) {
     return lo.id;
   }
 
-  r.post('/checkins', requireAuth, limiters.checkin, h((req, res) => {
+  // Idempotens (SEC-11): samma Idempotency-Key från samma användare skapar inte en ny check-in
+  // utan svarar 200 med den befintliga. Nyckeln gäller bara den egna användaren.
+  const byClientKey = db.prepare('SELECT id FROM checkins WHERE user_id = ? AND client_key = ?');
+  r.post('/checkins', requireAuth, (req, res, next) => {
+    const key = req.get('idempotency-key');
+    if (key === undefined) return next();
+    if (!/^[A-Za-z0-9_.:-]{8,64}$/.test(key)) return next(bad('Idempotency-Key måste vara 8-64 tecken A-Z, 0-9, _ . : -'));
+    req.clientKey = key;
+    const hit = byClientKey.get(req.user.id, key);
+    if (hit) return res.status(200).json({ ...one(req.user.id, hit.id), replayed: true });
+    next();
+  }, limiters.checkin, h((req, res) => {
     const b = req.body ?? {};
     const iata = normIata(b.iata);
     const airport = /^[A-Z]{3}$/.test(iata) ? airportRow.get(iata) : null;
@@ -144,11 +155,12 @@ export default function checkinRoutes({ db, photos, limiters }) {
       }
       const cid = Number(db.prepare(`INSERT INTO checkins
         (user_id, iata, visited_on, kind, rating, r_security, r_cleanliness, r_food, r_wifi, r_transfer, r_lounges,
-         comment, created_at, airline_iata, travel_class, lounge_id, flight_number, visibility, publish_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+         comment, created_at, airline_iata, travel_class, lounge_id, flight_number, visibility, publish_at, client_key)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         uid, iata, visitedOn, b.kind, rating,
         rt.security, rt.cleanliness, rt.food, rt.wifi, rt.transfer, rt.lounges,
         comment, now, td.airline ?? null, td.travelClass ?? null, loungeId, td.flightNumber ?? null, visibility, publishAt,
+        req.clientKey ?? null,
       ).lastInsertRowid);
       if (loungeRating !== null) {
         db.prepare(`INSERT INTO lounge_reviews (lounge_id, user_id, rating, comment, visited_on, created_at, checkin_id)
