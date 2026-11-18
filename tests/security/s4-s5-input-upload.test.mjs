@@ -97,7 +97,7 @@ describe('S5 filuppladdning', () => {
     }
   });
 
-  test('SEC-08: EXIF/GPS i inbäddad andrabild (MPF/data efter EOI) tas bort', { todo: 'SEC-08' }, async () => {
+  test('SEC-08: EXIF/GPS i inbäddad andrabild (MPF/data efter EOI) tas bort', async () => {
     const cc = await s.checkin(u);
     const r = await upload(fx('mpf.jpg'), 'mpf.jpg', 'image/jpeg', cc.id);
     assert.equal(r.status, 201);
@@ -132,7 +132,7 @@ describe('S5 filuppladdning', () => {
     }
   });
 
-  test('SEC-09: foto på privat check-in kan inte hämtas av utloggad och cachas inte publikt', { todo: 'SEC-09' }, async () => {
+  test('SEC-09: foto på privat check-in kan inte hämtas av utloggad och cachas inte publikt', async () => {
     const p = await s.checkin(u, { visibility: 'private' });
     const r = await upload(fx('gps.jpg'), 'a.jpg', 'image/jpeg', p.id);
     const g = await s.api('GET', r.body.url, { raw: true });

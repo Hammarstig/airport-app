@@ -7,7 +7,7 @@ import { openDb } from './db/index.js';
 import { loadConfig, resolveSecret } from './config.js';
 import { optionalAuth, rateLimit } from './auth.js';
 import { createSecurityLog, ipNet } from './seclog.js';
-import { HttpError } from './util.js';
+import { HttpError, setPhotoKey } from './util.js';
 import authRoutes from './routes/auth.js';
 import airportRoutes from './routes/airports.js';
 import loungeRoutes from './routes/lounges.js';
@@ -125,7 +125,8 @@ export function createApp(opts = {}) {
     res.set('Cache-Control', 'private, no-cache');
     next();
   });
-  app.use('/uploads', uploadsStatic(photos.uploadDir));
+  setPhotoKey(secret);
+  app.use('/uploads', uploadsStatic(photos.uploadDir, database));
   // JSON-gräns 50 kB, utom för import av resehistorik som har egen parser (1 MB).
   const json = express.json({ limit: '50kb' });
   app.use((req, res, next) => (req.path === '/api/me/imports' ? next() : json(req, res, next)));

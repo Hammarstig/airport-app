@@ -3,7 +3,7 @@
 // tabellen vid varje anrop, så att utloggning, lösenordsbyte och "logga ut överallt" gäller direkt.
 import jwt from 'jsonwebtoken';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { HttpError } from './util.js';
+import { HttpError, MEDIA_COOKIE, MEDIA_TTL_S, mediaToken } from './util.js';
 
 export const ACCESS_TTL_S = 15 * 60;
 export const REFRESH_TTL_MS = 30 * 24 * 3600 * 1000;
@@ -108,4 +108,12 @@ export function setRefreshCookie(res, value, production) {
 
 export function clearRefreshCookie(res, production) {
   res.clearCookie(REFRESH_COOKIE, { httpOnly: true, sameSite: 'strict', secure: production, path: '/api/auth' });
+  res.clearCookie(MEDIA_COOKIE, { httpOnly: true, sameSite: 'strict', secure: production, path: '/uploads' });
+}
+
+/** Mediacookie för foton som inte är publika (SEC-09). Förnyas vid inloggning och refresh. */
+export function setMediaCookie(res, sid, production) {
+  res.cookie(MEDIA_COOKIE, mediaToken(sid), {
+    httpOnly: true, sameSite: 'strict', secure: production, path: '/uploads', maxAge: MEDIA_TTL_S * 1000,
+  });
 }

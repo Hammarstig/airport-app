@@ -95,3 +95,30 @@ test('SEC-06/13/18: push-endpoint vitlistas, följer sessionen och kan inte tas 
     assert.equal(n(), 0, 'logga ut alla tar bort prenumerationer');
   } finally { s.close(); }
 });
+
+test('SEC-09: foto på privat check-in kräver inloggad tittare (mediacookie) och cachas inte publikt', async () => {
+  const { startServer, daysAgo } = await import('./helpers.js');
+  const s = await startServer();
+  try {
+    await s.register('fotograf');
+    const login = await s.api('POST', '/api/auth/login', { body: { username: 'fotograf', password: 'hemligt123' } });
+    const tok = login.body.token;
+    const media = login.headers.getSetCookie().find((c) => c.startsWith('gl_media='));
+    assert.match(media, /HttpOnly/i);
+    assert.match(media, /Path=\/uploads/);
+    const cookie = media.split(';')[0];
+    const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000' + '1f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4c20000000049454e44ae426082', 'hex');
+    const c = await s.api('POST', '/api/checkins', { token: tok, body: { iata: 'GOT', visitedOn: daysAgo(1), kind: 'departure', visibility: 'private' } });
+    const fd = new FormData();
+    fd.append('photo', new Blob([png], { type: 'image/png' }), 'a.png');
+    const up = await s.api('POST', `/api/checkins/${c.body.id}/photos`, { token: tok, body: fd });
+    assert.equal(up.status, 201, JSON.stringify(up.body));
+    assert.equal((await s.api('GET', up.body.url)).status, 404, 'utloggad');
+    assert.equal((await s.api('GET', up.body.url, { headers: { Cookie: 'gl_media=x.1.y' } })).status, 404, 'falsk cookie');
+    const ok = await s.api('GET', up.body.url, { headers: { Cookie: cookie } });
+    assert.equal(ok.status, 200);
+    assert.match(ok.headers.get('cache-control'), /private/);
+    await s.api('POST', '/api/auth/logout', { token: tok });
+    assert.equal((await s.api('GET', up.body.url, { headers: { Cookie: cookie } })).status, 404, 'utloggad session');
+  } finally { s.close(); }
+});

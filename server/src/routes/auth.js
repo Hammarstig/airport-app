@@ -11,7 +11,7 @@ import { VISIBILITIES, PUBLISH_DELAYS } from '../visibility.js';
 import { PUSH_TYPES, pushPrefs } from '../notify.js';
 import {
   ACCESS_TTL_S, REFRESH_COOKIE, signAccess, createSession, rotateRefresh, verifyRefresh, revokeSession, revokeAll,
-  parseCookies, setRefreshCookie, clearRefreshCookie,
+  parseCookies, setRefreshCookie, clearRefreshCookie, setMediaCookie,
 } from '../sessions.js';
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
@@ -86,6 +86,7 @@ export default function authRoutes({ db, secret, config }) {
   function startSession(req, res, user, status = 200, extra = {}) {
     const { sid, refresh } = createSession(db, user.id, req.get('user-agent'));
     setRefreshCookie(res, refresh, production);
+    setMediaCookie(res, sid, production);
     const out = { token: signAccess(secret, user, sid), user: meSummary(user), expiresIn: ACCESS_TTL_S };
     // Registrering visar valda integritetsinställningar så att klienten kan bekräfta dem.
     if (status === 201) Object.assign(out, { settings: settingsOf(byId.get(user.id)), ...extra });
@@ -166,6 +167,7 @@ export default function authRoutes({ db, secret, config }) {
     try {
       const { session, refresh } = rotateRefresh(db, token);
       if (refresh) setRefreshCookie(res, refresh, production);
+      setMediaCookie(res, session.id, production);
       const user = byId.get(session.user_id);
       res.json({ token: signAccess(secret, user, session.id), user: meSummary(user), expiresIn: ACCESS_TTL_S });
     } catch (e) {

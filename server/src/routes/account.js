@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { requireAuth } from '../auth.js';
-import { h, bad, HttpError, paging, AIRPORT_COLS, airportFrom, userSummary } from '../util.js';
+import { h, bad, HttpError, paging, AIRPORT_COLS, airportFrom, userSummary, photoUrl } from '../util.js';
 import { transaction } from '../db/index.js';
 import { secEvent } from '../seclog.js';
 import { settingsOf } from './auth.js';
@@ -95,7 +95,7 @@ export default function accountRoutes({ db, photos }) {
       user: { ...userSummary(db, user, { self: true }), createdAt: user.created_at },
       checkins: db.prepare(`SELECT c.*, (SELECT json_group_array(filename) FROM photos p WHERE p.checkin_id = c.id) AS photos
         FROM checkins c WHERE c.user_id = ? ORDER BY c.visited_on, c.id`).all(uid)
-        .map((c) => ({ ...c, photos: JSON.parse(c.photos).map((f) => '/uploads/' + f) })),
+        .map((c) => ({ ...c, photos: JSON.parse(c.photos).map((f) => photoUrl(f)) })),
       loungeReviews: db.prepare(`SELECT r.*, lo.name AS lounge_name, lo.iata FROM lounge_reviews r
         JOIN lounges lo ON lo.id = r.lounge_id WHERE r.user_id = ? ORDER BY r.id`).all(uid),
       comments: db.prepare('SELECT * FROM comments WHERE user_id = ? ORDER BY id').all(uid),
@@ -126,7 +126,7 @@ export default function accountRoutes({ db, photos }) {
       invites: db.prepare('SELECT code, uses, max_uses, created_at, expires_at, revoked_at FROM invites WHERE user_id = ?').all(uid),
       imports: db.prepare('SELECT id, format, rows, imported, created_at FROM import_batches WHERE user_id = ?').all(uid),
       photos: db.prepare('SELECT id, checkin_id, filename, created_at FROM photos WHERE user_id = ? ORDER BY id').all(uid)
-        .map((p) => ({ ...p, url: '/uploads/' + p.filename })),
+        .map((p) => ({ ...p, url: photoUrl(p.filename) })),
       moderationActions: user.role === 'moderator'
         ? db.prepare('SELECT report_id, action, target_type, target_id, created_at FROM moderation_log WHERE moderator_id = ?').all(uid)
         : [],

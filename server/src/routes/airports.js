@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { normalizeWords, countryNameSv } from '../db/index.js';
 import {
   h, bad, notFound, HttpError, cleanText, normIata, paging, enumParam, round2, escapeLike, code2, LOUNGE_SELECT, loungeFrom,
-  AIRPORT_COLS, airportFrom, CHECKIN_SELECT, checkinsWithPhotos, SUB_RATINGS, TRAVEL_CLASSES, photoFrom,
+  AIRPORT_COLS, airportFrom, CHECKIN_SELECT, checkinsWithPhotos, SUB_RATINGS, TRAVEL_CLASSES, photoFrom, PHOTO_PUBLIC_SQL,
   USER_COLS, userFrom,
 } from '../util.js';
 import { globalMeans, bayesSql, AIRPORT_PRIOR } from '../stats.js';
@@ -152,8 +152,9 @@ export default function airportRoutes({ db }) {
       classMix: Object.fromEntries(TRAVEL_CLASSES.map((k) => [k, s['cls_' + k] ?? 0])),
     };
     const pv = checkinVisible(req.user?.id);
-    const photos = db.prepare(`SELECT p.* FROM photos p JOIN checkins c ON c.id = p.checkin_id JOIN users u ON u.id = c.user_id
-      WHERE c.iata = ? AND ${pv.sql} ORDER BY p.id DESC LIMIT 12`).all(a.iata, ...pv.params).map(photoFrom);
+    const photos = db.prepare(`SELECT p.*, ${PHOTO_PUBLIC_SQL} AS pub FROM photos p JOIN checkins c ON c.id = p.checkin_id
+      JOIN users u ON u.id = c.user_id WHERE c.iata = ? AND ${pv.sql} ORDER BY p.id DESC LIMIT 12`)
+      .all(new Date().toISOString(), a.iata, ...pv.params).map(photoFrom);
     let onMyWishlist = false;
     let myVisits = 0;
     let friendsVisited = [];

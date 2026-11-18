@@ -1,4 +1,5 @@
 // Gemensamma hjälpfunktioner: fel, validering, mappning av rader till API-objekt.
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export class HttpError extends Error {
   /** @param {number} status @param {string} message @param {object} [extra] fält som läggs till i felsvaret (t.ex. code) */
@@ -261,10 +262,34 @@ export function checkinFrom(row, viewerId = null) {
 
 export const TRAVEL_CLASSES = ['economy', 'premium_economy', 'business', 'first'];
 
+// Foton (SEC-09): foton som en utloggad får se har publik cache. Övriga kräver mediacookien
+// (gl_media, HttpOnly, Path=/uploads) som bär sessions-id och signatur och förnyas vid varje
+// inloggning och refresh. Nyckeln sätts av createApp.
+let mediaKey = null;
+export const MEDIA_COOKIE = 'gl_media';
+export const MEDIA_TTL_S = 3600;
+export function setPhotoKey(secret) { mediaKey = createHmac('sha256', String(secret)).update('gatelog-media').digest(); }
+const mediaSig = (sid, exp) => createHmac('sha256', mediaKey).update(`${sid}|${exp}`).digest('base64url').slice(0, 22);
+export function mediaToken(sid) {
+  const exp = Math.floor(Date.now() / 1000) + MEDIA_TTL_S;
+  return `${sid}.${exp}.${mediaSig(sid, exp)}`;
+}
+/** Sessions-id ur en giltig mediacookie, annars null (sessionens status kontrolleras av anroparen). */
+export function mediaSession(token) {
+  const m = /^([a-f0-9]{32})\.(\d{1,12})\.([A-Za-z0-9_-]{22})$/.exec(typeof token === 'string' ? token : '');
+  if (!m || !mediaKey || Number(m[2]) * 1000 < Date.now()) return null;
+  const want = Buffer.from(mediaSig(m[1], Number(m[2])));
+  const got = Buffer.from(m[3]);
+  return want.length === got.length && timingSafeEqual(want, got) ? m[1] : null;
+}
+/** SQL (check-in `c`, ägare `u`, en parameter: nu) för att en utloggad får se fotot. */
+export const PHOTO_PUBLIC_SQL = "(IFNULL(c.publish_at, c.created_at) <= ? AND c.visibility = 'public' AND u.is_private = 0)";
+export const photoUrl = (filename) => '/uploads/' + filename;
+
 export function photoFrom(row) {
   return {
     id: row.id,
-    url: '/uploads/' + row.filename,
+    url: photoUrl(row.filename),
     width: row.width ?? null,
     height: row.height ?? null,
     createdAt: row.created_at,
@@ -277,8 +302,9 @@ export function checkinsWithPhotos(db, rows, viewerId = null) {
   if (!list.length) return list;
   const byId = new Map(list.map((c) => [c.id, c]));
   const ids = [...byId.keys()];
-  const photos = db.prepare(`SELECT id, checkin_id, filename, width, height, created_at FROM photos
-    WHERE checkin_id IN (${ids.map(() => '?').join(',')}) ORDER BY id`).all(...ids);
+  const photos = db.prepare(`SELECT p.id, p.checkin_id, p.filename, p.width, p.height, p.created_at, ${PHOTO_PUBLIC_SQL} AS pub
+    FROM photos p JOIN checkins c ON c.id = p.checkin_id JOIN users u ON u.id = c.user_id
+    WHERE p.checkin_id IN (${ids.map(() => '?').join(',')}) ORDER BY p.id`).all(new Date().toISOString(), ...ids);
   for (const p of photos) byId.get(p.checkin_id).photos.push(photoFrom(p));
   return list;
 }

@@ -6,7 +6,9 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { requireAuth } from '../auth.js';
-import { h, bad, notFound, HttpError, photoFrom } from '../util.js';
+import { h, bad, notFound, HttpError, photoFrom, mediaSession, MEDIA_COOKIE, PHOTO_PUBLIC_SQL } from '../util.js';
+import { parseCookies } from '../sessions.js';
+import { visibleCheckin } from '../visibility.js';
 import { transaction } from '../db/index.js';
 import { awardBadges } from '../badges.js';
 
@@ -84,13 +86,26 @@ export function stripMetadata(buf, ext) {
       }
       while (buf[i + 1] === 0xff) i++; // utfyllnad
       const marker = buf[i + 1];
-      if (marker === 0xd9) { out.push(buf.subarray(i)); break; }
+      // Allt efter bildslutet (EOI) tas bort: MPF-andrabilder med egen EXIF, polyglot-data (SEC-08).
+      if (marker === 0xd9) { out.push(buf.subarray(i, i + 2)); break; }
       if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { out.push(buf.subarray(i, i + 2)); i += 2; continue; }
       if (i + 4 > buf.length) throw new Error('trasig JPEG');
       const len = buf.readUInt16BE(i + 2);
       if (len < 2 || i + 2 + len > buf.length) throw new Error('trasig JPEG');
-      if (marker === 0xda) { out.push(buf.subarray(i)); break; } // bilddata till slutet
-      if (!JPEG_DROP.has(marker)) out.push(buf.subarray(i, i + 2 + len));
+      if (marker === 0xda) {
+        // Scan: huvud plus entropikodad data fram till nästa riktiga markör (inte FF00 eller RSTn).
+        let j = i + 2 + len;
+        while (j < buf.length - 1) {
+          if (buf[j] === 0xff && buf[j + 1] !== 0x00 && !(buf[j + 1] >= 0xd0 && buf[j + 1] <= 0xd7) && buf[j + 1] !== 0xff) break;
+          j++;
+        }
+        if (j >= buf.length - 1) { out.push(buf.subarray(i), Buffer.from([0xff, 0xd9])); break; } // avkortad fil: avsluta
+        out.push(buf.subarray(i, j));
+        i = j;
+        continue;
+      }
+      const isMpf = marker === 0xe2 && buf.toString('latin1', i + 4, i + 8) === 'MPF\0';
+      if (!JPEG_DROP.has(marker) && !isMpf) out.push(buf.subarray(i, i + 2 + len));
       i += 2 + len;
     }
     return Buffer.concat(out);
@@ -151,17 +166,37 @@ export function photoStore(uploadDir) {
 }
 
 /** Statisk servering av /uploads med strikta headers. Endast slumpade filnamn släpps igenom. */
-export function uploadsStatic(uploadDir) {
-  const serve = express.static(uploadDir, { index: false, dotfiles: 'deny', fallthrough: false, maxAge: '7d', immutable: true });
+/**
+ * Serverar uppladdade foton (SEC-09). Foton som en utloggad besökare får se cachas publikt;
+ * övriga (privat, fördröjd, privat profil) kräver en giltig signerad URL och cachas bara privat.
+ */
+export function uploadsStatic(uploadDir, db) {
+  const serve = express.static(uploadDir, { index: false, dotfiles: 'deny', fallthrough: false, cacheControl: false });
   return (req, res, next) => {
     res.set({
       'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy': "default-src 'none'; img-src 'self'; sandbox",
       'Cross-Origin-Resource-Policy': 'same-origin',
     });
-    if (!FILENAME_RE.test(req.path.replace(/^\//, ''))) return res.status(404).json({ error: 'Filen finns inte' });
+    const name = req.path.replace(/^\//, '');
+    const missing = () => res.status(404).json({ error: 'Filen finns inte' });
+    if (!FILENAME_RE.test(name)) return missing();
+    if (db) {
+      const row = db.prepare(`SELECT p.checkin_id, ${PHOTO_PUBLIC_SQL} AS pub FROM photos p JOIN checkins c ON c.id = p.checkin_id
+        JOIN users u ON u.id = c.user_id WHERE p.filename = ?`).get(new Date().toISOString(), name);
+      if (!row) return missing();
+      if (row.pub) res.set('Cache-Control', 'public, max-age=86400');
+      else {
+        // Inloggad tittare via mediacookien; samma synlighetsregel som för check-in:en.
+        const sid = mediaSession(parseCookies(req.get('cookie'))[MEDIA_COOKIE]);
+        const s = sid ? db.prepare('SELECT user_id FROM sessions WHERE id = ? AND revoked_at IS NULL AND expires_at > ?')
+          .get(sid, new Date().toISOString()) : null;
+        if (!s || !visibleCheckin(db, s.user_id, row.checkin_id)) return missing();
+        res.set({ 'Cache-Control': 'private, no-cache', Vary: 'Cookie' });
+      }
+    } else res.set('Cache-Control', 'public, max-age=604800, immutable');
     serve(req, res, (err) => {
-      if (err && err.status === 404) return res.status(404).json({ error: 'Filen finns inte' });
+      if (err && err.status === 404) return missing();
       next(err);
     });
   };
@@ -216,7 +251,8 @@ export default function photoRoutes({ db, photos, limiters }) {
       photos.removeFiles([filename]);
       throw e;
     }
-    const row = db.prepare('SELECT * FROM photos WHERE id = ?').get(Number(ins.lastInsertRowid));
+    const row = db.prepare(`SELECT p.*, ${PHOTO_PUBLIC_SQL} AS pub FROM photos p JOIN checkins c ON c.id = p.checkin_id
+      JOIN users u ON u.id = c.user_id WHERE p.id = ?`).get(new Date().toISOString(), Number(ins.lastInsertRowid));
     res.status(201).json(photoFrom(row));
   }));
 
