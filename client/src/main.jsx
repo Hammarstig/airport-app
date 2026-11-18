@@ -15,7 +15,9 @@ primeRoute(window.location.pathname);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
+    {/* Sidbyten renderas direkt som i v6 (transitions gjorde trycket synligt först efter 200-300 ms vid 4x CPU). */}
+    {/* Sidbyten renderas direkt som i v6, utan transition. */}
+    <BrowserRouter useTransitions={false}>
       <ToastProvider>
         <AuthProvider>
           <App />
