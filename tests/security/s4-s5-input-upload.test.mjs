@@ -64,10 +64,11 @@ describe('S4 injektion', () => {
     assert.match(exp.headers.get('content-type'), /application\/json/);
   });
 
-  test('SEC-20: CSV-import rensar kontroll- och riktningstecken som övriga skrivvägar', { todo: 'SEC-20' }, async () => {
+  test('SEC-20: CSV-import rensar kontroll- och riktningstecken som övriga skrivvägar', async () => {
     const r = await s.api('POST', '/api/me/imports', { token: u.token, body: 'date,iata,comment\n2019-06-01,OSL,a\u0001fejk\u0002b‮evil\n', headers: { 'Content-Type': 'text/csv' } });
     assert.equal(r.status, 201);
     const c = s.db.prepare("SELECT comment FROM checkins WHERE user_id = ? AND iata = 'OSL'").get(u.id);
+    // eslint-disable-next-line no-control-regex -- testet ska just hitta styrtecken
     assert.doesNotMatch(c.comment, /[\u0001\u0002‮]/);
   });
 });
