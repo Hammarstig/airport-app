@@ -22,6 +22,6 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.0",
-    "web-push": "^3.6.7"
+    "web-push": "^4.0.0"
   }
 }
