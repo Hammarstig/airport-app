@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { requireAuth, failureGuard } from '../auth.js';
 import { h, bad, HttpError, cleanText, normIata, userSummary } from '../util.js';
 import { transaction } from '../db/index.js';
-import { checkPassword, isReservedUsername } from '../passwords.js';
+import { checkPassword, isReservedUsername, isReservedDisplayName } from '../passwords.js';
 import { acceptInvite } from './invites.js';
 import { secEvent } from '../seclog.js';
 import { VISIBILITIES, PUBLISH_DELAYS } from '../visibility.js';
@@ -103,6 +103,7 @@ export default function authRoutes({ db, secret, config }) {
     }
     checkPassword(b.password, username);
     const displayName = cleanText(b.displayName, { field: 'displayName', max: 40 }) ?? username;
+    if (b.displayName != null && isReservedDisplayName(displayName)) throw bad('displayName får inte likna Gatelog eller personalen');
     const home = homeIata(b.homeIata);
     // Skyddade standardval för nya konton (config.newAccountDefaults), som kan ändras direkt via `privacy`.
     const d = config?.newAccountDefaults ?? { publishDelayHours: 1, hideHomeAirport: true };
@@ -207,6 +208,7 @@ export default function authRoutes({ db, secret, config }) {
     let home = cur.home_iata;
     if (b.displayName !== undefined) {
       displayName = cleanText(b.displayName, { field: 'displayName', max: 40, required: true });
+      if (isReservedDisplayName(displayName)) throw bad('displayName får inte likna Gatelog eller personalen');
     }
     if (b.homeIata !== undefined) home = homeIata(b.homeIata);
     db.prepare('UPDATE users SET display_name = ?, home_iata = ? WHERE id = ?').run(displayName, home, req.user.id);

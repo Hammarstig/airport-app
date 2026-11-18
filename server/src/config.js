@@ -28,7 +28,13 @@ export function loadConfig(env = process.env) {
     uploadDir: env.UPLOAD_DIR || resolve(here, '../data/uploads'),
     staticDir: env.STATIC_DIR || resolve(here, '../../client/dist'),
     jwtSecret: env.JWT_SECRET || null,
-    trustProxy: env.TRUST_PROXY || null,
+    // TRUST_PROXY: antal hopp (1), true/false, eller adresser/subnät enligt Express (SEC-28).
+    trustProxy: (() => {
+      const v = (env.TRUST_PROXY ?? '').trim().toLowerCase();
+      if (!v || v === 'false' || v === '0') return null;
+      if (v === 'true') return true;
+      return /^\d+$/.test(v) ? Number(v) : env.TRUST_PROXY.trim();
+    })(),
     corsOrigin: env.CORS_ORIGIN || null,
     // Topplistor för perioder (vecka/månad/år) cachas en kort stund; tid i ms.
     rankingCacheMs: env.RANKING_CACHE_MS !== undefined ? Math.max(0, Number(env.RANKING_CACHE_MS) || 0) : (test ? 0 : 30_000),

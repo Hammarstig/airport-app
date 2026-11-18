@@ -115,7 +115,18 @@ export function createApp(opts = {}) {
 
   app.disable('x-powered-by');
   app.set('etag', 'weak');
-  if (cfg.trustProxy) app.set('trust proxy', /^\d+$/.test(cfg.trustProxy) ? Number(cfg.trustProxy) : cfg.trustProxy);
+  if (cfg.trustProxy) app.set('trust proxy', cfg.trustProxy);
+  else if (cfg.production) {
+    // Varning en gång om trafiken går via proxy men TRUST_PROXY saknas: alla får då proxyns IP (SEC-28).
+    let warned = false;
+    app.use((req, _res, next) => {
+      if (!warned && req.get('x-forwarded-for')) {
+        warned = true;
+        console.warn('[gatelog] X-Forwarded-For finns men TRUST_PROXY är inte satt - rate limits och loggar ser proxyns IP (SEC-28).');
+      }
+      next();
+    });
+  }
   app.use(requestLog(cfg.logRequests));
   // Säkerhetslogg (SEC-14); opts.securityLogSink för tester.
   app.locals.securityLog = createSecurityLog({ enabled: opts.securityLogSink ? true : cfg.securityLog, secret, sink: opts.securityLogSink });

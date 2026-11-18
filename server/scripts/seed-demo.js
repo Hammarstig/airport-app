@@ -225,6 +225,11 @@ export function seedDemo(db) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  // Skydd mot produktion (SEC-26): demokonton har kända lösenord.
+  if (loadConfig().production && !process.argv.includes('--force-production')) {
+    console.error('[seed-demo] Vägrar köra med NODE_ENV=production (demokonton har kända lösenord). Använd --force-production om du verkligen menar det.');
+    process.exit(1);
+  }
   const db = openDb(loadConfig().dbPath);
   const r = seedDemo(db);
   console.log(`[seed-demo] Skapade ${r.users} användare (lösenord "${PASSWORD}") och ${r.checkins} check-ins.`);

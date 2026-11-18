@@ -122,3 +122,25 @@ test('SEC-09: foto på privat check-in kräver inloggad tittare (mediacookie) oc
     assert.equal((await s.api('GET', up.body.url, { headers: { Cookie: cookie } })).status, 404, 'utloggad session');
   } finally { s.close(); }
 });
+
+test('SEC-30: visningsnamn som imiterar tjänsten eller personalen avvisas', async () => {
+  const { isReservedDisplayName } = await import('../src/passwords.js');
+  for (const n of ['Gatelog', 'Gatel0g Support', 'GАTELOG', 'Moderator', 'Admin Anna', 'Gatelog​', 'Ｇａｔｅｌｏｇ'])
+    assert.equal(isReservedDisplayName(n), true, n);
+  for (const n of ['Anna Andersson', 'Oliver H', 'Flygnörd 42', 'Gate 12 fan']) assert.equal(isReservedDisplayName(n), false, n);
+});
+
+test('SEC-29: inbjudan till privat profil ger följförfrågan, standard 5 användningar', async () => {
+  const { startServer } = await import('./helpers.js');
+  const s = await startServer();
+  try {
+    const tok = await s.register('privvard');
+    await s.api('PATCH', '/api/me/settings', { token: tok, body: { isPrivate: true } });
+    const inv = await s.api('POST', '/api/me/invites', { token: tok, body: {} });
+    assert.equal(inv.body.maxUses, 5);
+    const r = await s.api('POST', '/api/auth/register', { body: { username: 'inbjuden', password: 'hemligt123', ref: inv.body.code } });
+    assert.equal(r.status, 201);
+    const f = s.db.prepare(`SELECT status FROM follows WHERE follower_id = (SELECT id FROM users WHERE username = 'inbjuden')`).get();
+    assert.equal(f.status, 'pending');
+  } finally { s.close(); }
+});

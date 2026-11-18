@@ -32,9 +32,13 @@ export function acceptInvite(db, rawCode, newUserId) {
   const inv = validInvite(db, normCode(rawCode));
   if (!inv) return null;
   const now = new Date().toISOString();
-  const ins = db.prepare("INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at, status) VALUES (?, ?, ?, 'accepted')");
-  ins.run(newUserId, inv.user_id, now);
-  ins.run(inv.user_id, newUserId, now);
+  const ins = db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at, status) VALUES (?, ?, ?, ?)');
+  // Privat profil hos inbjudaren: den nya användaren får en följförfrågan i stället för direkt
+  // tillgång, eftersom länken kan ha spridits vidare (SEC-29).
+  const inviterPrivate = !!db.prepare('SELECT is_private FROM users WHERE id = ?').get(inv.user_id)?.is_private;
+  ins.run(newUserId, inv.user_id, now, inviterPrivate ? 'pending' : 'accepted');
+  ins.run(inv.user_id, newUserId, now, 'accepted');
+  if (inviterPrivate) notify(db, { userId: inv.user_id, type: 'follow_request', actorId: newUserId });
   db.prepare('UPDATE invites SET uses = uses + 1 WHERE code = ?').run(inv.code);
   db.prepare('UPDATE users SET invited_by = ? WHERE id = ?').run(inv.user_id, newUserId);
   notify(db, { userId: inv.user_id, type: 'invite_accepted', actorId: newUserId });
@@ -59,7 +63,7 @@ export default function inviteRoutes({ db }) {
   }));
 
   r.post('/me/invites', requireAuth, h((req, res) => {
-    let maxUses = req.body?.maxUses ?? 25;
+    let maxUses = req.body?.maxUses ?? 5;
     if (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 100) throw bad('maxUses måste vara ett heltal 1-100');
     const now = new Date();
     const { n } = db.prepare('SELECT COUNT(*) AS n FROM invites WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ?')

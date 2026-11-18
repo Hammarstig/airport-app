@@ -116,7 +116,7 @@ export function checkinCardSvg(db, id) {
   const x = db.prepare(`SELECT u.display_name, u.username, a.name, a.city, a.country FROM users u, airports a
     WHERE u.id = ? AND a.iata = ?`).get(c.user_id, c.iata);
   return svgCard({
-    kicker: `Gatelog · ${KIND_SV[c.kind]} ${c.visited_on}`,
+    kicker: `@${x.username} · ${KIND_SV[c.kind]} ${c.visited_on}`,
     title: `${x.display_name} på ${c.iata}`,
     subtitle: x.name,
     stats: [['betyg', c.rating != null ? String(c.rating).replace('.', ',') : '-'], ['land', countryNameSv(x.country) ?? '-']],

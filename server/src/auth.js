@@ -45,6 +45,7 @@ export function rateLimit({ windowMs, max, name = 'default' }) {
   const hits = new Map();
   let lastSweep = Date.now();
   return (req, res, next) => {
+    if (req.method === 'OPTIONS') return next(); // förfrågningar före CORS räknas inte (SEC-28)
     const now = Date.now();
     if (now - lastSweep > windowMs) {
       for (const [k, v] of hits) if (v.resetAt <= now) hits.delete(k);

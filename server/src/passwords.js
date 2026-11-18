@@ -46,3 +46,18 @@ const RESERVED = /^(admin|administrator|root|system|support|help|hjalp|info|kont
 export function isReservedUsername(username) {
   return RESERVED.test(username) || /gatelog/.test(username);
 }
+
+// Visningsnamn som imiterar tjänsten eller personalen (SEC-30). Förväxlingsbara tecken
+// (kyrilliska/grekiska bokstäver, siffror, fullbredd) normaliseras före jämförelsen.
+const CONFUSABLE = { 0: 'o', 1: 'l', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's', '|': 'l', 'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'у': 'y', 'х': 'x', 'і': 'i', 'ј': 'j', 'ѕ': 's', 'ԁ': 'd', 'ɡ': 'g', 'α': 'a', 'ο': 'o', 'ε': 'e', 'ι': 'i', 'κ': 'k', 'ν': 'v', 'τ': 't' };
+const RESERVED_DISPLAY = /(gatelog|gatel0g|moderator|administrat|^admin|support|officiell|official|^staff$|^system$|^team gatelog|kundtjanst|sakerhetsteam)/;
+export function skeleton(text) {
+  return String(text).normalize('NFKC').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, '')
+    .replace(/./gu, (ch) => CONFUSABLE[ch] ?? ch)
+    .replace(/[^a-z ]+/g, '').replace(/\s+/g, ' ').trim();
+}
+export function isReservedDisplayName(name) {
+  const k = skeleton(name);
+  return RESERVED_DISPLAY.test(k) || RESERVED_DISPLAY.test(k.replace(/ /g, ''));
+}
