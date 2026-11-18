@@ -34,10 +34,26 @@ export function useSettings() {
   return { ...s, update };
 }
 
-export function PrivacySection({ settings }) {
-  const { data, loading, error, reload, update } = settings;
-  if (loading && !data) return <SkeletonRows count={3} />;
-  if (error) return <ErrorState error={error} onRetry={reload} />;
+export const PRIVACY_DEFAULTS = {
+  isPrivate: false,
+  defaultVisibility: 'public',
+  publishDelayHours: 1,
+  hideHomeAirport: true,
+  notifyHomeVisits: true
+};
+
+const VIS_TEXT = { public: 'alla', friends: 'dina följare', private: 'bara dig' };
+const DELAY_TEXT = { 0: 'direkt', 1: 'efter 1 h', 24: 'efter 24 h', 168: 'efter 7 dagar' };
+
+/** En mening om vad integritetsvalen betyder, t.ex. vid registrering. */
+export function privacySummary(v) {
+  const who = v.isPrivate && v.defaultVisibility === 'public' ? 'godkända följare' : VIS_TEXT[v.defaultVisibility];
+  const when = v.defaultVisibility === 'private' ? '' : ` ${DELAY_TEXT[v.publishDelayHours] ?? ''}`;
+  return `Nya check-ins syns för ${who}${when}. ${v.isPrivate ? 'Profilen är privat.' : 'Profilen är publik.'} Hemmaflygplatsen är ${v.hideHomeAirport ? 'dold' : 'synlig'}.`;
+}
+
+/** Integritetsvalen som kontroller. value = settings-objekt, onChange(patch). */
+export function PrivacyFields({ value: data, onChange: update, compact = false }) {
   return (
     <div className="stack">
       <div className="setting-list">
@@ -74,12 +90,21 @@ export function PrivacySection({ settings }) {
           checked={data.hideHomeAirport}
           onChange={(v) => update({ hideHomeAirport: v })}
         />
-        <Toggle
-          label="Notis när vänner checkar in på min hemmaflygplats"
-          checked={data.notifyHomeVisits}
-          onChange={(v) => update({ notifyHomeVisits: v })}
-        />
+        {!compact && (
+          <Toggle
+            label="Notis när vänner checkar in på min hemmaflygplats"
+            checked={data.notifyHomeVisits}
+            onChange={(v) => update({ notifyHomeVisits: v })}
+          />
+        )}
       </div>
     </div>
   );
+}
+
+export function PrivacySection({ settings }) {
+  const { data, loading, error, reload, update } = settings;
+  if (loading && !data) return <SkeletonRows count={3} />;
+  if (error) return <ErrorState error={error} onRetry={reload} />;
+  return <PrivacyFields value={data} onChange={update} />;
 }

@@ -9,6 +9,7 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle.js';
 import { AirportAutocomplete } from '../../components/AirportAutocomplete.jsx';
 
 import { Field } from './Field.jsx';
+import { PRIVACY_DEFAULTS, PrivacyFields, privacySummary } from '../Settings/PrivacySection.jsx';
 
 export default function RegisterPage() {
   useDocumentTitle('Registrera');
@@ -21,6 +22,7 @@ export default function RegisterPage() {
   const [home, setHome] = useState(null);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
+  const [privacy, setPrivacy] = useState(PRIVACY_DEFAULTS);
   const [params] = useSearchParams();
   const ref = (params.get('ref') || '').toUpperCase();
   // Inbjudan: visa vem som bjöd in. Ogiltig kod ignoreras (som i API:t).
@@ -44,7 +46,8 @@ export default function RegisterPage() {
         password,
         ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
         ...(home ? { homeIata: home.iata } : {}),
-        ...(invite ? { ref: invite.code } : {})
+        ...(invite ? { ref: invite.code } : {}),
+        privacy
       });
       toast.show(
         `Välkommen till Gatelog, ${created.displayName || created.username}!${
@@ -107,6 +110,25 @@ export default function RegisterPage() {
             error={errors.password}
           />
           <AirportAutocomplete label="Hemmaflygplats (valfritt)" value={home} onSelect={setHome} />
+          <details className="field">
+            <summary>
+              <span className="field__label">Integritet</span>{' '}
+              <span className="muted" id="reg-privacy-summary">
+                {privacySummary(privacy)}
+              </span>{' '}
+              <span style={{ color: 'var(--info)', textDecoration: 'underline' }}>Ändra</span>
+            </summary>
+            <div className="mt-2">
+              <PrivacyFields value={privacy} onChange={(p) => setPrivacy((cur) => ({ ...cur, ...p }))} compact />
+            </div>
+          </details>
+          <p className="muted text-sm mt-0 mb-0">
+            Du kan ändra valen när som helst under Inställningar. Läs hur vi hanterar dina uppgifter i{' '}
+            <Link to="/privacy" target="_blank">
+              integritetspolicyn
+            </Link>
+            .
+          </p>
           <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
             {busy ? 'Skapar konto...' : 'Skapa konto'}
           </button>
