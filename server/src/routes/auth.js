@@ -54,6 +54,16 @@ function settingsColumns(b, currentPush) {
   return set;
 }
 
+/** Inställningar för en users-rad (GET /me/settings och export). */
+export const settingsOf = (u) => ({
+  isPrivate: !!u.is_private,
+  defaultVisibility: u.default_visibility,
+  publishDelayHours: u.publish_delay_hours,
+  hideHomeAirport: !!u.hide_home,
+  notifyHomeVisits: !!u.notify_home_visits,
+  push: pushPrefs(u.push_prefs),
+});
+
 export default function authRoutes({ db, secret, config }) {
   const r = Router();
   const production = !!config?.production;
@@ -67,15 +77,6 @@ export default function authRoutes({ db, secret, config }) {
     if (!/^[A-Z]{3}$/.test(iata) || !airportExists.get(iata)) throw bad('homeIata är ingen känd IATA-kod');
     return iata;
   }
-
-  const settingsOf = (u) => ({
-    isPrivate: !!u.is_private,
-    defaultVisibility: u.default_visibility,
-    publishDelayHours: u.publish_delay_hours,
-    hideHomeAirport: !!u.hide_home,
-    notifyHomeVisits: !!u.notify_home_visits,
-    push: pushPrefs(u.push_prefs),
-  });
 
   const loginGuard = failureGuard(config?.loginFailures ?? { windowMs: 15 * 60_000, perAccountIp: 10, perAccount: 50 });
   // Rollen läses från databasen (users.role), aldrig från användarnamnet (SEC-03).

@@ -45,3 +45,26 @@ test('SEC-14: säkerhetshändelser loggas utan lösenord och tokens', async () =
     for (const secret of ['hemligt123', 'fel-losen', 'nyttHemligt456', tok]) assert.ok(!text.includes(secret), secret);
   } finally { s.close(); }
 });
+
+test('SEC-27: radering pseudonymiserar rapporter och modereringslogg; gallring rensar gamla sessioner', async () => {
+  const { startServer, daysAgo } = await import('./helpers.js');
+  const { purgeExpired } = await import('../src/retention.js');
+  const s = await startServer();
+  try {
+    const bort = await s.register('bortfaren');
+    const ang = await s.register('anmalare');
+    const mod = await s.register('modda');
+    s.db.prepare("UPDATE users SET role = 'moderator' WHERE username = 'modda'").run();
+    const c = await s.api('POST', '/api/checkins', { token: bort, body: { iata: 'GOT', visitedOn: daysAgo(1), kind: 'departure', comment: 'Personligt innehåll' } });
+    await s.api('POST', '/api/reports', { token: ang, body: { type: 'user', target: 'bortfaren', reason: 'other', note: 'Heter egentligen X' } });
+    const rc = await s.api('POST', '/api/reports', { token: ang, body: { type: 'checkin', target: c.body.id, reason: 'spam' } });
+    await s.api('POST', `/api/moderation/reports/${rc.body.id}`, { token: mod, body: { action: 'remove_content' } });
+    assert.match(s.db.prepare('SELECT detail FROM moderation_log').get().detail, /Personligt/);
+    assert.equal(s.db.prepare('PRAGMA secure_delete').get().secure_delete, 1);
+    assert.equal((await s.api('DELETE', '/api/me', { token: bort, body: { password: 'hemligt123' } })).status, 204);
+    assert.equal(s.db.prepare("SELECT note FROM reports WHERE type = 'user'").get().note, null);
+    assert.equal(s.db.prepare('SELECT detail FROM moderation_log').get().detail, null);
+    s.db.prepare("UPDATE sessions SET revoked_at = '2000-01-01T00:00:00Z' WHERE user_id = (SELECT id FROM users WHERE username = 'anmalare')").run();
+    assert.ok(purgeExpired(s.db).sessions >= 1);
+  } finally { s.close(); }
+});

@@ -133,7 +133,7 @@ describe('S3 sidokanaler som läcker dolda resor (öppna fynd)', () => {
     }
   });
 
-  test('SEC-19: export innehåller alla personuppgifter (art. 15/20), inkl. dold hemmaflygplats', { todo: 'SEC-19' }, async () => {
+  test('SEC-19: export innehåller alla personuppgifter (art. 15/20), inkl. dold hemmaflygplats', async () => {
     const u = await s.user('exp', { homeIata: 'GOT' });
     const r = await s.api('GET', '/api/me/export', { token: u.token });
     assert.equal(r.status, 200);
