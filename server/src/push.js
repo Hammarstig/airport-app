@@ -36,6 +36,7 @@ export function createPushService({ db, vapid, sender }) {
   const enabled = !!(vapid || sender);
   const send = sender ?? ((sub, payload) => webpush.sendNotification(sub, payload, {
     TTL: 24 * 3600,
+    timeout: 5000,
     vapidDetails: { subject: vapid.subject, publicKey: vapid.publicKey, privateKey: vapid.privateKey },
   }));
   const pending = new Set();
@@ -46,7 +47,10 @@ export function createPushService({ db, vapid, sender }) {
     const n = notificationFrom(row);
     const owner = db.prepare('SELECT n.user_id, u.push_prefs FROM notifications n JOIN users u ON u.id = n.user_id WHERE n.id = ?').get(notificationId);
     if (!pushPrefs(owner.push_prefs)[n.type]) return;
-    const subs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(owner.user_id);
+    // Bara prenumerationer vars session lever (SEC-13); äldre utan session skickas tills nästa utloggning.
+    const subs = db.prepare(`SELECT p.* FROM push_subscriptions p LEFT JOIN sessions s ON s.id = p.session_id
+      WHERE p.user_id = ? AND (p.session_id IS NULL OR (s.revoked_at IS NULL AND s.expires_at > ?))`)
+      .all(owner.user_id, new Date().toISOString());
     const payload = JSON.stringify({ title: 'Gatelog', body: n.text, url: n.url, tag: n.groupKey, type: n.type, notificationId: n.id });
     await Promise.all(subs.map(async (s) => {
       try {

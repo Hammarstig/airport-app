@@ -62,7 +62,7 @@ describe('S7 SSRF via push-endpoint', () => {
   before(async () => { s = await startServer(); });
   after(() => s.close());
 
-  test('SEC-06: push-endpoint måste vara en känd push-tjänst (ingen intern/godtycklig URL)', { todo: 'SEC-06' }, async () => {
+  test('SEC-06: push-endpoint måste vara en känd push-tjänst (ingen intern/godtycklig URL)', async () => {
     const u = await s.user('ssrf');
     const keys = { p256dh: 'BOrpKz0aa1aaaaaaaaaaaaaaaa', auth: 'aaaaaaaaaaaaaaaa' };
     const bad = ['https://127.0.0.1:6379/', 'https://169.254.169.254/latest/meta-data/', 'https://localhost:8795/api/auth/logout-all',

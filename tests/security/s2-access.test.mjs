@@ -104,7 +104,7 @@ describe('S2 BOLA/IDOR på objekt med id', () => {
     assert.equal(exists.status, missing.status, 'olika svar för existerande och saknad kommentar');
   });
 
-  test('SEC-18: en annan användare kan inte ta över en befintlig push-prenumeration', { todo: 'SEC-18' }, async () => {
+  test('SEC-18: en annan användare kan inte ta över en befintlig push-prenumeration', async () => {
     const endpoint = 'https://fcm.googleapis.com/fcm/send/offrets-enhet-123';
     const keys = { p256dh: 'BOrpKz0aa1aaaaaaaaaaaaaaaaaaaa', auth: 'aaaaaaaaaaaaaaaa' };
     assert.equal((await s.api('POST', '/api/push/subscriptions', { token: a.token, body: { endpoint, keys } })).status, 201);

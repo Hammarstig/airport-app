@@ -57,6 +57,7 @@ export function loadConfig(env = process.env) {
       file: resolve(here, '../data/vapid.json'),
     },
     securityLog: env.SECURITY_LOG ? env.SECURITY_LOG !== '0' : !test,
+    pushExtraHosts: (env.PUSH_EXTRA_HOSTS ?? '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean),
     logRequests: env.LOG_REQUESTS ? env.LOG_REQUESTS !== '0' : !test,
     authRateLimit: { windowMs: num(env.AUTH_RATE_WINDOW_MS, 15 * MIN), max: num(env.AUTH_RATE_MAX, test ? 100000 : 100) },
     writeRateLimits: {

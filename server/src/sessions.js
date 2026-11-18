@@ -53,6 +53,7 @@ export function rotateRefresh(db, token) {
     return { session: s, refresh: null };
   }
   db.prepare('UPDATE sessions SET revoked_at = ? WHERE id = ?').run(nowIso, sid);
+  db.prepare('DELETE FROM push_subscriptions WHERE session_id = ?').run(sid);
   const err = new HttpError(401, 'Sessionen har återkallats', { code: 'session_revoked' });
   err.reuse = { sessionId: sid, userId: s.user_id };
   throw err;
@@ -74,13 +75,17 @@ export function verifyRefresh(db, token) {
   return null;
 }
 
+// Återkallad session tar med sig sina push-prenumerationer (SEC-13).
 export function revokeSession(db, sid) {
   db.prepare('UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(new Date().toISOString(), sid);
+  db.prepare('DELETE FROM push_subscriptions WHERE session_id = ?').run(sid);
 }
 
 export function revokeAll(db, userId, { except } = {}) {
   db.prepare('UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL AND id <> ?')
     .run(new Date().toISOString(), userId, except ?? '');
+  // Även prenumerationer utan session (från före migrering 7) tas bort (SEC-13).
+  db.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND (session_id IS NULL OR session_id <> ?)').run(userId, except ?? '');
 }
 
 export function parseCookies(header) {

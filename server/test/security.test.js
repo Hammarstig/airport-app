@@ -68,3 +68,30 @@ test('SEC-27: radering pseudonymiserar rapporter och modereringslogg; gallring r
     assert.ok(purgeExpired(s.db).sessions >= 1);
   } finally { s.close(); }
 });
+
+test('SEC-06/13/18: push-endpoint vitlistas, följer sessionen och kan inte tas över', async () => {
+  const { startServer } = await import('./helpers.js');
+  const { validEndpoint } = await import('../src/routes/push.js');
+  for (const bad of ['https://127.0.0.1/', 'https://[::1]/', 'https://fcm.googleapis.com:8443/x', 'https://evil.example/x',
+    'https://notify.windows.com.evil.example/x', 'http://fcm.googleapis.com/x']) assert.equal(validEndpoint(bad), false, bad);
+  for (const good of ['https://fcm.googleapis.com/fcm/send/a', 'https://wns2-db5p.notify.windows.com/w/?token=x',
+    'https://web.push.apple.com/abc']) assert.equal(validEndpoint(good), true, good);
+
+  const s = await startServer();
+  try {
+    const keys = { p256dh: 'BPublicKeyPublicKey1', auth: 'authsecret1' };
+    const endpoint = 'https://fcm.googleapis.com/fcm/send/enhet-1';
+    const login = async (u) => (await s.api('POST', '/api/auth/login', { body: { username: u, password: 'hemligt123' } })).body.token;
+    await s.register('pusha1'); await s.register('pushb1');
+    const a = await login('pusha1');
+    const b = await login('pushb1');
+    assert.equal((await s.api('POST', '/api/push/subscriptions', { token: a, body: { endpoint, keys } })).status, 201);
+    assert.equal((await s.api('POST', '/api/push/subscriptions', { token: b, body: { endpoint, keys } })).status, 409);
+    assert.equal((await s.api('POST', '/api/auth/logout', { token: a })).status, 204);
+    const n = () => s.db.prepare('SELECT COUNT(*) AS n FROM push_subscriptions WHERE endpoint = ?').get(endpoint).n;
+    assert.equal(n(), 0, 'utloggning tar bort enhetens prenumeration');
+    assert.equal((await s.api('POST', '/api/push/subscriptions', { token: b, body: { endpoint, keys } })).status, 201);
+    await s.api('POST', '/api/auth/logout-all', { token: b });
+    assert.equal(n(), 0, 'logga ut alla tar bort prenumerationer');
+  } finally { s.close(); }
+});

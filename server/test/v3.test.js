@@ -364,7 +364,7 @@ describe('Web Push och overtaken', () => {
   let s;
   const sent = [];
   const t = {};
-  const sub = (n) => ({ endpoint: `https://push.example.test/sub/${n}`, keys: { p256dh: 'BPublicKeyPublicKey' + n, auth: 'authsecret' + n } });
+  const sub = (n) => ({ endpoint: `https://fcm.googleapis.com/fcm/send/sub/${n}`, keys: { p256dh: 'BPublicKeyPublicKey' + n, auth: 'authsecret' + n } });
   before(async () => {
     s = await startServer({
       pushSender: async (subscription, payload) => {
@@ -382,7 +382,7 @@ describe('Web Push och overtaken', () => {
     assert.equal((await s.api('POST', '/api/push/subscriptions', { token: t.pusha, body: { endpoint: sub(1).endpoint } })).status, 400);
     assert.equal((await s.api('POST', '/api/push/subscriptions', { body: sub(1) })).status, 401);
     assert.equal((await s.api('POST', '/api/push/subscriptions', { token: t.pusha, body: sub(1) })).status, 201);
-    assert.equal((await s.api('POST', '/api/push/subscriptions', { token: t.pusha, body: { ...sub(1), endpoint: 'https://push.example.test/gone' } })).status, 201);
+    assert.equal((await s.api('POST', '/api/push/subscriptions', { token: t.pusha, body: { ...sub(1), endpoint: 'https://fcm.googleapis.com/fcm/send/gone' } })).status, 201);
 
     await s.api('POST', '/api/users/pusha/follow', { token: t.pushb });
     await s.app.locals.push.flush();
