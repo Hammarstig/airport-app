@@ -56,6 +56,11 @@ export default function RegisterPage() {
       );
     } catch (err) {
       if (err.status === 409) setErrors({ username: err.message || 'Användarnamnet är upptaget.' });
+      else if (err.status === 400 && /password|lösenord/i.test(err.message || '')) {
+        // Servern stoppar vanliga och läckta lösenord (SEC-12).
+        setErrors({ password: 'Lösenordet är för vanligt eller lätt att gissa. Välj ett annat.' });
+        return;
+      }
       toast.error(err);
     } finally {
       setBusy(false);

@@ -85,14 +85,19 @@ export default function YearPage() {
   const [current, setCurrent] = useState(0);
   const [busy, setBusy] = useState(false);
   const track = useRef(null);
+  // Bild som knappar/pilar bläddrat till. Medan den mjuka scrollningen pågår (och när bilden inte
+  // kan centreras på bred skärm) gäller den, inte den bild som råkar ligga närmast mitten (BUG-16).
+  const target = useRef(null);
 
   // Aktuell bild = den vars mitt ligger närmast bläddringsytans mitt (svep, pilar eller knappar).
   useEffect(() => {
     const el = track.current;
     if (!el || !slides.length) return;
     let raf = 0;
+    let idle = 0;
     const update = () => {
       raf = 0;
+      if (target.current != null) return;
       const box = el.getBoundingClientRect();
       const mid = box.left + box.width / 2;
       let best = 0;
@@ -112,11 +117,23 @@ export default function YearPage() {
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(update);
+      clearTimeout(idle);
+      // Programmerad scrollning klar: släpp målet först efter en stund utan scroll.
+      if (target.current != null) idle = setTimeout(() => (target.current = null), 200);
+    };
+    // Svep med finger eller hjul räknas alltid som användarens eget val.
+    const onUser = () => {
+      target.current = null;
     };
     el.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('touchstart', onUser, { passive: true });
+    el.addEventListener('wheel', onUser, { passive: true });
     return () => {
       el.removeEventListener('scroll', onScroll);
+      el.removeEventListener('touchstart', onUser);
+      el.removeEventListener('wheel', onUser);
       cancelAnimationFrame(raf);
+      clearTimeout(idle);
     };
   }, [slides]);
 
@@ -138,6 +155,7 @@ export default function YearPage() {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     // Bara vågrätt: scrollIntoView skulle även flytta sidan i höjdled under toppfältet.
     const box = track.current;
+    target.current = i;
     box.scrollTo({
       left:
         box.scrollLeft +
@@ -149,7 +167,7 @@ export default function YearPage() {
   };
 
   const goRef = useRef(null);
-  goRef.current = (step) => go(Math.max(0, Math.min(slides.length - 1, current + step)));
+  goRef.current = (step) => go(Math.max(0, Math.min(slides.length - 1, (target.current ?? current) + step)));
 
   if (!valid) return <NotFoundPage />;
   const isMe = user?.username === username;
@@ -224,7 +242,7 @@ export default function YearPage() {
               className="icon-btn"
               aria-label="Föregående bild"
               disabled={current === 0}
-              onClick={() => go(current - 1)}
+              onClick={() => goRef.current(-1)}
             >
               <IconChevronLeft size={22} aria-hidden="true" />
             </button>
@@ -236,7 +254,7 @@ export default function YearPage() {
               className="icon-btn"
               aria-label="Nästa bild"
               disabled={current === slides.length - 1}
-              onClick={() => go(current + 1)}
+              onClick={() => goRef.current(1)}
             >
               <IconChevronLeft size={22} aria-hidden="true" style={{ transform: 'scaleX(-1)' }} />
             </button>
