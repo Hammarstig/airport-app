@@ -33,6 +33,26 @@ describe('offlinekön', () => {
     expect(await flush()).toBe(0);
   });
 
+  it('skickar samma Idempotency-Key vid omförsök och tar bort posten vid replayed', async () => {
+    await enqueue({ body, photos: [] });
+    const keys = [];
+    let fail = true;
+    global.fetch = vi.fn(async (url, init) => {
+      keys.push(init.headers['Idempotency-Key']);
+      if (fail) {
+        fail = false;
+        throw new TypeError('Failed to fetch');
+      }
+      return json({ id: 7, replayed: true }, 200);
+    });
+    expect(await flush()).toBe(0);
+    expect(await flush()).toBe(1);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatch(/^[A-Za-z0-9_.:-]{8,64}$/);
+    expect(keys[1]).toBe(keys[0]);
+    expect(await outbox.all()).toHaveLength(0);
+  });
+
   it('utloggning tömmer kön för alla konton', async () => {
     await enqueue({ body, photos: [] });
     await outbox.add({ owner: 'mads', body, photos: [], attempts: 0, error: null });

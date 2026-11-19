@@ -1,4 +1,4 @@
-import { api } from '../../lib/api.js';
+import { api, newIdempotencyKey } from '../../lib/api.js';
 import { downscaleToJpeg } from '../../lib/image.js';
 import { SUB_RATINGS } from '../../lib/format.js';
 import { enqueue, isNetworkError } from '../../lib/offlineQueue.js';
@@ -71,8 +71,10 @@ async function shrinkAll(photos, onProgress) {
 export async function submitCheckin(f, onProgress) {
   const body = buildBody(f);
   const { blobs, failed: shrinkFailed } = await shrinkAll(f.photos, onProgress);
+  // Samma nyckel om anropet når servern men svaret försvinner och check-in:en köas (ingen dubblett).
+  const key = newIdempotencyKey();
   const queue = async () => {
-    await enqueue({ body, photos: blobs, airport: f.airport });
+    await enqueue({ body, photos: blobs, airport: f.airport, key });
     return { queued: true, failedPhotos: shrinkFailed };
   };
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return queue();
@@ -80,7 +82,7 @@ export async function submitCheckin(f, onProgress) {
   onProgress && onProgress('Sparar...');
   let checkin;
   try {
-    checkin = await api.createCheckin(body);
+    checkin = await api.createCheckin(body, key);
   } catch (e) {
     if (isNetworkError(e)) return queue();
     throw e;

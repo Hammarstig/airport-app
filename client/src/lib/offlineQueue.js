@@ -1,4 +1,4 @@
-import { api } from './api.js';
+import { api, newIdempotencyKey } from './api.js';
 import { outbox } from './idb.js';
 
 /**
@@ -45,9 +45,18 @@ async function refresh() {
 /** Nätverksfel (inte ett svar från servern) betyder att posten ska köas/ligga kvar. */
 export const isNetworkError = (e) => e && e.status === undefined && e.name !== 'AbortError';
 
-export async function enqueue({ body, photos = [], airport }) {
+export async function enqueue({ body, photos = [], airport, key = newIdempotencyKey() }) {
   if (!owner) throw new Error('Logga in för att köa check-ins.');
-  await outbox.add({ owner, body, photos, airport, createdAt: new Date().toISOString(), attempts: 0, error: null });
+  await outbox.add({
+    owner,
+    key,
+    body,
+    photos,
+    airport,
+    createdAt: new Date().toISOString(),
+    attempts: 0,
+    error: null
+  });
   await refresh();
   if (navigator.onLine) flush();
 }
@@ -58,7 +67,17 @@ export async function discard(id) {
 }
 
 async function sendOne(item) {
-  const checkin = await api.createCheckin(item.body);
+  // Äldre poster utan nyckel får en som sparas före sändning, så att ett omförsök återanvänder den.
+  if (!item.key) {
+    item = { ...item, key: newIdempotencyKey() };
+    await outbox.put(item);
+  }
+  const checkin = await api.createCheckin(item.body, item.key);
+  // replayed: servern hade redan posten (t.ex. svaret kom aldrig fram); foton finns då redan.
+  if (checkin.replayed) {
+    await outbox.remove(item.id);
+    return checkin;
+  }
   // Check-in:en finns nu på servern; ta bort ur kön innan foton laddas upp så att den inte skickas två gånger.
   await outbox.remove(item.id);
   for (const blob of item.photos || []) {

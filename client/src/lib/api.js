@@ -152,9 +152,9 @@ async function doRequest(path, opts = {}) {
   }
 }
 
-async function send(path, { method = 'GET', body, params, signal, invalidate } = {}) {
+async function send(path, { method = 'GET', body, params, signal, invalidate, headers: extra } = {}) {
   const url = `/api${path}${qs(params)}`;
-  const headers = { Accept: 'application/json' };
+  const headers = { Accept: 'application/json', ...extra };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
@@ -320,7 +320,14 @@ Object.assign(api, {
       '/search',
       '/users'
     ]),
-  createCheckin: (body) => write('POST', '/checkins', body),
+  // Idempotency-Key: samma nyckel vid omförsök ger samma check-in i stället för en dubblett (SEC-11).
+  createCheckin: (body, idempotencyKey) =>
+    request('/checkins', {
+      method: 'POST',
+      body,
+      invalidate: CONTENT,
+      ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {})
+    }),
   updateCheckin: (id, body) => write('PATCH', `/checkins/${enc(id)}`, body),
   deleteCheckin: (id) => write('DELETE', `/checkins/${enc(id)}`),
   like: (id) => write('POST', `/checkins/${enc(id)}/like`, undefined, []),
@@ -342,6 +349,14 @@ Object.assign(api, {
       : write('POST', '/me/imports', { csv }, ['/me', ...CONTENT]),
   deleteImport: (id) => write('DELETE', `/me/imports/${enc(id)}`, undefined, ['/me', ...CONTENT])
 });
+
+/** Ny nyckel för Idempotency-Key (8-64 tecken [A-Za-z0-9_.:-]). */
+export function newIdempotencyKey() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  const b = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+}
 
 /** Laddar ner egen data (GET /api/me/export) som fil. */
 export async function downloadExport() {
