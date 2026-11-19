@@ -30,6 +30,7 @@ const SOURCES = [
 
 const KIND = { departure: 'Avgång', arrival: 'Ankomst', transfer: 'Transfer', layover: 'Mellanlandning' };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const MAX_ROWS = 5000;
 const MAX_BYTES = 1024 * 1024;
 const STEPS = ['Välj fil', 'Granska', 'Klart'];
 
@@ -145,6 +146,13 @@ export function ImportSection() {
     setBusy(true);
     try {
       const csv = await f.text();
+      // Servern tar högst 5 000 rader (400 annars); säg till direkt i stället för att skicka filen.
+      const rows = csv.split(/\r?\n/).filter((l) => l.trim()).length - 1;
+      if (rows > MAX_ROWS) {
+        setResult(null);
+        setError(`Filen har ${rows} rader. Max är 5 000 per import - dela upp den i flera filer.`);
+        return;
+      }
       setFile({ name: f.name, csv });
       setResult(await api.importCsv(csv, true));
     } catch (e) {
