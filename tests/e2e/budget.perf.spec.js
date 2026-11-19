@@ -64,7 +64,7 @@ const timeInPage = (page, selector, until) =>
   );
 
 test.describe('prestandabudget', () => {
-  test.describe.configure({ mode: 'serial' });
+  test.setTimeout(120_000);
 
   for (const target of [
     { path: '/', ready: 'article.checkin' },
@@ -85,13 +85,22 @@ test.describe('prestandabudget', () => {
       await warm.locator(target.ready).first().waitFor({ timeout: 30_000 });
       await warm.close();
       await context.addInitScript(observe);
-      const page = await context.newPage();
-      await slow(page);
-      await page.goto(target.path, { waitUntil: 'load' });
-      await page.locator(target.ready).first().waitFor({ timeout: 30_000 });
-      await page.waitForTimeout(3000);
-      const { lcp, cls, el } = await page.evaluate(() => window.__perf);
-      console.log(`[budget] ${target.path}: LCP ${Math.round(lcp)} ms (${el}), CLS ${cls.toFixed(3)}`);
+      // Median av tre mätningar: en enstaka mätning på delad CI-maskin (2 kärnor, andra jobb) gav
+      // sporadiska överskridanden med några tiotal ms.
+      const samples = [];
+      for (let i = 0; i < 3; i++) {
+        const page = await context.newPage();
+        await slow(page);
+        await page.goto(target.path, { waitUntil: 'load' });
+        await page.locator(target.ready).first().waitFor({ timeout: 30_000 });
+        await page.waitForTimeout(3000);
+        samples.push(await page.evaluate(() => window.__perf));
+        await page.close();
+      }
+      samples.sort((a, b) => a.lcp - b.lcp);
+      const { lcp, el } = samples[1];
+      const cls = Math.max(...samples.map((x) => x.cls));
+      console.log(`[budget] ${target.path}: LCP ${Math.round(lcp)} ms (median av ${samples.map((x) => Math.round(x.lcp)).join('/')}, ${el}), CLS ${cls.toFixed(3)}`);
       expect(lcp, `LCP ${target.path}`).toBeLessThan(LCP_MS);
       expect(cls, `CLS ${target.path}`).toBeLessThan(CLS);
       await context.close();

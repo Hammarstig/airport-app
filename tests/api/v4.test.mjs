@@ -244,3 +244,20 @@ describe('årsöversikt', () => {
     assert.equal((await call('GET', `/api/users/${u.username}/year/2026`, { token: other.token })).status, 403);
   });
 });
+
+describe('radering och serverlogg', () => {
+  test('kontoradering loggar inget serverfel', { todo: 'BUG-17: refreshPublicStats körs efter DELETE /me och loggar "public_stats FOREIGN KEY constraint failed"' }, async () => {
+    const u = await user();
+    await call('POST', '/api/checkins', { token: u.token, body: { iata: 'GOT', visitedOn: day(1), kind: 'departure' } });
+    const errors = [];
+    const orig = console.error;
+    console.error = (...a) => errors.push(a.join(' '));
+    try {
+      const r = await call('DELETE', '/api/me', { token: u.token, body: { password: 'Flygplats-2026!' } });
+      assert.equal(r.status, 204);
+    } finally {
+      console.error = orig;
+    }
+    assert.deepEqual(errors.filter((e) => /public_stats|FOREIGN KEY/.test(e)), []);
+  });
+});
