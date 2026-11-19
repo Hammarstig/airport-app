@@ -51,11 +51,22 @@ export async function enablePush() {
   const perm = await Notification.requestPermission();
   if (perm !== 'granted') throw new Error('Notiser är blockerade. Du kan tillåta dem i webbläsarens inställningar.');
   const reg = await registration();
-  const sub =
-    (await reg.pushManager.getSubscription()) ||
-    (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }));
-  const json = sub.toJSON();
-  await api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys });
+  const subscribe = () =>
+    reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
+  const send = (sub) => {
+    const json = sub.toJSON();
+    return api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys });
+  };
+  const sub = (await reg.pushManager.getSubscription()) || (await subscribe());
+  try {
+    await send(sub);
+  } catch (e) {
+    // Enhetens prenumeration tillhör ett annat konto (delad enhet): avregistrera och skapa en ny
+    // endpoint för det här kontot (409 push_endpoint_taken, SEC-18).
+    if (e.status !== 409 || e.code !== 'push_endpoint_taken') throw e;
+    await sub.unsubscribe();
+    await send(await subscribe());
+  }
   return 'on';
 }
 
