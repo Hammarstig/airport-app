@@ -69,10 +69,10 @@ before(async () => {
     dbPath: ':memory:',
     jwtSecret: SECRET,
     uploadDir,
-    env: { NODE_ENV: 'test', MODERATORS: 'v3mod' },
+    env: { NODE_ENV: 'test' },
     pushSender: async (sub, payload) => {
       pushed.push({ endpoint: sub.endpoint, payload: JSON.parse(payload) });
-      if (sub.endpoint.includes('/gone')) throw Object.assign(new Error('Gone'), { statusCode: 410 });
+      if (sub.endpoint.includes('gone-')) throw Object.assign(new Error('Gone'), { statusCode: 410 });
     },
   });
   await new Promise((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
@@ -297,8 +297,10 @@ describe('synlighet och fördröjd publicering', () => {
     assert.deepEqual(await visited(stranger), ['SE']);
     const airports = (await view(stranger, `/api/users/${owner.username}/airports`)).map((r) => r.airport.iata);
     assert.deepEqual(airports, ['ARN']);
-    // Räknare räknas på allt.
-    assert.equal((await view(stranger, `/api/users/${owner.username}`)).stats.uniqueAirports, 4);
+    // v4.1 (SEC-04): även räknarna bygger på det betraktaren får se.
+    assert.equal((await view(stranger, `/api/users/${owner.username}`)).stats.uniqueAirports, 1);
+    assert.equal((await view(follower, `/api/users/${owner.username}`)).stats.uniqueAirports, 2);
+    assert.equal((await view(owner, `/api/users/${owner.username}`)).stats.uniqueAirports, 4);
   });
 
   test('kommentarer och gilla på dold check-in ger 404', async () => {
@@ -401,16 +403,19 @@ describe('privat profil och följförfrågningar', () => {
     assert.equal((await call('GET', `/api/users/${p.username}`, { token: a.token })).body.followedByMe, true);
   });
 
-  test('privat profil syns i globala topplistan bara för sig själv och följare', async () => {
+  test('privat profil syns inte i globala topplistan, bara under scope=friends (SEC-01)', async () => {
     const p = await user('rank');
     await checkin(p, { iata: 'SIN' });
     await settings(p, { isPrivate: true });
     const s = await user('rank');
-    const names = async (who) => (await call('GET', '/api/rankings/users?metric=airports&period=all&limit=100', { token: who?.token })).body.items.map((r) => r.user.username);
-    assert.ok((await names(p)).includes(p.username));
+    const names = async (who, scope = 'global') => (await call('GET', `/api/rankings/users?metric=airports&period=all&scope=${scope}&limit=100`, { token: who?.token })).body.items.map((r) => r.user.username);
+    for (const who of [p, s, null]) assert.ok(!(await names(who)).includes(p.username), `global för ${who?.username ?? 'anonym'}`);
+    assert.ok((await names(p, 'friends')).includes(p.username));
+    // Godkänd följare ser den privata profilen under Vänner.
+    await follow(s, p);
+    await call('POST', `/api/me/follow-requests/${s.username}`, { token: p.token });
+    assert.ok((await names(s, 'friends')).includes(p.username));
     assert.ok(!(await names(s)).includes(p.username));
-    assert.ok(!(await names(null)).includes(p.username));
-    assert.equal((await call('GET', '/api/rankings/users?metric=airports&period=all', { token: p.token })).body.me?.value, 1);
   });
 });
 
@@ -493,8 +498,12 @@ describe('rapporter och moderering', () => {
   });
 
   test('moderatorkö kräver moderator; remove_content raderar och stänger alla rapporter för målet', async () => {
-    const mod = await call('POST', '/api/auth/register', { body: { username: 'v3mod', password: 'Moderator-2026!' } });
-    assert.equal(mod.status, 201);
+    const reg = await call('POST', '/api/auth/register', { body: { username: 'v3mod', password: 'Moderator-2026!' } });
+    assert.equal(reg.status, 201);
+    assert.equal(reg.body.user.isModerator, false, 'registrering får aldrig ge moderatorroll');
+    // v4.1 (SEC-03): rollen sätts i databasen (som `npm run moderator -w server -- grant`), inte via env.
+    app.locals.db.prepare("UPDATE users SET role = 'moderator' WHERE username = 'v3mod'").run();
+    const mod = await call('POST', '/api/auth/login', { body: { username: 'v3mod', password: 'Moderator-2026!' } });
     assert.equal(mod.body.user.isModerator, true);
     const modTok = mod.body.token;
     const normal = await user('norm');
@@ -535,7 +544,7 @@ describe('rapporter och moderering', () => {
 });
 
 describe('Web Push (utan riktiga utskick)', () => {
-  const sub = (n) => ({ endpoint: `https://push.example.test/sub/${n}`, keys: { p256dh: 'BOr8q2vNZ9zG2hY0Q7kq3Yw', auth: 'c2VjcmV0LWF1dGg' } });
+  const sub = (n) => ({ endpoint: `https://fcm.googleapis.com/fcm/send/${n}`, keys: { p256dh: 'BOr8q2vNZ9zG2hY0Q7kq3Yw', auth: 'c2VjcmV0LWF1dGg' } });
 
   test('public-key är cachebar', async () => {
     const r = await call('GET', '/api/push/public-key');
@@ -548,7 +557,9 @@ describe('Web Push (utan riktiga utskick)', () => {
     const u = await user('push');
     assert.equal((await call('POST', '/api/push/subscriptions', { body: sub(1) })).status, 401);
     for (const bad of [
-      { endpoint: 'http://push.example.test/x', keys: sub(1).keys },
+      { endpoint: 'http://fcm.googleapis.com/fcm/send/x', keys: sub(1).keys },
+      { endpoint: 'https://push.example.test/okand-tjanst', keys: sub(1).keys },
+      { endpoint: 'https://127.0.0.1/ssrf', keys: sub(1).keys },
       { endpoint: 'javascript:alert(1)', keys: sub(1).keys },
       { endpoint: sub(1).endpoint },
       { endpoint: sub(1).endpoint, keys: { p256dh: 'x' } },
@@ -575,8 +586,8 @@ describe('Web Push (utan riktiga utskick)', () => {
   test('notis skickas som push enligt inställningar; 410 tar bort prenumerationen', async () => {
     const u = await user('push');
     const liker = await user('liker');
-    const ep = `https://push.example.test/sub/${u.username}`;
-    const gone = `https://push.example.test/gone/${u.username}`;
+    const ep = `https://fcm.googleapis.com/fcm/send/${u.username}`;
+    const gone = `https://fcm.googleapis.com/fcm/send/gone-${u.username}`;
     await call('POST', '/api/push/subscriptions', { token: u.token, body: { ...sub(0), endpoint: ep } });
     await call('POST', '/api/push/subscriptions', { token: u.token, body: { ...sub(0), endpoint: gone } });
     const c = await checkin(u);
