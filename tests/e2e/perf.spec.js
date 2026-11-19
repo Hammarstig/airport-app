@@ -142,10 +142,13 @@ test.describe('prestanda (Pixel 7, 4x CPU, 4G)', () => {
   });
 
   test('JS-storlek (byggda filer, gzip)', async ({ request }) => {
+    // Initial JS läses från den server som testas (egen kopia av bygget, se server.mjs).
     const dist = path.resolve(__dirname, '../../client/dist');
-    const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+    const html = await (await request.get('/')).text();
     const initial = [...html.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)].map((m) => m[1]);
-    const gz = (f) => zlib.gzipSync(fs.readFileSync(path.join(dist, f))).length;
+    const served = {};
+    for (const f of initial) served[f] = (await (await request.get(`/${f}`, { headers: { 'Accept-Encoding': 'identity' } })).body());
+    const gz = (f) => zlib.gzipSync(served[f] ?? fs.readFileSync(path.join(dist, f))).length;
     const all = fs.readdirSync(path.join(dist, 'assets')).filter((f) => f.endsWith('.js'));
     const initialKb = initial.reduce((n, f) => n + gz(f), 0) / 1024;
     const totalKb = all.reduce((n, f) => n + gz(`assets/${f}`), 0) / 1024;

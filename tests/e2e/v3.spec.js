@@ -34,10 +34,11 @@ async function device(browser, testInfo, username, password = 'hemligt123') {
 }
 
 const MOD = { username: 'e2e_mod', password: 'Moderator-2026!' };
-/** Moderatorn (MODERATORS=e2e_mod i testservern). Registreras av den första testen som behöver den. */
+/** Moderatorn skapas med rollen moderator av tests/e2e/server.mjs. */
 async function ensureModerator(request) {
-  const reg = await request.post('/api/auth/register', { data: MOD });
-  expect([201, 409]).toContain(reg.status());
+  const res = await request.post('/api/auth/login', { data: MOD });
+  expect(res.status(), 'e2e_mod saknas i testservern').toBe(200);
+  expect((await res.json()).user.isModerator).toBe(true);
 }
 
 test.describe('sessioner', () => {

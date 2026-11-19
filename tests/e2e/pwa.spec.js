@@ -144,3 +144,13 @@ test.describe('mobil layout', () => {
     }
   });
 });
+
+test.describe('statiska filer', () => {
+  test('saknad byggfil ger 404, inte index.html', async ({ request }) => {
+    test.fixme(true, 'BUG-15: SPA-reserven svarar 200 text/html för saknade /assets/*.js och ikoner, vilket ger MIME-fel och vit sida vid ombyggnad');
+    for (const p of ['/assets/finns-inte-123.js', '/assets/finns-inte.css', '/icon-999.png']) {
+      const r = await request.get(p);
+      expect(r.status(), p).toBe(404);
+    }
+  });
+});
