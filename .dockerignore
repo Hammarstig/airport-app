@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+client/dist
+test-results
+playwright-report
+.git
+*.db
+*.db-*
+server/data/uploads
+server/data/vapid.json
+.env

@@ -8,7 +8,7 @@ import { NOTIFICATION_SELECT, notificationFrom, pushPrefs } from './notify.js';
 export function resolveVapid(cfg, log = console) {
   const v = cfg.vapid;
   if (v.publicKey && v.privateKey) return { publicKey: v.publicKey, privateKey: v.privateKey, subject: v.subject };
-  if (cfg.production) {
+  if (cfg.production && !v.autoGenerate) {
     log.warn('[gatelog] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY saknas - Web Push är avstängt.');
     return null;
   }
@@ -18,7 +18,7 @@ export function resolveVapid(cfg, log = console) {
     const keys = webpush.generateVAPIDKeys();
     mkdirSync(dirname(v.file), { recursive: true });
     writeFileSync(v.file, JSON.stringify(keys), { mode: 0o600 });
-    log.warn(`[gatelog] Genererade VAPID-nycklar för utveckling i ${v.file}`);
+    log.warn(`[gatelog] Genererade VAPID-nycklar i ${v.file}`);
     return { ...keys, subject: v.subject };
   } catch (e) {
     log.warn(`[gatelog] Kunde inte skapa VAPID-nycklar: ${e.message}`);

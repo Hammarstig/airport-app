@@ -1,5 +1,5 @@
 // Enda stället som läser process.env. Se server/.env.example för alla variabler.
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -20,12 +20,14 @@ export function loadConfig(env = process.env) {
   // I tester skalas skrivgränserna upp så att testsviter inte slår i dem (egna gränser kan skickas till createApp).
   const scale = num(env.WRITE_RATE_SCALE, test ? 1000 : 1);
   const lim = (windowMs, max) => ({ windowMs, max: Math.ceil(max * scale) });
+  // DATA_DIR (eller Railways volym) samlar databas, uppladdningar och VAPID-nycklar på beständig disk.
+  const dataDir = env.DATA_DIR || env.RAILWAY_VOLUME_MOUNT_PATH || null;
   return {
     nodeEnv,
     production,
     port: num(env.PORT, 8787),
-    dbPath: env.DB_PATH || resolve(here, '../data/gatelog.db'),
-    uploadDir: env.UPLOAD_DIR || resolve(here, '../data/uploads'),
+    dbPath: env.DB_PATH || (dataDir ? join(dataDir, 'gatelog.db') : resolve(here, '../data/gatelog.db')),
+    uploadDir: env.UPLOAD_DIR || (dataDir ? join(dataDir, 'uploads') : resolve(here, '../data/uploads')),
     staticDir: env.STATIC_DIR || resolve(here, '../../client/dist'),
     jwtSecret: env.JWT_SECRET || null,
     // TRUST_PROXY: antal hopp (1), true/false, eller adresser/subnät enligt Express (SEC-28).
@@ -55,12 +57,14 @@ export function loadConfig(env = process.env) {
     retention: { sessionsDays: num(env.RETAIN_SESSIONS_DAYS, 30), moderationDays: num(env.RETAIN_MODERATION_DAYS, 365), reportsDays: num(env.RETAIN_REPORTS_DAYS, 365) },
     // Utgått: moderatorer sätts i databasen (scripts/moderator.js). Variabeln ger bara en varning (SEC-03).
     legacyModerators: !!env.MODERATORS,
-    // Web Push (VAPID). Saknas nycklarna genereras de i utveckling till data/vapid.json; i produktion är push avstängt.
+    // Web Push (VAPID). Saknas nycklarna genereras de till vapid.json: alltid i utveckling, i produktion bara
+    // när en beständig plats finns (DATA_DIR/volym eller VAPID_FILE), annars är push avstängt.
     vapid: {
       publicKey: env.VAPID_PUBLIC_KEY || null,
       privateKey: env.VAPID_PRIVATE_KEY || null,
       subject: env.VAPID_SUBJECT || 'mailto:admin@gatelog.invalid',
-      file: resolve(here, '../data/vapid.json'),
+      file: env.VAPID_FILE || (dataDir ? join(dataDir, 'vapid.json') : resolve(here, '../data/vapid.json')),
+      autoGenerate: !!(env.VAPID_FILE || dataDir),
     },
     securityLog: env.SECURITY_LOG ? env.SECURITY_LOG !== '0' : !test,
     pushExtraHosts: (env.PUSH_EXTRA_HOSTS ?? '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean),
